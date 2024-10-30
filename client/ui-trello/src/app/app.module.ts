@@ -4,21 +4,28 @@ import { BrowserModule } from '@angular/platform-browser';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { RegistrationComponent } from './registration/registration.component';
-import {ReactiveFormsModule} from "@angular/forms";
+import {FormsModule, ReactiveFormsModule} from "@angular/forms";
 import {HttpClientModule} from "@angular/common/http";
 import {ToastrModule} from "ngx-toastr";
+import { MemberAdditionComponent } from './member-addition/member-addition.component';
+import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
 
 @NgModule({
   declarations: [
     AppComponent,
-    RegistrationComponent
+    RegistrationComponent,
+    MemberAdditionComponent
   ],
   imports: [
     BrowserModule,
     AppRoutingModule,
     ReactiveFormsModule,
     HttpClientModule,
-    ToastrModule.forRoot()
+    ToastrModule.forRoot(),
+    CdkDropList,
+    FormsModule,
+    CdkDrag,
+    DragDropModule
   ],
   providers: [],
   bootstrap: [AppComponent]
