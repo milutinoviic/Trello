@@ -3,6 +3,7 @@ package user_service
 import (
 	"context"
 	"fmt"
+	gorillaHandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"log"
 	"main.go/handlers"
@@ -10,10 +11,17 @@ import (
 	"main.go/service"
 	"net/http"
 	"os"
+	"os/signal"
 	"time"
 )
 
 func main() {
+
+	port := os.Getenv("PORT")
+	if len(port) == 0 {
+		port = "8080"
+	}
+
 	config := loadConfig()
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -27,6 +35,35 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/register", uh.Registration).Methods(http.MethodPost)
+
+	cors := gorillaHandlers.CORS(gorillaHandlers.AllowedOrigins([]string{"*"}))
+
+	//Initialize the server
+	server := http.Server{
+		Addr:         ":" + port,
+		Handler:      cors(r),
+		IdleTimeout:  120 * time.Second,
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: 1 * time.Second,
+	}
+	go func() {
+		err := server.ListenAndServe()
+		if err != nil {
+			logger.Fatal(err)
+		}
+	}()
+
+	logger.Println("Server listening on port", port)
+
+	sigCh := make(chan os.Signal)
+	signal.Notify(sigCh, os.Interrupt)
+	signal.Notify(sigCh, os.Kill)
+
+	//shutdown gracefully
+	if server.Shutdown(timeoutContext) != nil {
+		logger.Fatal("Cannot gracefully shutdown...")
+	}
+	logger.Println("Server stopped")
 
 	srv := &http.Server{
 		Handler: r,
