@@ -3,8 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	gorillaHandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"log"
 	"main.go/handlers"
 	"main.go/repository"
@@ -31,11 +31,16 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/register", uh.Registration).Methods(http.MethodPost)
 
-	cors := gorillaHandlers.CORS(gorillaHandlers.AllowedOrigins([]string{"*"}))
+	corsHandler := cors.New(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"*"},
+		AllowCredentials: true,
+	})
 
 	server := http.Server{
 		Addr:         config["address"],
-		Handler:      cors(r),
+		Handler:      corsHandler.Handler(r),
 		IdleTimeout:  120 * time.Second,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,

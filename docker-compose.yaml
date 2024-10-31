@@ -46,6 +46,22 @@ services:
     volumes:
       - mongo_project_store:/data/db
 
+  angular-app:
+    build:
+      context: ./client/ui-trello
+      dockerfile: Dockerfile
+    container_name: angular-app
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./client/ui-trello:/app  # Bind-mount the code for live-reloading
+      - /app/node_modules        # Exclude node_modules to avoid permissions issues
+    depends_on:
+      - project-server
+      - user-server
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
   # NoSQL: MognoExpress
   mongo-express-project:
     image: mongo-express
