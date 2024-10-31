@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	
+
 	config := loadConfig()
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
