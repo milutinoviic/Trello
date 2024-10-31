@@ -1,4 +1,4 @@
-package user_service
+package main
 
 import (
 	"context"
@@ -16,12 +16,7 @@ import (
 )
 
 func main() {
-
-	port := os.Getenv("PORT")
-	if len(port) == 0 {
-		port = "8080"
-	}
-
+	
 	config := loadConfig()
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -38,14 +33,16 @@ func main() {
 
 	cors := gorillaHandlers.CORS(gorillaHandlers.AllowedOrigins([]string{"*"}))
 
-	//Initialize the server
 	server := http.Server{
-		Addr:         ":" + port,
+		Addr:         config["address"],
 		Handler:      cors(r),
 		IdleTimeout:  120 * time.Second,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,
 	}
+
+	logger.Println("Server listening on port", config["address"])
+
 	go func() {
 		err := server.ListenAndServe()
 		if err != nil {
@@ -53,23 +50,18 @@ func main() {
 		}
 	}()
 
-	logger.Println("Server listening on port", port)
-
 	sigCh := make(chan os.Signal)
 	signal.Notify(sigCh, os.Interrupt)
 	signal.Notify(sigCh, os.Kill)
 
+	sig := <-sigCh
+	logger.Println("Received terminate, graceful shutdown", sig)
 	//shutdown gracefully
 	if server.Shutdown(timeoutContext) != nil {
 		logger.Fatal("Cannot gracefully shutdown...")
 	}
 	logger.Println("Server stopped")
 
-	srv := &http.Server{
-		Handler: r,
-		Addr:    config["address"],
-	}
-	log.Fatal(srv.ListenAndServe())
 }
 
 func loadConfig() map[string]string {
