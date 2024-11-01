@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"main.go/data"
@@ -25,19 +26,30 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 
 	request, err := decodeBody(h.Body)
 	if err != nil {
-		log.Printf("Error decoding request body: %v", err)
+		uh.logger.Printf("Error decoding request body: %v", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	// Log the request for debugging
+	uh.logger.Printf("Registration request: %+v", request)
+
 	err = uh.service.Registration(request)
 	if err != nil {
-		uh.logger.Println(err)
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		uh.logger.Println("Registration error:", err)
+		if errors.Is(err, data.ErrEmailAlreadyExists()) {
+			http.Error(rw, "Email already exists", http.StatusConflict) // More specific error
+		} else {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
 	rw.WriteHeader(http.StatusCreated)
+	_, err = rw.Write([]byte("Registration successful"))
+	if err != nil {
+		return
+	}
 }
 
 func decodeBody(r io.Reader) (*data.AccountRequest, error) {
