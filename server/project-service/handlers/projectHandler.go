@@ -17,7 +17,7 @@ type ProjectsHandler struct {
 	repo *repositories.ProjectRepo
 }
 
-func NewPatientsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
+func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
 	return &ProjectsHandler{l, r}
 }
 
@@ -62,7 +62,7 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 	}
 }
 
-func (p *ProjectsHandler) PostPatient(rw http.ResponseWriter, h *http.Request) {
+func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	patient := h.Context().Value(KeyProject{}).(*model.Project)
 	p.repo.Insert(patient)
 	rw.WriteHeader(http.StatusCreated)

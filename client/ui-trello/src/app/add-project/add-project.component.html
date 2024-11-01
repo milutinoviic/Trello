@@ -1,20 +1,20 @@
-  <div class="form">
-    <form method="post" action="">
+  <div class="form"  [@flyInOut]>
+    <form [formGroup]="newProjectForm" (ngSubmit)="onSubmit()">
 
       <div class="form-group">
 
         <label>Project name:</label>
-        <input type="text" value="" name="projectName" class="form-control"
-               aria-describedby="emailHelp">
+        <input type="text"  id="project_name"  formControlName="project_name" class="form-control"
+               >
         <label>End date:</label>
-        <input type="date" value="" name="endDate" class="form-control" placeholder="yyyy-mm-dd"
-               aria-describedby="emailHelp">
+        <input type="date" id="end_date" formControlName="end_date" class="form-control" placeholder="yyyy-mm-dd"
+              >
         <label>Min people on project:</label>
-        <input type="number" value="" min="1" name="minPeople" class="form-control"
-               aria-describedby="emailHelp">
+        <input type="number"  id="min_members" formControlName="min_members"  min="1" class="form-control"
+              >
         <label>Max people on project:</label>
-        <input type="number" value="" min="1" max="100" name="maxPeople" class="form-control"
-               aria-describedby="emailHelp">
+        <input type="number" id="max_members" formControlName="max_members"  min="1" max="100" class="form-control"
+               >
       </div>
 
       <hr class="devide-line">
@@ -22,11 +22,25 @@
       <button type="submit" class="btn">Create project</button>
 
     </form>
-  </div>
+
+  </div >
 
   <br /><br /><br /><br />
 
-
+<div *ngFor="let project of projects">
+  <div class="card">
+    <div class="card-header">
+      Project info:
+    </div>
+    <div class="card-body">
+      <h4 class="card-title">Name: {{ project.name }}</h4>
+      <p class="card-text">Max people: {{ project.max_members }}</p>
+      <p class="card-text">Min people: {{ project.min_members }}</p>
+      <p class="card-text">End Date: {{ project.end_date }}</p>
+      <a class="wider btn">Button</a>
+    </div>
+  </div>
+</div>
 
 
 
