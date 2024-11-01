@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -51,12 +50,19 @@ func (ur *UserRepository) Disconnect(ctx context.Context) error {
 func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
+		return fmt.Errorf("database not available: %w", err)
+	}
+
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 	err := accountCollection.FindOne(ctx, bson.M{"email": request.Email}).Decode(&existingAccount)
-	if err != nil {
+	if err == nil {
 		ur.logger.Println("Email already exists")
 		return data.ErrEmailAlreadyExists()
+	} else if err != mongo.ErrNoDocuments {
+		return fmt.Errorf("error checking for existing account: %w", err)
 	}
 
 	uuidPassword := uuid.New().String()
@@ -74,7 +80,7 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 		Password:  hashedPassword,
 	}
 
-	_, err = accountCollection.InsertOne(ctx, &account)
+	_, err = accountCollection.InsertOne(ctx, account)
 	if err != nil {
 		ur.logger.Println("Error inserting account:", err)
 		return err
@@ -85,8 +91,11 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 		return err
 	}
 
-	return nil
+	if err := ur.PrintAllAccounts(); err != nil {
+		ur.logger.Println("Failed to print all accounts:", err)
+	}
 
+	return nil
 }
 
 func hashPassword(password string) (string, error) {
@@ -98,16 +107,48 @@ func hashPassword(password string) (string, error) {
 }
 
 func (ur *UserRepository) getAccountCollection() *mongo.Collection {
-	userDatabase := ur.cli.Database("mongoDB")
+	userDatabase := ur.cli.Database("mongoDb")
 	userCollection := userDatabase.Collection("accounts")
 	return userCollection
 }
 
-func sendEmail(request *data.Account) error {
-	err := godotenv.Load()
+func (ur *UserRepository) PrintAllAccounts() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	accountCollection := ur.getAccountCollection()
+	cursor, err := accountCollection.Find(ctx, bson.M{})
 	if err != nil {
-		return fmt.Errorf("error loading .env file")
+		return fmt.Errorf("error fetching accounts: %w", err)
 	}
+	defer cursor.Close(ctx)
+
+	var accounts []data.Account
+	for cursor.Next(ctx) {
+		var account data.Account
+		if err := cursor.Decode(&account); err != nil {
+			return fmt.Errorf("error decoding account: %w", err)
+		}
+		accounts = append(accounts, account)
+	}
+
+	if err := cursor.Err(); err != nil {
+		return fmt.Errorf("cursor error: %w", err)
+	}
+
+	for _, account := range accounts {
+		ur.logger.Printf("Account: %+v\n", account)
+	}
+
+	return nil
+}
+
+func sendEmail(request *data.Account) error {
+	// err := godotenv.Load()
+	// if err != nil {
+	//     return fmt.Errorf("error loading .env file")
+	// }
+
 	from := os.Getenv("SMTP_EMAIL")
 	password := os.Getenv("SMTP_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
@@ -119,8 +160,7 @@ func sendEmail(request *data.Account) error {
 		"Please log in and change it as soon as possible.\n\n" +
 		"Best regards,\nThe Team"
 
-	htmlBody := `
-	<!DOCTYPE html>
+	htmlBody := `<!DOCTYPE html>
 	<html>
 	<head>
 		<style>
@@ -145,8 +185,7 @@ func sendEmail(request *data.Account) error {
 			</div>
 		</div>
 	</body>
-	</html>
-	`
+	</html>`
 
 	message := []byte("MIME-Version: 1.0\r\n" +
 		"Content-Type: multipart/alternative; boundary=\"fancy-boundary\"\r\n" +
@@ -165,7 +204,7 @@ func sendEmail(request *data.Account) error {
 		"--fancy-boundary--")
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
-	err = smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{request.Email}, message)
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{request.Email}, message)
 	if err != nil {
 		return err
 	}

@@ -21,16 +21,20 @@ func NewUserHandler(logger *log.Logger, service *service.UserService) *UserHandl
 }
 
 func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
+	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+
 	request, err := decodeBody(h.Body)
 	if err != nil {
 		log.Printf("Error decoding request body: %v", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	err = uh.service.Registration(request)
 	if err != nil {
 		uh.logger.Println(err)
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	rw.WriteHeader(http.StatusCreated)

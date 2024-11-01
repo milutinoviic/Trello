@@ -45,8 +45,8 @@ export class RegistrationComponent implements OnInit{
     if (this.registrationForm.valid) {
       const accountRequest: AccountRequest = {
         email: this.registrationForm.get('email')?.value,
-        firstName: this.registrationForm.get('firstName')?.value,
-        lastName: this.registrationForm.get('lastName')?.value,
+        first_name: this.registrationForm.get('firstName')?.value,
+        last_name: this.registrationForm.get('lastName')?.value,
       };
       this.accountService.register(accountRequest).subscribe( {
         next: (result) => {

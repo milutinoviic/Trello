@@ -16,7 +16,6 @@ import (
 )
 
 func main() {
-
 	config := loadConfig()
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -30,17 +29,22 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/register", uh.Registration).Methods(http.MethodPost)
+	r.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK) // FOR OPTIONS METHOD
+	}).Methods(http.MethodOptions)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "PUT", "POST", "DELETE", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: true,
 	})
 
+	handler := corsHandler.Handler(r)
+
 	server := http.Server{
 		Addr:         config["address"],
-		Handler:      corsHandler.Handler(r),
+		Handler:      handler,
 		IdleTimeout:  120 * time.Second,
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,
@@ -61,24 +65,14 @@ func main() {
 
 	sig := <-sigCh
 	logger.Println("Received terminate, graceful shutdown", sig)
-	//shutdown gracefully
 	if server.Shutdown(timeoutContext) != nil {
 		logger.Fatal("Cannot gracefully shutdown...")
 	}
 	logger.Println("Server stopped")
-
 }
 
 func loadConfig() map[string]string {
 	config := make(map[string]string)
-	config["host"] = os.Getenv("HOST")
-	config["port"] = os.Getenv("PORT")
 	config["address"] = fmt.Sprintf(":%s", os.Getenv("PORT"))
-	config["db_host"] = os.Getenv("DB_HOST")
-	config["db_port"] = os.Getenv("DB_PORT")
-	config["db_user"] = os.Getenv("DB_USER")
-	config["db_pass"] = os.Getenv("DB_PASS")
-	config["db_name"] = os.Getenv("DB_NAME")
-	config["conn_service_address"] = fmt.Sprintf("http://%s:%s", os.Getenv("CONNECTIONS_SERVICE_HOST"), os.Getenv("CONNECTIONS_SERVICE_PORT"))
 	return config
 }

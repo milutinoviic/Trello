@@ -1,5 +1,3 @@
-version: "3.1"
-
 services:
 
   project-server:
@@ -68,11 +66,12 @@ services:
     restart: always
     environment:
       # hostname of mongo databse
-      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_SERVER=mongo-project
       - ME_CONFIG_MONGODB_ADMINUSERNAME=root
       - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
+      - ME_CONFIG_MONGODB_URL=mongodb://root:pass@mongo-project:27017
     depends_on:
       - mongo-project
     ports:
@@ -93,7 +92,10 @@ services:
     environment:
       - PORT=8080
       - MONGO_DB_URI=mongodb://root:pass@mongo-user:27017
-
+      - SMTP_EMAIL=${SMTP_EMAIL}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
     depends_on:
       mongo-user:
         condition: service_healthy
@@ -106,7 +108,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: pass
-      MONGO_INITDB_DATABASE: mongoDemo
+      MONGO_INITDB_DATABASE: mongoDb
     healthcheck:
       test: echo 'db.runCommand("ping").ok'
       interval: 10s
@@ -119,11 +121,12 @@ services:
     image: mongo-express
     restart: always
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo
+      - ME_CONFIG_MONGODB_SERVER=mongo-user
       - ME_CONFIG_MONGODB_ADMINUSERNAME=root
       - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
+      - ME_CONFIG_MONGODB_URL=mongodb://root:pass@mongo-user:27017
     depends_on:
       - mongo-user
     ports:
