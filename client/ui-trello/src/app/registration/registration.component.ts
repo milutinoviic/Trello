@@ -24,6 +24,7 @@ import {AccountService} from "../services/account.service";
 })
 export class RegistrationComponent implements OnInit{
   registrationForm!: FormGroup;
+  private isSubmitting: boolean = false;
 
   constructor(
     private formBuilder: FormBuilder,
@@ -42,20 +43,22 @@ export class RegistrationComponent implements OnInit{
   }
 
   onSubmit() {
-    if (this.registrationForm.valid) {
+    if (this.registrationForm.valid && !this.isSubmitting) {
+      this.isSubmitting = true; // Set loading state
       const accountRequest: AccountRequest = {
         email: this.registrationForm.get('email')?.value,
         first_name: this.registrationForm.get('firstName')?.value,
         last_name: this.registrationForm.get('lastName')?.value,
       };
-      this.accountService.register(accountRequest).subscribe( {
+      this.accountService.register(accountRequest).subscribe({
         next: (result) => {
           this.toaster.success(result.message);
           this.registrationForm.reset();
-
+          this.isSubmitting = false; // Reset loading state
         },
-        error: (result) => {
+        error: () => {
           this.toaster.error('Registration is not successful!');
+          this.isSubmitting = false; // Reset loading state
         }
       });
     } else {
