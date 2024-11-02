@@ -31,23 +31,26 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	// Log the request for debugging
 	uh.logger.Printf("Registration request: %+v", request)
 
 	err = uh.service.Registration(request)
 	if err != nil {
 		uh.logger.Println("Registration error:", err)
 		if errors.Is(err, data.ErrEmailAlreadyExists()) {
-			http.Error(rw, "Email already exists", http.StatusConflict) // More specific error
+			http.Error(rw, `{"message": "Email already exists"}`, http.StatusConflict)
 		} else {
-			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		}
 		return
 	}
 
+	// Prepare the success response
+	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
-	_, err = rw.Write([]byte("Registration successful"))
+	response := map[string]string{"message": "Registration successful"}
+	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {
+		uh.logger.Println("Error writing response:", err)
 		return
 	}
 }
