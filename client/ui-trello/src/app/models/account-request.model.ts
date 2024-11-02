@@ -1,11 +1,11 @@
 export class AccountRequest {
   email: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
 
-  constructor(email: string, firstName: string, lastName: string) {
+  constructor(email: string, first_name: string, last_name: string) {
     this.email = email;
-    this.firstName = firstName;
-    this.lastName = lastName;
+    this.first_name = first_name;
+    this.last_name = last_name;
   }
 }

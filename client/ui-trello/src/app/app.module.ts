@@ -9,6 +9,7 @@ import {HttpClientModule} from "@angular/common/http";
 import {ToastrModule} from "ngx-toastr";
 import { MemberAdditionComponent } from './member-addition/member-addition.component';
 import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
 @NgModule({
   declarations: [
@@ -20,6 +21,7 @@ import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
     BrowserModule,
     AppRoutingModule,
     ReactiveFormsModule,
+    BrowserAnimationsModule,
     HttpClientModule,
     ToastrModule.forRoot(),
     CdkDropList,

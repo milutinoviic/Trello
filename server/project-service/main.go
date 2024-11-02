@@ -44,6 +44,8 @@ func main() {
 
 	//Initialize the router and add a middleware for all the requests
 	router := mux.NewRouter()
+	router.HandleFunc("/projects/{id}/users", projectsHandler.AddUsersToProject).Methods(http.MethodPost)
+
 	router.Use(projectsHandler.MiddlewareContentTypeSet)
 
 	getRouter := router.Methods(http.MethodGet).Subrouter()
