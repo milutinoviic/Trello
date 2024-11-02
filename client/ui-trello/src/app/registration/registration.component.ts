@@ -52,11 +52,16 @@ export class RegistrationComponent implements OnInit{
       };
       this.accountService.register(accountRequest).subscribe({
         next: (result) => {
-          this.toaster.success(result.message);
+          if (result && result.message) {
+            this.toaster.success(result.message);
+          } else {
+            this.toaster.error('Unexpected response format!');
+          }
           this.registrationForm.reset();
           this.isSubmitting = false; // Reset loading state
         },
-        error: () => {
+        error: (error) => {
+          console.error('Registration error:', error);
           this.toaster.error('Registration is not successful!');
           this.isSubmitting = false; // Reset loading state
         }
