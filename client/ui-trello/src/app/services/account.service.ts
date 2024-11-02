@@ -13,6 +13,6 @@ export class AccountService {
   constructor(private http: HttpClient, private config: ConfigService) { }
 
   register(accountRequest: AccountRequest): Observable<any> {
-    return this.http.post<AccountRequest>(this.config.register_url, accountRequest)
+    return this.http.post(this.config.register_url, accountRequest)
   }
 }
