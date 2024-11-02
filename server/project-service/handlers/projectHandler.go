@@ -115,3 +115,17 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 
 	rw.WriteHeader(http.StatusNoContent)
 }
+
+func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	projectId := vars["id"]
+	userId := vars["userId"]
+
+	err := p.repo.RemoveUserFromProject(projectId, userId)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+}

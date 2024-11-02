@@ -58,6 +58,9 @@ func main() {
 	getByIdRouter := router.Methods(http.MethodGet).Subrouter()
 	getByIdRouter.HandleFunc("/{id}", projectsHandler.GetProjectById)
 
+	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
+	deleteRouter.HandleFunc("/{id}/users/{userId}", projectsHandler.RemoveUserFromProject)
+
 	//deleteRouter := router.Methods(http.MethodDelete).Subrouter()
 	//deleteRouter.HandleFunc("/{id}", projectsHandler.DeleteProject)
 
