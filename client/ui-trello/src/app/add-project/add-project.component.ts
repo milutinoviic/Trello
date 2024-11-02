@@ -31,6 +31,8 @@ export class AddProjectComponent {
 
   newProjectForm!: FormGroup;
   projects: any;
+  managers: any;
+
 
   constructor(
     private formBuilder: FormBuilder,
@@ -42,12 +44,14 @@ export class AddProjectComponent {
 
   ngOnInit(): void {
     this.fetchData();
-
+    this.fetchManagers();
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required]],
       end_date: ['', [Validators.required]],
       min_members: ['', [Validators.required]],
       max_members: ['', [Validators.required]],
+      manager: ['', [Validators.required]],
+
     });
   }
 
@@ -61,6 +65,7 @@ export class AddProjectComponent {
         end_date: new Date(this.newProjectForm.get('end_date')?.value),
         min_members: this.newProjectForm.get('min_members')?.value.toString(),
         max_members: this.newProjectForm.get('max_members')?.value.toString(),
+        manager: this.newProjectForm.get('manager')?.value,
       };
       console.log(newProjectRequest);
       this.projectService.addProject(newProjectRequest).subscribe({
@@ -88,6 +93,18 @@ export class AddProjectComponent {
         next: (response) => {
           this.projects = response;
           console.log('Data fetched successfully:', this.projects);
+        },
+        error: (error) => {
+          console.error('Error fetching data:', error);
+        }
+      });
+  }
+  fetchManagers() { // fetch managers to display them in combobox
+    this.http.get('http://localhost:8082/managers')
+      .subscribe({
+        next: (response) => {
+          this.managers = response;
+          console.log('Data fetched successfully:', this.managers);
         },
         error: (error) => {
           console.error('Error fetching data:', error);

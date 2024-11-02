@@ -12,6 +12,7 @@ type Project struct {
 	EndDate    string             `bson:"end_date" json:"end_date"`
 	MinMembers string             `bson:"min_members" json:"min_members"`
 	MaxMembers string             `bson:"max_members" json:"max_members"`
+	Manager    string             `bson:"manager" json:"manager"`
 }
 
 type Projects []*Project

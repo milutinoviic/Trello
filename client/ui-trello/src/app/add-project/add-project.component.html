@@ -15,6 +15,12 @@
         <label>Max people on project:</label>
         <input type="number" id="max_members" formControlName="max_members"  min="1" max="100" class="form-control"
                >
+        <label>Select manager:</label>
+        <select id="manager" formControlName="manager" class="form-control">
+          <option *ngFor="let manager of managers" [value]="manager.email">
+            {{ manager.email }}
+          </option>
+        </select>
       </div>
 
       <hr class="devide-line">
@@ -37,6 +43,7 @@
       <p class="card-text">Max people: {{ project.max_members }}</p>
       <p class="card-text">Min people: {{ project.min_members }}</p>
       <p class="card-text">End Date: {{ project.end_date }}</p>
+      <p class="card-text">Manager: {{ project.manager }}</p>
       <a class="wider btn">Button</a>
     </div>
   </div>
