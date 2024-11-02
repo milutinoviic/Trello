@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
@@ -93,4 +94,24 @@ func (p *ProjectsHandler) MiddlewarePatientDeserialization(next http.Handler) ht
 
 		next.ServeHTTP(rw, h)
 	})
+}
+
+func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	projectId := vars["id"]
+
+	var userIds []string
+	err := json.NewDecoder(h.Body).Decode(&userIds)
+	if err != nil {
+		http.Error(rw, "Unable to decode json", http.StatusBadRequest)
+		return
+	}
+
+	err = p.repo.AddUsersToProject(projectId, userIds)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusNoContent)
 }
