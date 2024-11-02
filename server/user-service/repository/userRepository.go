@@ -61,8 +61,6 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 	if err == nil {
 		ur.logger.Println("Email already exists")
 		return data.ErrEmailAlreadyExists()
-	} else if err != mongo.ErrNoDocuments {
-		return fmt.Errorf("error checking for existing account: %w", err)
 	}
 
 	uuidPassword := uuid.New().String()
@@ -85,16 +83,12 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 		ur.logger.Println("Error inserting account:", err)
 		return err
 	}
-	err = sendEmail(account)
+	err = sendEmail(account, uuidPassword)
 	if err != nil {
 		ur.logger.Println("Error sending email:", err)
 		return err
 	}
-
-	if err := ur.PrintAllAccounts(); err != nil {
-		ur.logger.Println("Failed to print all accounts:", err)
-	}
-
+	ur.logger.Println("Account created")
 	return nil
 }
 
@@ -112,38 +106,7 @@ func (ur *UserRepository) getAccountCollection() *mongo.Collection {
 	return userCollection
 }
 
-func (ur *UserRepository) PrintAllAccounts() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	accountCollection := ur.getAccountCollection()
-	cursor, err := accountCollection.Find(ctx, bson.M{})
-	if err != nil {
-		return fmt.Errorf("error fetching accounts: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var accounts []data.Account
-	for cursor.Next(ctx) {
-		var account data.Account
-		if err := cursor.Decode(&account); err != nil {
-			return fmt.Errorf("error decoding account: %w", err)
-		}
-		accounts = append(accounts, account)
-	}
-
-	if err := cursor.Err(); err != nil {
-		return fmt.Errorf("cursor error: %w", err)
-	}
-
-	for _, account := range accounts {
-		ur.logger.Printf("Account: %+v\n", account)
-	}
-
-	return nil
-}
-
-func sendEmail(request *data.Account) error {
+func sendEmail(request *data.Account, uuidPassword string) error {
 	// err := godotenv.Load()
 	// if err != nil {
 	//     return fmt.Errorf("error loading .env file")
@@ -156,7 +119,7 @@ func sendEmail(request *data.Account) error {
 
 	plainTextBody := "Welcome to our service!\n\n" +
 		"Hello " + request.FirstName + ",\n" +
-		"Thank you for joining us. Your temporary password is: " + request.Password + "\n" +
+		"Thank you for joining us. Your temporary password is: " + uuidPassword + "\n" +
 		"Please log in and change it as soon as possible.\n\n" +
 		"Best regards,\nThe Team"
 
@@ -177,7 +140,7 @@ func sendEmail(request *data.Account) error {
 			<div class="content">
 				<p>Hello ` + request.FirstName + `,</p>
 				<p>Thank you for joining our platform. We’re excited to have you on board!</p>
-				<p>Your temporary password is: <strong>` + request.Password + `</strong></p>
+				<p>Your temporary password is: <strong>` + uuidPassword + `</strong></p>
 				<p>Please log in and change it as soon as possible.</p>
 			</div>
 			<div class="footer">
