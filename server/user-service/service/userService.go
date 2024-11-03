@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"main.go/data"
 	"main.go/repository"
 )
@@ -20,4 +21,12 @@ func (s UserService) Registration(request *data.AccountRequest) error {
 	}
 	return nil
 
+}
+
+func (s UserService) GetAllUsers(ctx context.Context) ([]data.Account, error) {
+	accounts, err := s.user.GetAllUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return accounts, nil
 }

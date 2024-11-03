@@ -65,3 +65,23 @@ func decodeBody(r io.Reader) (*data.AccountRequest, error) {
 	}
 	return &c, nil
 }
+
+func (uh *UserHandler) GetAllUsers(rw http.ResponseWriter, h *http.Request) {
+	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+
+	accounts, err := uh.service.GetAllUsers(h.Context())
+	if err != nil {
+		uh.logger.Println("Error retrieving users:", err)
+		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	// Priprema odgovora
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(rw).Encode(accounts)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
+		return
+	}
+}
