@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import {ProjectServiceService} from "../services/project-service.service";
+import {ActivatedRoute} from "@angular/router";
 
 interface User {
   id: string;
@@ -17,7 +18,7 @@ export class MemberAdditionComponent implements OnInit {
   searchTerm: string = '';
   maxMembers: number = 5;
   filteredUsers: User[] = [];
-  projectId : number = 12345;
+  projectId: string = '';
 
   private dummyUsers: User[] = [
     { id: '1', fullName: 'Alice Smith' },
@@ -30,9 +31,15 @@ export class MemberAdditionComponent implements OnInit {
     { id: '8', fullName: 'Hannah Montana' }
   ];
 
-  constructor(private projectService:ProjectServiceService) {}
+  constructor(
+    private projectService:ProjectServiceService,
+    private route: ActivatedRoute) {}
 
   ngOnInit() {
+
+    this.route.paramMap.subscribe(params => {
+      this.projectId = params.get('projectId')!;
+    });
     this.allUsers = this.dummyUsers;
     this.filteredUsers = this.allUsers;
   }
@@ -56,11 +63,12 @@ export class MemberAdditionComponent implements OnInit {
     console.log("---------------------------------------------")
     this.projectMembers = this.projectMembers.filter(member => member.id !== userId);
     this.filterUsers();
+    console.log(`Project id-- ${this.projectId}`);
 
-    this.projectService.deleteMemberFromProject(this.projectId, +userId).subscribe({
-      next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
-      error: (error) => console.error('Greška prlikom .....', error)
-    });
+    // this.projectService.deleteMemberFromProject(this.projectId,userId).subscribe({
+    //   next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
+    //   error: (error) => console.error('Greška prlikom .....', error)
+    // });
 
   }
 
