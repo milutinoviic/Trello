@@ -10,12 +10,14 @@ import {ToastrModule} from "ngx-toastr";
 import { MemberAdditionComponent } from './member-addition/member-addition.component';
 import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import {DeleteMemberComponent} from "./delete-member/delete-member.component";
 
 @NgModule({
   declarations: [
     AppComponent,
     RegistrationComponent,
-    MemberAdditionComponent
+    MemberAdditionComponent,
+    DeleteMemberComponent
   ],
   imports: [
     BrowserModule,

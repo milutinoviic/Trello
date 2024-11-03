@@ -5,6 +5,7 @@
         <h3 style="text-align: center; color: #11163e">Project Members</h3>
         <div *ngFor="let member of projectMembers" class="user bg-light border rounded mb-2 p-2">
           {{ member.fullName }}
+          <button class="btn btn-danger btn-sm float-end remove-btn" (click)="removeMember(member.id)">Remove</button>
         </div>
       </div>
     </div>
@@ -31,7 +32,6 @@
             Assign
           </button>
         </div>
-
       </div>
     </div>
   </div>
