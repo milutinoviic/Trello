@@ -5,6 +5,7 @@ export class Project {
   max_members: number;
 
 
+
   constructor(project_name: string, endDate: Date, minMember: number, maxMember: number) {
     this.name = project_name;
     this.end_date = endDate;

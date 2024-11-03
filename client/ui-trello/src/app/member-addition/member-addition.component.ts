@@ -48,6 +48,15 @@ export class MemberAdditionComponent implements OnInit {
     }
   }
 
+  removeMember(userId: string) {
+    console.log("---------------------------------------------")
+    console.log(`Obrisan je user id-- ${userId}`);
+    console.log("---------------------------------------------")
+    this.projectMembers = this.projectMembers.filter(member => member.id !== userId);
+    this.filterUsers();
+  }
+
+
   isUserAssigned(user: User): boolean {
     return this.projectMembers.some(member => member.id === user.id);
   }
