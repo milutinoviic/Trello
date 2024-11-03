@@ -7,6 +7,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import {HttpClient} from "@angular/common/http";
 import {animate, state, style, transition, trigger} from "@angular/animations";
 import { CommonModule } from '@angular/common';
+import {dateValidator} from "../validator/date-validator";
 
 @Component({
   selector: 'app-add-project',
@@ -46,8 +47,8 @@ export class AddProjectComponent {
     this.fetchData();
     this.fetchManagers();
     this.newProjectForm = this.formBuilder.group({
-      project_name: ['', [Validators.required]],
-      end_date: ['', [Validators.required]],
+      project_name: ['', [Validators.required, Validators.minLength(3)]],
+      end_date: ['', [Validators.required, dateValidator()]],
       min_members: ['', [Validators.required]],
       max_members: ['', [Validators.required]],
       manager: ['', [Validators.required]],
@@ -82,7 +83,8 @@ export class AddProjectComponent {
       });
     } else {
       console.log(this.newProjectForm)
-      this.toaster.error('Input field can not be empty!');
+      // this.toaster.error('Input field can not be empty!');
+      this.newProjectForm.markAllAsTouched();
     }
   }
 
