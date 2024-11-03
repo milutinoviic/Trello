@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"project-service/model"
 	"project-service/repositories"
+	"strconv"
 )
 
 type KeyProject struct{}
@@ -18,7 +19,7 @@ type ProjectsHandler struct {
 	repo *repositories.ProjectRepo
 }
 
-const testManagerID = "5f7e1fdd60b8b7d9b4e9e8d9"
+const testManager = "gabifranjo@gmail.com"
 
 func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
 	return &ProjectsHandler{l, r}
@@ -115,7 +116,7 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	if project.Manager != testManagerID {
+	if project.Manager != testManager {
 		http.Error(rw, "Only the project manager can add users", http.StatusForbidden)
 		return
 	}
@@ -125,7 +126,13 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	if len(project.UserIDs)+len(userIds) > int(project.MaxMembers) {
+	maxMembers, err := strconv.Atoi(project.MaxMembers)
+	if err != nil {
+		http.Error(rw, "Invalid maximum members value", http.StatusInternalServerError)
+		return
+	}
+
+	if len(userIds) > maxMembers {
 		http.Error(rw, "Cannot add more users than the maximum limit", http.StatusForbidden)
 		return
 	}
@@ -142,4 +149,3 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 func hasActiveTasksPlaceholder() bool {
 	return true
 }
-
