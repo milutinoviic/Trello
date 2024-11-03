@@ -55,6 +55,24 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 	}
 }
 
+func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
+	managers, err := uh.service.GetAll()
+	if err != nil {
+		uh.logger.Print("Database exception: ", err)
+	}
+
+	if managers == nil {
+		return
+	}
+
+	err = managers.ToJSON(rw)
+	if err != nil {
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		uh.logger.Fatal("Unable to convert to json :", err)
+		return
+	}
+}
+
 func decodeBody(r io.Reader) (*data.AccountRequest, error) {
 	dec := json.NewDecoder(r)
 	dec.DisallowUnknownFields()

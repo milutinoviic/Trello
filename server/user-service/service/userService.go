@@ -21,3 +21,12 @@ func (s UserService) Registration(request *data.AccountRequest) error {
 	return nil
 
 }
+
+func (s UserService) GetAll() (data.Accounts, error) {
+	managers, err := s.user.GetAllManagers()
+	if err != nil {
+		return nil, err
+	}
+	return managers, nil
+
+}

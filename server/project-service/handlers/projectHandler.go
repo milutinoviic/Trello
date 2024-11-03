@@ -18,7 +18,9 @@ type ProjectsHandler struct {
 	repo *repositories.ProjectRepo
 }
 
-func NewPatientsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
+const testManagerID = "5f7e1fdd60b8b7d9b4e9e8d9"
+
+func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
 	return &ProjectsHandler{l, r}
 }
 
@@ -63,7 +65,7 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 	}
 }
 
-func (p *ProjectsHandler) PostPatient(rw http.ResponseWriter, h *http.Request) {
+func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	patient := h.Context().Value(KeyProject{}).(*model.Project)
 	p.repo.Insert(patient)
 	rw.WriteHeader(http.StatusCreated)
@@ -107,6 +109,27 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
+	project, err := p.repo.GetById(projectId)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if project.Manager != testManagerID {
+		http.Error(rw, "Only the project manager can add users", http.StatusForbidden)
+		return
+	}
+
+	if !hasActiveTasksPlaceholder() {
+		http.Error(rw, "Cannot add users to a project without active tasks", http.StatusForbidden)
+		return
+	}
+
+	if len(project.UserIDs)+len(userIds) > int(project.MaxMembers) {
+		http.Error(rw, "Cannot add more users than the maximum limit", http.StatusForbidden)
+		return
+	}
+
 	err = p.repo.AddUsersToProject(projectId, userIds)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
@@ -115,3 +138,8 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 
 	rw.WriteHeader(http.StatusNoContent)
 }
+
+func hasActiveTasksPlaceholder() bool {
+	return true
+}
+

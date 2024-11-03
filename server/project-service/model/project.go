@@ -13,6 +13,7 @@ type Project struct {
 	MinMembers string             `bson:"min_members" json:"min_members"`
 	MaxMembers string             `bson:"max_members" json:"max_members"`
 	UserIDs    []string           `bson:"user_ids" json:"user_ids"`
+	Manager    string             `bson:"manager" json:"manager"`
 }
 
 type Projects []*Project
