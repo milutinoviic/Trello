@@ -16,12 +16,11 @@ export class ProjectServiceService {
     return this.http.post<Project>(this.config.new_project_url, newProjectRequest)
   }
   deleteMemberFromProject(projectId: number, memberId: number): Observable<any> {
-    const url = `${this.config.project_base_url}/${projectId}/users/${memberId}`;
+    const url = `${this.config.project_base_url}projects/${projectId}/users/${memberId}`;
     return this.http.delete(url);
   }
 
-  //implementirati metodu za dobavljanje svih usera
-  //implementiti meotdu za dovaljanje usera za samo taj odredjeni pojekat
+
 
 
 

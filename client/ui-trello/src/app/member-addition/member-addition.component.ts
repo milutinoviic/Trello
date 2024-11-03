@@ -1,4 +1,5 @@
 import { Component, OnInit } from '@angular/core';
+import {ProjectServiceService} from "../services/project-service.service";
 
 interface User {
   id: string;
@@ -16,6 +17,7 @@ export class MemberAdditionComponent implements OnInit {
   searchTerm: string = '';
   maxMembers: number = 5;
   filteredUsers: User[] = [];
+  projectId:number=12345;
 
   private dummyUsers: User[] = [
     { id: '1', fullName: 'Alice Smith' },
@@ -28,7 +30,7 @@ export class MemberAdditionComponent implements OnInit {
     { id: '8', fullName: 'Hannah Montana' }
   ];
 
-  constructor() {}
+  constructor(private projectService:ProjectServiceService) {}
 
   ngOnInit() {
     this.allUsers = this.dummyUsers;
@@ -54,6 +56,12 @@ export class MemberAdditionComponent implements OnInit {
     console.log("---------------------------------------------")
     this.projectMembers = this.projectMembers.filter(member => member.id !== userId);
     this.filterUsers();
+
+    this.projectService.deleteMemberFromProject(this.projectId, +userId).subscribe({
+      next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
+      error: (error) => console.error('Greška prlikom .....', error)
+    });
+
   }
 
 
