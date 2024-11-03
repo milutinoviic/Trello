@@ -1,5 +1,6 @@
 * {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
+  background-color: whitesmoke;
 }
 
 .hidden {
@@ -15,13 +16,12 @@
     padding-bottom: 5%;
     padding-left: 2%;
     padding-right: 2%;
-    box-shadow: 0 0 10px #d4d4d4;
     border-radius: 5px;
 }
 
 
 .form-control{
-    width: 90%;
+    width: 100%;
     padding: 8px;
     font-size: 16px;
     border: 1px solid #ccc;
@@ -67,16 +67,6 @@ body {
     text-align: center;
     display: block;
 }
-.btn {
-    width: auto;
-    background-color: #6C6EA0;
-    color: white;
-}
-.btn:hover {
-    background-color: white;
-    color: #274C77;
-    border: 1px solid #6C6EA0;
-}
 * {
 
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif
@@ -89,7 +79,7 @@ body {
     color: #564592;
 }
 .btn {
-    background-color: #724CF9;
+    background-color: #0F8B8D;
     color: white;
     min-width: 100%;
     width: 5%;
@@ -97,17 +87,22 @@ body {
     border-radius: 5px;
     border: none
 }
+.btn:hover {
+    background-color: white;
+    color: #0F8B8D;
+    border: 1px solid #0F8B8D;
+}
 .btn:focus {
-    color: white;
-    box-shadow: 0 0 10px #724CF9;
-    border: solid 1px #724CF9;
-    color: #724CF9;
+    color: whitesmoke;
+    box-shadow: 0 0 10px #143642;
+    background-color: #143642;
+    border: none;
 }
 .wider{
   display:flex;
   }
 .devide-line {
-    background-color: #724CF9;
+    background-color: #143642;
     width: 90%;
 }
 
@@ -116,8 +111,16 @@ body {
   margin-right: 20%;
   margin-bottom: 5%;
   padding: 50px;
-  box-shadow: 0 0 10px #d4d4d4;
+  box-shadow: 0 0 10px #143642;
     border-radius: 5px;
 
 
   }
+
+.error-message{
+  color: #CA3C25 !important;
+}
+
+input.ng-invalid.ng-touched {
+  border: 1px solid #CA3C25;
+}

@@ -1,5 +1,5 @@
 input.ng-invalid.ng-touched {
-  border: 1px solid red;
+  border: 1px solid #CA3C25;
 }
 
 input.ng-valid.ng-touched {
@@ -69,8 +69,8 @@ button:disabled {
 }
 
 p {
-  color: #d8000c;
-  background-color: #ffd2d2;
+  color: #CA3C25;
+  /*background-color: #ffd2d2;*/
   padding: 4px;
   border-radius: 4px;
   margin-top: 0.25rem;
@@ -80,3 +80,24 @@ p {
 div {
   margin-bottom: 1rem;
 }
+
+.role-select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  transition: border-color 0.3s;
+}
+
+.role-select:focus {
+  border-color: #007bff;
+  outline: none;
+}
+
+.custom-select option {
+  padding: 10px;
+  font-size: 16px;
+  color: #333;
+}
+
