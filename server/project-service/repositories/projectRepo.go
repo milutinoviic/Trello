@@ -102,6 +102,10 @@ func (pr *ProjectRepo) Insert(project *model.Project) error {
 	defer cancel()
 	projectsCollection := pr.getCollection()
 
+	if project.UserIDs == nil {
+		project.UserIDs = []string{}
+	}
+
 	result, err := projectsCollection.InsertOne(ctx, &project)
 	if err != nil {
 		pr.logger.Println(err)
@@ -123,13 +127,11 @@ func (pr *ProjectRepo) AddUsersToProject(projectId string, userIds []string) err
 
 	collection := pr.getCollection()
 
-	// Convert projectId to ObjectID
 	objID, err := primitive.ObjectIDFromHex(projectId)
 	if err != nil {
 		return fmt.Errorf("invalid project ID: %v", err)
 	}
 
-	// Convert userIds from string to ObjectID
 	var objIDs []primitive.ObjectID
 	for _, userId := range userIds {
 		objID, err := primitive.ObjectIDFromHex(userId)
@@ -139,7 +141,6 @@ func (pr *ProjectRepo) AddUsersToProject(projectId string, userIds []string) err
 		objIDs = append(objIDs, objID)
 	}
 
-	// Update the project with the new user IDs
 	_, err = collection.UpdateOne(
 		ctx,
 		bson.M{"_id": objID},
