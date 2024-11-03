@@ -76,6 +76,7 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 		FirstName: request.FirstName,
 		LastName:  request.LastName,
 		Password:  hashedPassword,
+		Role:      request.Role,
 	}
 
 	_, err = accountCollection.InsertOne(ctx, account)
@@ -173,4 +174,25 @@ func sendEmail(request *data.Account, uuidPassword string) error {
 	}
 
 	return nil
+}
+
+func (uh *UserRepository) GetAllManagers() (data.Accounts, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	managersCollection := uh.getAccountCollection()
+
+	var managers data.Accounts
+	filter := bson.M{"role": "manager"}
+	managersCursor, err := managersCollection.Find(ctx, filter)
+	if err != nil {
+		uh.logger.Println(err)
+		return nil, err
+	}
+	if err = managersCursor.All(ctx, &managers); err != nil {
+		uh.logger.Println(err)
+		return nil, err
+	}
+
+	return managers, nil
 }

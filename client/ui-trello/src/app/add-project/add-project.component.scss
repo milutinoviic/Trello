@@ -103,7 +103,21 @@ body {
     border: solid 1px #724CF9;
     color: #724CF9;
 }
+.wider{
+  display:flex;
+  }
 .devide-line {
     background-color: #724CF9;
     width: 90%;
 }
+
+.card{
+  margin-left: 20%;
+  margin-right: 20%;
+  margin-bottom: 5%;
+  padding: 50px;
+  box-shadow: 0 0 10px #d4d4d4;
+    border-radius: 5px;
+
+
+  }

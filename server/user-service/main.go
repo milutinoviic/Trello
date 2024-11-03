@@ -32,6 +32,7 @@ func main() {
 	r.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK) // FOR OPTIONS METHOD
 	}).Methods(http.MethodOptions)
+	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

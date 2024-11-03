@@ -39,6 +39,7 @@ export class RegistrationComponent implements OnInit{
       ],
       firstName: ['', [Validators.required]],
       lastName: ['', [Validators.required]],
+      role: ['', [Validators.required]],
     });
   }
 
@@ -49,6 +50,8 @@ export class RegistrationComponent implements OnInit{
         email: this.registrationForm.get('email')?.value,
         first_name: this.registrationForm.get('firstName')?.value,
         last_name: this.registrationForm.get('lastName')?.value,
+        role: this.registrationForm.get('role')?.value,
+
       };
       this.accountService.register(accountRequest).subscribe({
         next: (result) => {
@@ -64,6 +67,7 @@ export class RegistrationComponent implements OnInit{
           console.error('Registration error:', error);
           this.toaster.error('Registration is not successful!');
           this.isSubmitting = false; // Reset loading state
+          console.log(accountRequest)
         }
       });
     } else {
