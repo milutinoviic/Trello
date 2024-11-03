@@ -17,7 +17,7 @@ export class MemberAdditionComponent implements OnInit {
   searchTerm: string = '';
   maxMembers: number = 5;
   filteredUsers: User[] = [];
-  projectId:number=12345;
+  projectId : number = 12345;
 
   private dummyUsers: User[] = [
     { id: '1', fullName: 'Alice Smith' },
