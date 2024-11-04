@@ -28,8 +28,6 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
     FormsModule,
     CdkDrag,
     DragDropModule,
-    BrowserAnimationsModule,
-    ToastrModule.forRoot()
   ],
   providers: [],
   bootstrap: [AppComponent]
