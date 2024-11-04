@@ -7,8 +7,8 @@ import {AddProjectComponent} from "./add-project/add-project.component";
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent },
   { path: '', redirectTo: '/register', pathMatch: 'full' },
-  { path: 'project/addMembers', component: MemberAdditionComponent },
-  { path: 'projects', component: AddProjectComponent}];
+  { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent },
+  { path: 'projects', component: AddProjectComponent},];
 
 @NgModule({
   imports: [RouterModule.forRoot(routes)],

@@ -5,11 +5,31 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b9618d9a-5429-4182-9c5c-9dff3ae6237a" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/Trello.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Trello.iml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/client/ui-trello/src/app/models/account.model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.html" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.scss" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.scss" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app.module.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/member-addition/member-addition.component.css" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/member-addition/member-addition.component.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/member-addition/member-addition.component.html" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/member-addition/member-addition.component.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/member-addition/member-addition.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/member-addition/member-addition.component.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/models/project.model.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/models/project.model.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.html" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/services/account.service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/services/account.service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/services/config.service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/services/config.service.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/services/project-service.service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/services/project-service.service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/project-service/handlers/projectHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/handlers/projectHandler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/project-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/main.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/project-service/repositories/projectRepo.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/repositories/projectRepo.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/handlers/userHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/handlers/userHandler.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/repository/userRepository.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/repository/userRepository.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/service/userService.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/service/userService.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -20,9 +40,9 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 5
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 5
+}</component>
   <component name="ProjectId" id="2oK438FYt90su7TzchvzkfRUVMf" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -34,7 +54,7 @@
     "RunOnceActivity.go.formatter.settings.were.checked": "true",
     "RunOnceActivity.go.migrated.go.modules.settings": "true",
     "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "member-addition",
+    "git-widget-placeholder": "Merging member-addition",
     "go.import.settings.migrated": "true",
     "go.sdk.automatically.set": "true",
     "last_opened_file_path": "C:/Users/Gabriela/Desktop/TrelloProject/Trello",

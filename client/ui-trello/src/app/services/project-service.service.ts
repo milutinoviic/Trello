@@ -16,4 +16,21 @@ export class ProjectServiceService {
     return this.http.post<Project>(this.config.new_project_url, newProjectRequest)
   }
 
+  deleteMemberFromProject(projectId: string, memberId: string): Observable<any> {
+    const url = `${this.config.project_base_url}/projects/${projectId}/users/${memberId}`;
+    return this.http.delete(url);
+  }
+
+  getProjectById(projectId: string): Observable<Project> {
+    return this.http.get<Project>(this.config.getProjectByIdUrl(projectId))
+  }
+
+  addMembersToProject(projectId: string, memberIds: string[]): Observable<any> {
+    const url = `${this.config.addMembersUrl(projectId)}`;
+    return this.http.post<string[]>(url, memberIds);
+  }
+
+
+
+
 }

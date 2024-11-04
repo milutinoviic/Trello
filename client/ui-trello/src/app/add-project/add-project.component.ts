@@ -7,6 +7,7 @@ import { ReactiveFormsModule } from '@angular/forms';
 import {HttpClient} from "@angular/common/http";
 import {animate, state, style, transition, trigger} from "@angular/animations";
 import { CommonModule } from '@angular/common';
+import {Route, Router} from "@angular/router";
 
 @Component({
   selector: 'app-add-project',
@@ -38,7 +39,8 @@ export class AddProjectComponent {
     private formBuilder: FormBuilder,
     private projectService: ProjectServiceService,
     private toaster: ToastrService,
-    private http: HttpClient
+    private http: HttpClient,
+    private router: Router
   ) {
   }
 
@@ -66,12 +68,14 @@ export class AddProjectComponent {
         min_members: this.newProjectForm.get('min_members')?.value.toString(),
         max_members: this.newProjectForm.get('max_members')?.value.toString(),
         manager: this.newProjectForm.get('manager')?.value,
+        user_ids: [],
       };
       console.log(newProjectRequest);
       this.projectService.addProject(newProjectRequest).subscribe({
         next: (result) => {
           this.toaster.success("Ok");
           this.newProjectForm.reset();
+          this.fetchData();
           console.log(result);
 
         },
@@ -88,10 +92,10 @@ export class AddProjectComponent {
 
 
   fetchData() { // fetch projects to display them
-    this.http.get('http://localhost:8080/')
+    this.http.get<Project[]>('http://localhost:8080/')
       .subscribe({
         next: (response) => {
-          this.projects = response;
+          this.projects = response.reverse();
           console.log('Data fetched successfully:', this.projects);
         },
         error: (error) => {
@@ -113,7 +117,11 @@ export class AddProjectComponent {
   }
 
 
+  manageMembersToProject(id: string) {
+    this.router.navigate(['/project/manageMembers/', id]);
+  }
 
-
-
+  navigateToRegistration() {
+    this.router.navigate(['/register']);
+  }
 }

@@ -132,8 +132,21 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	if len(userIds) > maxMembers {
+	minMembers, err := strconv.Atoi(project.MinMembers)
+	if err != nil {
+		http.Error(rw, "Invalid minimum members value", http.StatusInternalServerError)
+		return
+	}
+
+	currentMembersCount := len(userIds)
+
+	if currentMembersCount > maxMembers {
 		http.Error(rw, "Cannot add more users than the maximum limit", http.StatusForbidden)
+		return
+	}
+
+	if currentMembersCount < minMembers {
+		http.Error(rw, "Cannot add users to a project without meeting the minimum member requirement", http.StatusForbidden)
 		return
 	}
 
@@ -144,6 +157,20 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	projectId := vars["id"]
+	userId := vars["userId"]
+
+	err := p.repo.RemoveUserFromProject(projectId, userId)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
 }
 
 func hasActiveTasksPlaceholder() bool {
