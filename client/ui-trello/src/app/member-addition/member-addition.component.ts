@@ -108,6 +108,11 @@ export class MemberAdditionComponent implements OnInit {
   }
 
   removeMember(userId: string) {
+
+    if (this.projectMembers.length <= this.minMembers) {
+      alert("Cannot remove member: Minimum number of members required.")
+      return;
+    }
     console.log("---------------------------------------------")
     console.log(`Obrisan je user id-- ${userId}`);
     console.log("---------------------------------------------")
