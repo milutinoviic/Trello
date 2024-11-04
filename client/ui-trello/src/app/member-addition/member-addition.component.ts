@@ -17,6 +17,7 @@ export class MemberAdditionComponent implements OnInit {
   projectMembers: User[] = [];
   searchTerm: string = '';
   maxMembers: number = 5;
+  minMembers: number = 3;
   filteredUsers: User[] = [];
   projectId: string = '';
 
@@ -58,6 +59,11 @@ export class MemberAdditionComponent implements OnInit {
   }
 
   removeMember(userId: string) {
+
+    if (this.projectMembers.length <= this.minMembers) {
+      alert("Cannot remove member: Minimum number of members required.")
+      return;
+    }
     console.log("---------------------------------------------")
     console.log(`Obrisan je user id-- ${userId}`);
     console.log("---------------------------------------------")
@@ -65,10 +71,10 @@ export class MemberAdditionComponent implements OnInit {
     this.filterUsers();
     console.log(`Project id-- ${this.projectId}`);
 
-    // this.projectService.deleteMemberFromProject(this.projectId,userId).subscribe({
-    //   next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
-    //   error: (error) => console.error('Greška prlikom .....', error)
-    // });
+    this.projectService.deleteMemberFromProject(this.projectId,userId).subscribe({
+      next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
+      error: (error) => console.error('Greška prlikom .....', error)
+    });
 
   }
 
