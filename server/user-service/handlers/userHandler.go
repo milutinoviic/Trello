@@ -44,7 +44,6 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	// Prepare the success response
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
 	response := map[string]string{"message": "Registration successful"}
@@ -82,4 +81,23 @@ func decodeBody(r io.Reader) (*data.AccountRequest, error) {
 		return nil, err
 	}
 	return &c, nil
+}
+
+func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
+	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+
+	accounts, err := uh.service.GetAllMembers(h.Context())
+	if err != nil {
+		uh.logger.Println("Error retrieving members:", err)
+		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(rw).Encode(accounts)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
+		return
+	}
 }

@@ -4,6 +4,7 @@ import {animate, state, style, transition, trigger} from "@angular/animations";
 import {ToastrService} from "ngx-toastr";
 import {AccountRequest} from "../models/account-request.model";
 import {AccountService} from "../services/account.service";
+import {Router} from "@angular/router";
 
 @Component({
   selector: 'app-registration',
@@ -30,6 +31,7 @@ export class RegistrationComponent implements OnInit{
     private formBuilder: FormBuilder,
     private accountService: AccountService,
     private toaster: ToastrService,
+    private router: Router
   ){}
 
   ngOnInit(): void {
@@ -73,5 +75,10 @@ export class RegistrationComponent implements OnInit{
     } else {
       this.toaster.error('Form is not valid!');
     }
+  }
+
+
+  addNewProject() {
+    this.router.navigate(['/projects']);
   }
 }

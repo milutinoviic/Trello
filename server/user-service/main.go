@@ -29,6 +29,7 @@ func main() {
 
 	r := mux.NewRouter()
 	r.HandleFunc("/register", uh.Registration).Methods(http.MethodPost)
+	r.HandleFunc("/members", uh.GetAllMembers).Methods(http.MethodGet)
 	r.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK) // FOR OPTIONS METHOD
 	}).Methods(http.MethodOptions)

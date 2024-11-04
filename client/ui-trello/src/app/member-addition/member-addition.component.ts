@@ -1,8 +1,21 @@
 import { Component, OnInit } from '@angular/core';
+import {ProjectServiceService} from "../services/project-service.service";
+import {ActivatedRoute, Router} from "@angular/router";
+import {AccountService} from "../services/account.service";
+import {Project} from "../models/project.model";
+
+export interface UserResponse {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  password: string;
+  role: string;
+}
 
 interface User {
   id: string;
-  fullName: string;
+  email: string;
 }
 
 @Component({
@@ -12,41 +25,103 @@ interface User {
 })
 export class MemberAdditionComponent implements OnInit {
   allUsers: User[] = [];
-  projectMembers: User[] = [];
+  projectMembers: any[] = [];
   searchTerm: string = '';
-  maxMembers: number = 5;
+  minMembers: number = 0;
+  maxMembers: number = 0;
   filteredUsers: User[] = [];
+  projectId: string = '';
+  project: Project | null = null;
 
-  private dummyUsers: User[] = [
-    { id: '1', fullName: 'Alice Smith' },
-    { id: '2', fullName: 'Bob Johnson' },
-    { id: '3', fullName: 'Charlie Brown' },
-    { id: '4', fullName: 'Diana Prince' },
-    { id: '5', fullName: 'Ethan Hunt' },
-    { id: '6', fullName: 'Fiona Gallagher' },
-    { id: '7', fullName: 'George Washington' },
-    { id: '8', fullName: 'Hannah Montana' }
-  ];
-
-  constructor() {}
+  constructor(
+    private projectService: ProjectServiceService,
+    private route: ActivatedRoute,
+    private accountService: AccountService,
+    private router: Router
+  ) {}
 
   ngOnInit() {
-    this.allUsers = this.dummyUsers;
-    this.filteredUsers = this.allUsers;
+    this.route.paramMap.subscribe(params => {
+      this.projectId = params.get('projectId')!;
+
+      this.accountService.getAllUsers().subscribe({
+        next: (users: UserResponse[]) => {
+          this.allUsers = users.map(user => ({
+            id: user.id,
+            email: user.email
+          }));
+
+          this.projectService.getProjectById(this.projectId).subscribe({
+            next: (project: Project) => {
+              console.log('Project:', project);
+
+              const userIds = project.user_ids || [];
+
+              this.projectMembers = this.allUsers.filter(user =>
+                userIds.includes(user.id)
+              );
+              this.project = project;
+
+              this.minMembers = project.min_members;
+              this.maxMembers = project.max_members;
+
+              this.filteredUsers = this.allUsers.filter(user =>
+                !this.projectMembers.some(member => member.id === user.id)
+              );
+            },
+            error: (err) => {
+              console.error('Error retrieving project:', err);
+            }
+          });
+        },
+        error: (err) => {
+          console.error('Error retrieving users:', err);
+        }
+      });
+    });
   }
+
 
   filterUsers() {
     this.filteredUsers = this.allUsers
-      .filter(user => user.fullName.toLowerCase().includes(this.searchTerm.toLowerCase()))
+      .filter(user => user.email.toLowerCase().includes(this.searchTerm.toLowerCase()))
       .filter(user => !this.projectMembers.some(member => member.id === user.id));
   }
 
   addMember(user: User) {
     if (!this.isFull() && !this.projectMembers.some(member => member.id === user.id)) {
       this.projectMembers.push(user);
+
+      const memberIds = this.projectMembers.map(member => member.id);
+
+      this.projectService.addMembersToProject(this.projectId, memberIds).subscribe({
+        next: () => {
+          console.log('Members added successfully:', memberIds);
+        },
+        error: (err) => {
+          console.error('Error adding members:', err);
+        }
+      });
+
       this.filterUsers();
     }
   }
+
+  removeMember(userId: string) {
+    console.log("---------------------------------------------")
+    console.log(`Obrisan je user id-- ${userId}`);
+    console.log("---------------------------------------------")
+    this.projectMembers = this.projectMembers.filter(member => member.id !== userId);
+    this.filterUsers();
+    console.log(`Project id-- ${this.projectId}`);
+
+    this.projectService.deleteMemberFromProject(this.projectId,userId).subscribe({
+      next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
+      error: (error) => console.error('Greška prlikom .....', error)
+    });
+
+  }
+
 
   isUserAssigned(user: User): boolean {
     return this.projectMembers.some(member => member.id === user.id);
@@ -54,6 +129,14 @@ export class MemberAdditionComponent implements OnInit {
 
   isFull(): boolean {
     return this.projectMembers.length >= this.maxMembers;
+  }
+
+  navigateToRegistration() {
+    this.router.navigate(['/register']);
+  }
+
+  addNewProject() {
+    this.router.navigate(['/projects']);
   }
 }
 

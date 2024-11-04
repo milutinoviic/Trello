@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"main.go/data"
 	"main.go/repository"
 )
@@ -29,4 +30,12 @@ func (s UserService) GetAll() (data.Accounts, error) {
 	}
 	return managers, nil
 
+}
+
+func (s UserService) GetAllMembers(ctx context.Context) ([]data.Account, error) {
+	accounts, err := s.user.GetAllMembers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return accounts, nil
 }

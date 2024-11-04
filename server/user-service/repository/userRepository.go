@@ -196,3 +196,30 @@ func (uh *UserRepository) GetAllManagers() (data.Accounts, error) {
 
 	return managers, nil
 }
+
+func (ur *UserRepository) GetAllMembers(ctx context.Context) ([]data.Account, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
+		return nil, fmt.Errorf("database not available: %w", err)
+	}
+
+	accountCollection := ur.getAccountCollection()
+	filter := bson.M{"role": "member"}
+
+	cursor, err := accountCollection.Find(ctx, filter)
+	if err != nil {
+		ur.logger.Println("Error finding accounts:", err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var accounts []data.Account
+	if err := cursor.All(ctx, &accounts); err != nil {
+		ur.logger.Println("Error decoding accounts:", err)
+		return nil, err
+	}
+
+	return accounts, nil
+}

@@ -44,12 +44,10 @@
       <p class="card-text">Min people: {{ project.min_members }}</p>
       <p class="card-text">End Date: {{ project.end_date }}</p>
       <p class="card-text">Manager: {{ project.manager }}</p>
-      <a class="wider btn">Button</a>
+      <button class="btn btn-success mb-3" (click)="manageMembersToProject(project.id)">Manage members</button>
     </div>
   </div>
 </div>
 
 
-
-
-
+  <button class="btn btn-success mb-3" (click)="navigateToRegistration()">Register</button>
