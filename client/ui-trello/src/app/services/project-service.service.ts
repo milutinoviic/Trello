@@ -18,7 +18,7 @@ export class ProjectServiceService {
 
   deleteMemberFromProject(projectId: string, memberId: string): Observable<any> {
     const url = `${this.config.project_base_url}/projects/${projectId}/users/${memberId}`;
-    return this.http.put(url,{});
+    return this.http.delete(url);
   }
 
   getProjectById(projectId: string): Observable<Project> {
