@@ -20,4 +20,11 @@ export class AccountService {
   getAllUsers(): Observable<UserResponse[]> {
     return this.http.get<UserResponse[]>(this.config.users_url)
   }
+
+  changePassword(password: string): Observable<any> {
+    return this.http.post(this.config.change_password_url, password)
+
+  }
+
+
 }

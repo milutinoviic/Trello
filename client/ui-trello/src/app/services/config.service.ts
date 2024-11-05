@@ -16,6 +16,11 @@ export class ConfigService {
 
   private _users_url = this._api_url + "/members"
 
+  private _password_url = this._api_url + "/password"
+
+  private _change_password_url = this._password_url + "/change"
+
+
 
   private _project_base_url = this._project_api_url;
 
@@ -43,5 +48,21 @@ export class ConfigService {
 
   get project_base_url() {
     return this._project_base_url;
+  }
+
+  get api_url(): string {
+    return this._api_url;
+  }
+
+  get project_api_url(): string {
+    return this._project_api_url;
+  }
+
+  get password_url(): string {
+    return this._password_url;
+  }
+
+  get change_password_url(): string {
+    return this._change_password_url;
   }
 }
