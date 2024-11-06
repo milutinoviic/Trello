@@ -5,16 +5,9 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b9618d9a-5429-4182-9c5c-9dff3ae6237a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/client/ui-trello/src/app/validator/date-validator.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.html" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.scss" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.scss" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app.module.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.css" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.css" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.html" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/registration/registration.component.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/services/project-service.service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/services/project-service.service.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -24,6 +17,9 @@
   <component name="GOROOT" url="file://$PROJECT_DIR$/../../../../../Program Files/Go" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
   </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 5
@@ -35,24 +31,26 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.go.formatter.settings.were.checked": "true",
     "RunOnceActivity.go.migrated.go.modules.settings": "true",
+    "RunOnceActivity.go.modules.automatic.dependencies.download": "true",
     "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "Merging member-addition",
+    "git-widget-placeholder": "login__feature",
     "go.import.settings.migrated": "true",
     "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "C:/Users/Gabriela/Desktop/TrelloProject/Trello",
+    "last_opened_file_path": "C:/Users/Stankovic Vladica/Documents/Trello - Project/Trello",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm"
+    "nodejs_package_manager_path": "npm",
+    "ts.external.directory.path": "C:\\Users\\Stankovic Vladica\\Documents\\Trello - Project\\Trello\\client\\ui-trello\\node_modules\\typescript\\lib"
   }
 }]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-gosdk-5df93f7ad4aa-df9ad98b711f-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-242.23339.24" />
-        <option value="bundled-js-predefined-d6986cc7102b-5c90d61e3bab-JavaScript-GO-242.23339.24" />
+        <option value="bundled-gosdk-2946fb9b3188-155fe4b6e3a0-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-233.14475.38" />
       </set>
     </attachedChunks>
   </component>
