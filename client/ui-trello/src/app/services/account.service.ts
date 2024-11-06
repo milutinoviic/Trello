@@ -1,8 +1,8 @@
 import { Injectable } from '@angular/core';
-import {HttpClient, HttpResponse} from "@angular/common/http";
+import {HttpClient, HttpHeaders, HttpResponse} from "@angular/common/http";
 import {ConfigService} from "./config.service";
 import {UserResponse} from "../member-addition/member-addition.component"
-import {Observable} from "rxjs";
+import {interval, Observable, switchMap} from "rxjs";
 import {AccountRequest} from "../models/account-request.model";
 
 @Injectable({
@@ -25,6 +25,28 @@ export class AccountService {
     return this.http.post(this.config.change_password_url, password)
 
   }
+
+  startTokenVerification(userId: string) {
+    return interval(60000).pipe(
+      switchMap(() => {
+        const headers = new HttpHeaders()
+          .set('X-User-ID', userId);
+
+        return this.http.get<boolean>(this.config.verify_token_url, { headers });
+      })
+    ).subscribe(
+      (isTokenValid) => {
+        if (!isTokenValid) {
+          window.location.href = '/login';
+        }
+      },
+      (error) => {
+        console.error('Error verifying token:', error);
+      }
+    );
+  }
+
+
 
 
 }

@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"main.go/data"
+	"main.go/repository"
 	"main.go/service"
 	"net/http"
 )
@@ -99,5 +100,35 @@ func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
 	if err != nil {
 		uh.logger.Println("Error writing response:", err)
 		return
+	}
+}
+
+func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Request) {
+	userID := h.Header.Get("X-User-ID")
+	if userID == "" {
+		http.Error(rw, "User ID missing", http.StatusBadRequest)
+		return
+	}
+
+	cache, err := repository.NewCache(uh.logger)
+	if err != nil {
+		uh.logger.Println("Error initializing cache:", err)
+		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	exists, err := cache.VerifyToken(userID)
+	if err != nil {
+		uh.logger.Println("Error verifying token:", err)
+		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if exists {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte("true"))
+	} else {
+		rw.WriteHeader(http.StatusUnauthorized)
+		rw.Write([]byte("false"))
 	}
 }

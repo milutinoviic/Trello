@@ -34,6 +34,7 @@ func main() {
 		w.WriteHeader(http.StatusOK) // FOR OPTIONS METHOD
 	}).Methods(http.MethodOptions)
 	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet)
+	r.HandleFunc("/verify", uh.VerifyTokenExistence).Methods(http.MethodGet)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

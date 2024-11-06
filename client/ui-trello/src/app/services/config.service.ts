@@ -4,6 +4,9 @@ import { Injectable } from '@angular/core';
   providedIn: 'root'
 })
 export class ConfigService {
+  get verify_token_url(): string {
+    return this._verify_token_url;
+  }
 
   constructor() { }
 
@@ -19,6 +22,8 @@ export class ConfigService {
   private _password_url = this._api_url + "/password"
 
   private _change_password_url = this._password_url + "/change"
+
+  private _verify_token_url = this._api_url + "/verify"
 
 
 
