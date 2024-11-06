@@ -10,6 +10,7 @@ import {ToastrModule} from "ngx-toastr";
 import { MemberAdditionComponent } from './member-addition/member-addition.component';
 import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { LoginComponent } from './login/login.component';
 import { ChangePasswordComponent } from './change-password/change-password.component';
 
 @NgModule({
@@ -17,6 +18,7 @@ import { ChangePasswordComponent } from './change-password/change-password.compo
     AppComponent,
     RegistrationComponent,
     MemberAdditionComponent,
+    LoginComponent,
     ChangePasswordComponent
   ],
   imports: [
