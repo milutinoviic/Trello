@@ -2,16 +2,19 @@ package service
 
 import (
 	"context"
+	"errors"
 	"main.go/data"
 	"main.go/repository"
+	"main.go/utils"
 )
 
 type UserService struct {
-	user *repository.UserRepository
+	user  *repository.UserRepository
+	cache *repository.UserCache
 }
 
-func NewUserService(user *repository.UserRepository) *UserService {
-	return &UserService{user}
+func NewUserService(user *repository.UserRepository, cache *repository.UserCache) *UserService {
+	return &UserService{user, cache}
 }
 
 func (s UserService) Registration(request *data.AccountRequest) error {
@@ -38,4 +41,24 @@ func (s UserService) GetAllMembers(ctx context.Context) ([]data.Account, error) 
 		return nil, err
 	}
 	return accounts, nil
+}
+
+func (s UserService) Login(user *data.LoginCredentials) (id string, err error) {
+	role, err := s.user.GetUserRoleByEmail(user.Email)
+	if err != nil {
+		return "", errors.New("role does not exist")
+	}
+	token, err := utils.CreateToken(user.Email, role)
+	if err != nil {
+		return "", errors.New("error creating token")
+	}
+	err = s.cache.Login(user, token)
+	if err != nil {
+		return "", err
+	}
+	get, err := s.user.GetUserIdByEmail(user.Email)
+	if err != nil {
+		return "", errors.New("error getting user")
+	}
+	return get.Hex(), nil
 }

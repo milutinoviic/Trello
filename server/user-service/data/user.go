@@ -23,6 +23,11 @@ type Account struct {
 	Role      string             `bson:"role" json:"role"`
 }
 
+type LoginCredentials struct {
+	Email    string `bson:"email" json:"email"`
+	Password string `bson:"password" json:"password"`
+}
+
 type Accounts []*Account
 
 type AccountRepository interface {

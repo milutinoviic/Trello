@@ -4,6 +4,7 @@ import {ConfigService} from "./config.service";
 import {UserResponse} from "../member-addition/member-addition.component"
 import {interval, Observable, switchMap} from "rxjs";
 import {AccountRequest} from "../models/account-request.model";
+import {LoginRequest} from "../models/login-request";
 
 @Injectable({
   providedIn: 'root'
@@ -24,6 +25,10 @@ export class AccountService {
   changePassword(password: string): Observable<any> {
     return this.http.post(this.config.change_password_url, password)
 
+  }
+
+  login(loginCredentials: LoginRequest): Observable<any> {
+    return this.http.post(this.config.login_url, loginCredentials)
   }
 
   startTokenVerification(userId: string) {

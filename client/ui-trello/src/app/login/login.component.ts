@@ -2,6 +2,8 @@ import {Component, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {AccountRequest} from "../models/account-request.model";
 import {LoginRequest} from "../models/login-request";
+import {AccountService} from "../services/account.service";
+import {ToastrService} from "ngx-toastr";
 
 
 @Component({
@@ -16,6 +18,8 @@ export class LoginComponent implements OnInit {
 
   constructor(
     private formBuilder: FormBuilder,
+    private accountService: AccountService,
+    private toastr: ToastrService,
   ){}
 
   ngOnInit(): void {
@@ -35,7 +39,19 @@ export class LoginComponent implements OnInit {
         password: this.loginForm.get('password')?.value,
 
       };
-      // add logic for login
+      this.accountService.login(accountRequest).subscribe({
+        next: (result) => {
+          console.log(result)
+          this.accountService.startTokenVerification(result)
+          window.location.href = "/projects"
+        },
+        error: (error) => {
+          this.toastr.error(error.message || error);
+        }
+
+      })
+
+
 
       console.log(accountRequest)
     } else {

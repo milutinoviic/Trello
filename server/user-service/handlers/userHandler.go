@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -84,6 +85,17 @@ func decodeBody(r io.Reader) (*data.AccountRequest, error) {
 	return &c, nil
 }
 
+func decodeLoginBody(r io.Reader) (*data.LoginCredentials, error) {
+	dec := json.NewDecoder(r)
+	dec.DisallowUnknownFields()
+
+	var c data.LoginCredentials
+	if err := dec.Decode(&c); err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
 func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
 
@@ -109,8 +121,9 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 		http.Error(rw, "User ID missing", http.StatusBadRequest)
 		return
 	}
+	repo, _ := repository.New(context.Background(), uh.logger)
 
-	cache, err := repository.NewCache(uh.logger)
+	cache, err := repository.NewCache(uh.logger, repo)
 	if err != nil {
 		uh.logger.Println("Error initializing cache:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
@@ -130,5 +143,37 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 	} else {
 		rw.WriteHeader(http.StatusUnauthorized)
 		rw.Write([]byte("false"))
+	}
+}
+
+func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
+	request, err := decodeLoginBody(h.Body)
+	if err != nil {
+		uh.logger.Println("Error decoding request:", err)
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	id, err := uh.service.Login(request)
+	if err != nil {
+		uh.logger.Println("Error logging in:", err)
+		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusCreated)
+
+	response := map[string]string{"id": id}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		uh.logger.Println("Error encoding response:", err)
+		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	_, err = rw.Write(jsonResponse)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
 	}
 }

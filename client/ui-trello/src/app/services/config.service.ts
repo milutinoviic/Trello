@@ -25,7 +25,12 @@ export class ConfigService {
 
   private _verify_token_url = this._api_url + "/verify"
 
+  private _login_url = this._api_url + "/login"
 
+
+  get login_url(): string {
+    return this._login_url;
+  }
 
   private _project_base_url = this._project_api_url;
 
