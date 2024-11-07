@@ -6,9 +6,16 @@
   <component name="ChangeListManager">
     <list default="true" id="b9618d9a-5429-4182-9c5c-9dff3ae6237a" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/nginx.conf" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/nginx.conf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api-gateway/api-gateway.conf" beforeDir="false" afterPath="$PROJECT_DIR$/api-gateway/api-gateway.conf" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/angular.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/angular.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/nginx.conf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.html" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.html" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.scss" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.scss" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/services/config.service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/services/config.service.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docker-compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/main.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/repository/userRepository.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/repository/userRepository.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,7 +60,7 @@
     "git-widget-placeholder": "api__gateway__feature",
     "go.import.settings.migrated": "true",
     "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "C:/Users/Stankovic Vladica/Downloads/vežba___export",
+    "last_opened_file_path": "C:/Users/Stankovic Vladica/Documents/Trello - Project/Trello",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",

@@ -94,7 +94,7 @@ export class AddProjectComponent {
 
 
   fetchData() { // fetch projects to display them
-    this.http.get<Project[]>('http://localhost:8084/project-server/') // added /project-server/ to test apigateway it should redirect this url to: http://localhost:8080/
+    this.http.get<Project[]>('/api/project-server/') // added /project-servise/ to test apigateway
       .subscribe({
         next: (response) => {
           this.projects = response.reverse();
@@ -106,8 +106,8 @@ export class AddProjectComponent {
       });
   }
   fetchManagers() { // fetch managers to display them in combobox
-    this.http.get('http://localhost:8084/user-server/managers') // added /user-server/ to test apigateway
-      .subscribe({
+    this.http.get('/api/user-server/managers') //before /api/user-server/  will be added "http://api_gateway:8084" defined in proxy.conf.json file
+      .subscribe({                   // when api-gateway recieves this path it will redirect to user-server
         next: (response) => {
           this.managers = response;
           console.log('Data fetched successfully:', this.managers);

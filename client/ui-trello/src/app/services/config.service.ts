@@ -7,10 +7,11 @@ export class ConfigService {
 
   constructor() { }
 
-  private _api_url = 'http://localhost:8082';
+  private _api_url = '/api/user-server';//before /api/user-server/  will be added "http://api_gateway:8084" defined in proxy.conf.json file
+                                               // when api-gateway recieves this path it will redirect to user-server
 
-  private _project_api_url = 'http://localhost:8080';
-
+  private _project_api_url = '/api/project-server'; // same a below, it will be redirected to api-gateway, then to project-server
+                                                            
 
   private _register_url = this._api_url + "/register"
 

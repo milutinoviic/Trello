@@ -48,7 +48,7 @@ func (ur *UserRepository) Disconnect(ctx context.Context) error {
 }
 
 func (ur *UserRepository) Registration(request *data.AccountRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {

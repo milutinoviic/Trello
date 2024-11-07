@@ -141,20 +141,15 @@ services:
     container_name: api-gateway
     restart: on-failure
     ports:
-      - ${GATEWAY_PORT}:${PORT} # set GATEWAY_PORT in .env to 8084
+      - ${GATEWAY_PORT}:${GATEWAY_PORT} # set GATEWAY_PORT in .env to 8084:8084
     depends_on:
       - user-server
       - project-server
       - angular-app
     entrypoint: [ "/bin/bash", "-c", "while ! curl -s user-server:8080; do sleep 1; done; nginx -g 'daemon off;'" ]
-#    volumes:
-#      - api_gateway:/data/gateway
-
 
 volumes:
   mongo_project_store:
   mongo_user_store:
   mong_user_express_data:
   mong_project_express_data:
-#  api_gateway:
-
