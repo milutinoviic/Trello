@@ -12,6 +12,8 @@ import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { LoginComponent } from './login/login.component';
 import { ChangePasswordComponent } from './change-password/change-password.component';
+import { MenuComponent } from './menu/menu.component';
+import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 
 @NgModule({
   declarations: [
@@ -32,8 +34,13 @@ import { ChangePasswordComponent } from './change-password/change-password.compo
     FormsModule,
     CdkDrag,
     DragDropModule,
+    NgbModule,
+    MenuComponent,
   ],
   providers: [],
+  exports: [
+    MenuComponent
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }

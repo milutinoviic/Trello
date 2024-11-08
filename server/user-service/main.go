@@ -37,6 +37,7 @@ func main() {
 	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet)
 	r.HandleFunc("/verify", uh.VerifyTokenExistence).Methods(http.MethodGet)
 	r.HandleFunc("/login", uh.Login).Methods(http.MethodPost)
+	r.HandleFunc("/logout", uh.Logout).Methods(http.MethodPost)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

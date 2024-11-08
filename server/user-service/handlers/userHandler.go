@@ -138,10 +138,8 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 	}
 
 	if exists {
-		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("true"))
 	} else {
-		rw.WriteHeader(http.StatusUnauthorized)
 		rw.Write([]byte("false"))
 	}
 }
@@ -176,4 +174,22 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	if err != nil {
 		uh.logger.Println("Error writing response:", err)
 	}
+}
+
+func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
+	body, err := io.ReadAll(h.Body)
+	if err != nil {
+		http.Error(rw, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	defer h.Body.Close()
+	requestString := string(body)
+
+	err = uh.service.Logout(requestString)
+	if err != nil {
+		uh.logger.Println("Error logging out:", err)
+		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+	}
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
 }

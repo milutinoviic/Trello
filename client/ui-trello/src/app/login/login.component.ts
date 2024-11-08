@@ -4,6 +4,7 @@ import {AccountRequest} from "../models/account-request.model";
 import {LoginRequest} from "../models/login-request";
 import {AccountService} from "../services/account.service";
 import {ToastrService} from "ngx-toastr";
+import {Router} from "@angular/router";
 
 
 @Component({
@@ -20,6 +21,7 @@ export class LoginComponent implements OnInit {
     private formBuilder: FormBuilder,
     private accountService: AccountService,
     private toastr: ToastrService,
+    private router: Router,
   ){}
 
   ngOnInit(): void {
@@ -37,29 +39,28 @@ export class LoginComponent implements OnInit {
       const accountRequest: LoginRequest = {
         email: this.loginForm.get('email')?.value,
         password: this.loginForm.get('password')?.value,
-
       };
+
       this.accountService.login(accountRequest).subscribe({
         next: (result) => {
-          console.log(result)
-          this.accountService.startTokenVerification(result)
-          window.location.href = "/projects"
+          const userId = result.id;
+
+          this.accountService.startTokenVerification(userId);
+
+          this.router.navigate(['/projects']);
         },
         error: (error) => {
+          console.error("Login error:", error);
           this.toastr.error(error.message || error);
         }
-
-      })
-
-
-
-      console.log(accountRequest)
+      });
     } else {
       console.log('Form is not valid!');
     }
-
   }
 
 
 
-  }
+
+
+}

@@ -1,57 +1,85 @@
 import { Injectable } from '@angular/core';
-import {HttpClient, HttpHeaders, HttpResponse} from "@angular/common/http";
-import {ConfigService} from "./config.service";
-import {UserResponse} from "../member-addition/member-addition.component"
-import {interval, Observable, switchMap} from "rxjs";
-import {AccountRequest} from "../models/account-request.model";
-import {LoginRequest} from "../models/login-request";
+import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { ConfigService } from './config.service';
+import { UserResponse } from '../member-addition/member-addition.component';
+import {interval, Observable, Subscription, switchMap} from 'rxjs';
+import { AccountRequest } from '../models/account-request.model';
+import { LoginRequest } from '../models/login-request';
+import {Router} from "@angular/router";
 
 @Injectable({
   providedIn: 'root'
 })
-
 export class AccountService {
+  private _idOfUser!: string;
+  private tokenVerificationSub!: Subscription;
 
-  constructor(private http: HttpClient, private config: ConfigService) { }
+  constructor(private http: HttpClient, private config: ConfigService, private router: Router) {}
+
+  // Getter for idOfUser
+  get idOfUser(): string {
+    return this._idOfUser;
+  }
+
+  // Setter for idOfUser
+  set idOfUser(value: string) {
+    this._idOfUser = value;
+  }
 
   register(accountRequest: AccountRequest): Observable<any> {
-    return this.http.post(this.config.register_url, accountRequest)
+    return this.http.post(this.config.register_url, accountRequest);
   }
 
   getAllUsers(): Observable<UserResponse[]> {
-    return this.http.get<UserResponse[]>(this.config.users_url)
+    return this.http.get<UserResponse[]>(this.config.users_url);
   }
 
   changePassword(password: string): Observable<any> {
-    return this.http.post(this.config.change_password_url, password)
-
+    return this.http.post(this.config.change_password_url, password);
   }
 
   login(loginCredentials: LoginRequest): Observable<any> {
-    return this.http.post(this.config.login_url, loginCredentials)
+    return this.http.post<any>(this.config.login_url, loginCredentials);
+  }
+
+  logout(): Observable<any> {
+    return this.http.post(this.config.logout_url, this.idOfUser);
   }
 
   startTokenVerification(userId: string) {
-    return interval(60000).pipe(
-      switchMap(() => {
-        const headers = new HttpHeaders()
-          .set('X-User-ID', userId);
+    console.log("Token verification started for user:", userId);
 
-        return this.http.get<boolean>(this.config.verify_token_url, { headers });
-      })
-    ).subscribe(
-      (isTokenValid) => {
-        if (!isTokenValid) {
-          window.location.href = '/login';
+    this.idOfUser = userId;
+
+    if (this.tokenVerificationSub) {
+      this.tokenVerificationSub.unsubscribe();
+    }
+
+    this.tokenVerificationSub = interval(60000)
+      .pipe(
+        switchMap(() => {
+          const headers = new HttpHeaders().set('X-User-ID', this.idOfUser);
+
+          return this.http.get<boolean>(this.config.verify_token_url, { headers });
+        })
+      )
+      .subscribe(
+        (isTokenValid) => {
+          if (!isTokenValid) {
+            this.stopTokenVerification();
+            this.router.navigate(['/login']);
+          }
+        },
+        (error) => {
+          console.error("Error verifying token:", error);
         }
-      },
-      (error) => {
-        console.error('Error verifying token:', error);
-      }
-    );
+      );
   }
 
-
-
+  stopTokenVerification() {
+    if (this.tokenVerificationSub) {
+      this.tokenVerificationSub.unsubscribe();
+    }
+  }
 
 }

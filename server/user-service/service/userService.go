@@ -62,3 +62,12 @@ func (s UserService) Login(user *data.LoginCredentials) (id string, err error) {
 	}
 	return get.Hex(), nil
 }
+
+func (s UserService) Logout(id string) error {
+	err := s.cache.Logout(id)
+	if err != nil {
+		return err
+	}
+	return nil
+
+}

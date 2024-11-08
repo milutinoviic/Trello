@@ -9,11 +9,14 @@ import {animate, state, style, transition, trigger} from "@angular/animations";
 import { CommonModule } from '@angular/common';
 import {Route, Router} from "@angular/router";
 import {dateValidator} from "../validator/date-validator";
+import {AppModule} from "../app.module";
+import {MenuComponent} from "../menu/menu.component";
+
 
 @Component({
   selector: 'app-add-project',
   standalone: true,
-  imports: [ReactiveFormsModule, CommonModule],
+  imports: [ReactiveFormsModule, CommonModule, MenuComponent],
   templateUrl: './add-project.component.html',
   styleUrl: './add-project.component.scss',
   animations: [
