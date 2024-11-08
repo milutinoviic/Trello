@@ -2,6 +2,12 @@
   <div class="container-fluid">
     <a class="navbar-brand" href="#">My App</a>
     <button
+      class="btn btn-outline-primary me-2"
+      (click)="navigateToChangePassword()"
+    >
+      Change Password
+    </button>
+    <button
       class="btn btn-outline-danger ms-auto"
       (click)="logout()"
     >

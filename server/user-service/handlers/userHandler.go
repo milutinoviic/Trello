@@ -193,3 +193,49 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 }
+
+func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		http.Error(rw, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	requestString := string(body)
+
+	isPasswordCorrect := uh.service.PasswordCheck(requestString)
+
+	responseString := "false"
+	if isPasswordCorrect {
+		responseString = "true"
+	}
+
+	rw.Header().Set("Content-Type", "text/plain")
+	rw.WriteHeader(http.StatusOK)
+
+	_, writeErr := rw.Write([]byte(responseString))
+	if writeErr != nil {
+		http.Error(rw, "Failed to write response", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
+	var req data.ChangePasswordRequest
+	err := json.NewDecoder(h.Body).Decode(&req)
+	if err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer h.Body.Close()
+
+	err = uh.service.ChangePassword(req.Id, req.Password)
+	if err != nil {
+		http.Error(rw, "Failed to change password", http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+}

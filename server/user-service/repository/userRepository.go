@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
@@ -265,4 +266,56 @@ func (ur *UserRepository) GetUserByEmail(email string) (data.Account, error) {
 		return data.Account{}, err
 	}
 	return existingAccount, nil
+}
+
+func (ur *UserRepository) GetUserById(id string) (data.Account, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	accountCollection := ur.getAccountCollection()
+	var existingAccount data.Account
+	err := accountCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&existingAccount)
+	if err != nil {
+		return data.Account{}, err
+	}
+	return existingAccount, nil
+}
+
+func (ur *UserRepository) CheckIfPasswordIsSame(password string) bool {
+	acc, err := ur.GetUserById(password)
+	if err != nil {
+		return false
+	}
+	err = bcrypt.CompareHashAndPassword([]byte(acc.Password), []byte(password))
+	if err != nil {
+		return false
+	}
+	return true
+}
+func (ur *UserRepository) ChangePassword(id string, password string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	accountCollection := ur.getAccountCollection()
+
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		return err
+	}
+
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return errors.New("invalid user ID format")
+	}
+
+	filter := bson.M{"_id": objectID}
+	update := bson.M{
+		"$set": bson.M{"password": hashedPassword},
+	}
+
+	_, err = accountCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

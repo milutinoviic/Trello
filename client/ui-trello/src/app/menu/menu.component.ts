@@ -27,4 +27,8 @@ export class MenuComponent {
     }
     })
   }
+
+  navigateToChangePassword() {
+    this.router.navigate(['/changePassword']);
+  }
 }

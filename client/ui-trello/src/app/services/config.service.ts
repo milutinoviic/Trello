@@ -29,6 +29,12 @@ export class ConfigService {
 
   private _logout_url = this._api_url + "/logout"
 
+  private _password_check_url = this._password_url + "/check"
+
+
+  get password_check_url(): string {
+    return this._password_check_url;
+  }
 
   get logout_url(): string {
     return this._logout_url;
