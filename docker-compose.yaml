@@ -80,6 +80,60 @@ services:
       - mong_project_express_data:/data/db
 
 
+
+  task-server:
+    build:
+      context: ./server/task-service/
+      dockerfile: Dockerfile
+    restart: always
+    container_name: "task-server"
+    hostname: "task-server"
+    ports:
+      - 8089:8089
+    environment:
+      - PORT=8089
+      - MONGO_DB_URI=mongodb://root:pass@mongo-task:27019
+    depends_on:
+      mongo-task:
+        condition: service_healthy
+
+  mongo-task:
+    image: mongo
+    restart: always
+    ports:
+      - "27019:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: pass
+      MONGO_INITDB_DATABASE: mongoTask
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - mongo_task_store:/data/db
+
+
+  mongo-express-task:
+    image: mongo-express
+    restart: always
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo-task
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin
+      - ME_CONFIG_MONGODB_URL=mongodb://root:pass@mongo-task:27017
+    depends_on:
+      - mongo-task
+    ports:
+      - "8088:8081"
+    volumes:
+      - mongo_task_express_data:/data/db
+
+
+
   user-server:
     build:
       context: ./server/user-service/
@@ -138,6 +192,9 @@ services:
 volumes:
   mongo_project_store:
   mongo_user_store:
+  mongo_task_store:
   mong_user_express_data:
   mong_project_express_data:
+  mongo_task_express_data:
+
 
