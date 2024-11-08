@@ -20,7 +20,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if len(port) == 0 {
-		port = "8089"
+		port = "8080"
 	}
 
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -42,6 +42,8 @@ func main() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/tasks", taskHandler.PostTask).Methods(http.MethodPost)
+	router.HandleFunc("/tasks", taskHandler.GetAllTask).Methods(http.MethodGet)
+	router.HandleFunc("/tasks/{projectId}", taskHandler.GetAllTasksByProjectId).Methods(http.MethodGet)
 	router.Use(taskHandler.MiddlewareContentTypeSet)
 	router.Use(taskHandler.MiddlewareTaskDeserialization)
 

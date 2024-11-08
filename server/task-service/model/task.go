@@ -28,6 +28,13 @@ type Task struct {
 	Blocked      bool               `bson:"blocked" json:"blocked"`
 }
 
+type Tasks []*Task
+
+func (p *Tasks) ToJSON(w io.Writer) error {
+	e := json.NewEncoder(w)
+	return e.Encode(p)
+}
+
 func (t *Task) ToJSON(w io.Writer) error {
 	e := json.NewEncoder(w)
 	return e.Encode(t)

@@ -91,3 +91,27 @@ func (tr *TaskRepository) Insert(task *model.Task) error {
 	tr.logger.Printf("Task created with ID: %v\n", result.InsertedID)
 	return nil
 }
+
+func (tr *TaskRepository) GetAllTask() (model.Tasks, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tasksCollection := tr.getCollection()
+
+	var tasks model.Tasks
+	tasksCursor, err := tasksCollection.Find(ctx, bson.M{})
+	if err != nil {
+		tr.logger.Println(err)
+		return nil, err
+	}
+	if err = tasksCursor.All(ctx, &tasks); err != nil {
+		tr.logger.Println(err)
+		return nil, err
+	}
+	return tasks, nil
+}
+
+func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Tasks, error) {
+	return nil, nil // implement this later
+
+}
