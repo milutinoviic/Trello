@@ -37,3 +37,21 @@
   </div>
 </div>
 
+
+<div *ngIf="tasks.length > 0; else noTasks">
+  <h3>All Tasks</h3>
+  <ul>
+    <li *ngFor="let task of tasks">
+      <h4>{{ task.name }}</h4>
+      <p>{{ task.description }}</p>
+      <p>Status: {{ task.status }}</p>
+      <p>Created At: {{ task.createdAt | date }}</p>
+      <p>Updated At: {{ task.updatedAt | date }}</p>
+      <p>Blocked: {{ task.blocked ? 'Yes' : 'No' }}</p>
+    </li>
+  </ul>
+</div>
+
+<ng-template #noTasks>
+  <p>No tasks available.</p>
+</ng-template>

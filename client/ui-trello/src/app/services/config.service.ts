@@ -47,6 +47,10 @@ export class ConfigService {
     return this._task_api_url;
   }
 
+  getTasksByProjectId(projectId: string): string {
+    return `${this._task_api_url}/tasks/${projectId}`;
+  }
+
   get project_base_url() {
     return this._project_base_url;
   }

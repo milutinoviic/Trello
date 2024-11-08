@@ -2,6 +2,7 @@ import {Component, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ActivatedRoute} from "@angular/router";
 import {Task} from "../models/task";
+import {TaskService} from "../services/task.service";
 
 @Component({
   selector: 'app-add-task',
@@ -12,10 +13,12 @@ export class AddTaskComponent implements OnInit {
 
   taskForm!: FormGroup;
   projectId!:string;
+  tasks: Task[] = [];
 
   constructor(
               private fb: FormBuilder,
-              private route: ActivatedRoute
+              private route: ActivatedRoute,
+              private taskService:TaskService
   ) {}
 
   ngOnInit(): void {
@@ -26,11 +29,15 @@ export class AddTaskComponent implements OnInit {
     });
 
 
+
+
     this.taskForm = this.fb.group({
       taskTitle: ['', Validators.required],
       taskDescription: ['', Validators.required]
     });
   }
+
+
 
   onSubmit(): void {
     if (this.taskForm.valid) {
@@ -49,6 +56,11 @@ export class AddTaskComponent implements OnInit {
 
       // if (this.taskForm.valid) {
       //   const taskData = this.taskForm.value;
+
+      this.taskService.addTask(taskData).subscribe({
+        next: () => console.log(`Proslo sve kako treba`),
+        error: (error) => console.error('Greška prlikom .....', error)
+      });
         console.log('Task Created:', taskData);
         console.log('IdProject:', this.projectId);
 
