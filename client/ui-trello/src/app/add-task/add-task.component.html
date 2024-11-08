@@ -1,0 +1,39 @@
+<div class="task-card-container">
+  <div class="task-card">
+    <h2>Create Task</h2>
+    <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+      <!-- Task Title -->
+      <div class="form-group">
+        <label for="taskTitle">Task Title</label>
+        <input
+          id="taskTitle"
+          formControlName="taskTitle"
+          type="text"
+          placeholder="Enter task title"
+          class="form-control"
+          required
+        />
+      </div>
+
+      <!-- Task Description -->
+      <div class="form-group">
+        <label for="taskDescription">Task Description</label>
+        <textarea
+          id="taskDescription"
+          formControlName="taskDescription"
+          placeholder="Enter task description"
+          class="form-control"
+          rows="4"
+        ></textarea>
+      </div>
+
+      <!-- Submit Button -->
+      <div class="form-group">
+        <button type="submit" [disabled]="taskForm.invalid" class="btn btn-primary">
+          Create Task
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+

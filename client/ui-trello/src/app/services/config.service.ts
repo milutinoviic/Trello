@@ -13,6 +13,7 @@ export class ConfigService {
 
   private _task_api_url = 'http://localhost:8089';
 
+
   private _register_url = this._api_url + "/register"
 
   private _users_url = this._api_url + "/members"
@@ -30,10 +31,6 @@ export class ConfigService {
     return `${this._project_api_url}/${projectId}`;
   }
 
-  getTasksByProjectId(projectId: string): string {
-    return `${this._task_api_url}/tasks/${projectId}`;
-  }
-
   get users_url() {
     return this._users_url;
   }
@@ -44,6 +41,10 @@ export class ConfigService {
 
   get new_project_url(){
     return this._new_project_url;
+  }
+
+  get new_task_url(){
+    return this._task_api_url;
   }
 
   get project_base_url() {
