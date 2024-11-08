@@ -55,30 +55,38 @@ export class ChangePasswordComponent {
       this.toastr.error('New passwords do not match.');
       return;
     }
-    this.accountService.checkPassword().subscribe({
-      next: value => {
-        if (value) {
-          this.toastr.error("Password don't match.");
+
+
+    this.accountService.checkPassword(this.oldPassword).subscribe({
+      next: (value) => {
+        console.log(value);
+        if (!value) {
+          this.toastr.error("Incorrect old password.");
           return;
         }
-      },
-      error: err => {
-        this.toastr.error('There has been an error, try again.');
-        return;
-      }
-    })
+        else if (this.oldPassword === this.newPassword) {
+          this.toastr.error("Old and new passwords can't be the same.");
+          return;
+        }
 
-    this.accountService.changePassword(this.newPassword).subscribe({
-      next: (response) => {
-        this.oldPassword = '';
-        this.newPassword = '';
-        this.repeatNewPassword = '';
+        this.accountService.changePassword(this.newPassword).subscribe({
+          next: (response) => {
+            this.toastr.success("You have successfully changed the password");
+            this.oldPassword = '';
+            this.newPassword = '';
+            this.repeatNewPassword = '';
+          },
+          error: (error) => {
+            console.log(error);
+            this.toastr.error(error.error);
+          },
+        });
       },
-      error: (error) => {
-        console.log(error);
-        this.toastr.error(error.error);
-      },
+      error: (err) => {
+        this.toastr.error('There has been an error, try again.');
+      }
     });
   }
+
 
 }

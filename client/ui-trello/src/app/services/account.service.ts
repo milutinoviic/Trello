@@ -87,8 +87,12 @@ export class AccountService {
     }
   }
 
-  checkPassword(): Observable<boolean> {
-    return this.http.post<boolean>(this.config.password_check_url, this.idOfUser);
+  checkPassword(password : string): Observable<boolean> {
+    const payload = {
+      id: this.idOfUser,
+      password: password
+    };
+    return this.http.post<boolean>(this.config.password_check_url, payload);
   }
 
 }

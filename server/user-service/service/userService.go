@@ -72,8 +72,8 @@ func (s *UserService) Logout(id string) error {
 
 }
 
-func (s *UserService) PasswordCheck(password string) bool {
-	return s.user.CheckIfPasswordIsSame(password)
+func (s *UserService) PasswordCheck(id string, password string) bool {
+	return s.user.CheckIfPasswordIsSame(id, password)
 }
 
 func (s *UserService) ChangePassword(id string, password string) error {

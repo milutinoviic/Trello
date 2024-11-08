@@ -194,18 +194,17 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 }
 
-func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, req *http.Request) {
-	defer req.Body.Close()
-
-	body, err := io.ReadAll(req.Body)
+func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
+	var req data.ChangePasswordRequest
+	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
-		http.Error(rw, "Failed to read request body", http.StatusBadRequest)
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
 
-	requestString := string(body)
-
-	isPasswordCorrect := uh.service.PasswordCheck(requestString)
+	isPasswordCorrect := uh.service.PasswordCheck(req.Id, req.Password)
+	uh.logger.Println("Password is correct:", isPasswordCorrect)
 
 	responseString := "false"
 	if isPasswordCorrect {

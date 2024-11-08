@@ -273,15 +273,19 @@ func (ur *UserRepository) GetUserById(id string) (data.Account, error) {
 	defer cancel()
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
-	err := accountCollection.FindOne(ctx, bson.M{"_id": id}).Decode(&existingAccount)
+	objectId, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return data.Account{}, err
+	}
+	err = accountCollection.FindOne(ctx, bson.M{"_id": objectId}).Decode(&existingAccount)
 	if err != nil {
 		return data.Account{}, err
 	}
 	return existingAccount, nil
 }
 
-func (ur *UserRepository) CheckIfPasswordIsSame(password string) bool {
-	acc, err := ur.GetUserById(password)
+func (ur *UserRepository) CheckIfPasswordIsSame(id string, password string) bool {
+	acc, err := ur.GetUserById(id)
 	if err != nil {
 		return false
 	}
