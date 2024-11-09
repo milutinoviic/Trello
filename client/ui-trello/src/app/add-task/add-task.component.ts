@@ -21,6 +21,7 @@ export class AddTaskComponent implements OnInit {
               private fb: FormBuilder,
               private route: ActivatedRoute,
               private taskService:TaskService,
+              private http: HttpClient,
   ) {}
 
   ngOnInit(): void {
@@ -31,6 +32,7 @@ export class AddTaskComponent implements OnInit {
       this.projectId=params['projectId'];
     });
 
+    this.fetchTasks(this.projectId);
 
 
     this.taskForm = this.fb.group({
@@ -40,7 +42,18 @@ export class AddTaskComponent implements OnInit {
   }
 
 
-
+  fetchTasks(projectId: string) {
+    this.http.get<Task[]>(`/api/task-server/tasks/${projectId}`)
+      .subscribe({
+        next: (response) => {
+          this.tasks = response.reverse();
+          console.log('Data fetched successfully:', this.tasks);
+        },
+        error: (error) => {
+          console.error('Error fetching data:', error);
+        }
+      });
+  }
 
   onSubmit(): void {
     if (this.taskForm.valid) {

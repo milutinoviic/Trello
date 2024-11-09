@@ -36,11 +36,6 @@ func (t *TasksHandler) GetAllTask(rw http.ResponseWriter, h *http.Request) {
 	if err != nil {
 		t.logger.Print("Database exception: ", err)
 	}
-	if h.ContentLength > 0 {
-		t.logger.Println("Body should not be sent with GET request")
-		http.Error(rw, "GET request should not contain a body", http.StatusBadRequest)
-		return
-	}
 
 	err = projects.ToJSON(rw)
 	if err != nil {
