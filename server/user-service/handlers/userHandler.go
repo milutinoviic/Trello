@@ -238,3 +238,21 @@ func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 
 	rw.WriteHeader(http.StatusOK)
 }
+
+func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	err := json.NewDecoder(h.Body).Decode(&req)
+	if err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer h.Body.Close()
+	err = uh.service.RecoveryRequest(req.Email)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	}
+	rw.WriteHeader(http.StatusOK)
+
+}

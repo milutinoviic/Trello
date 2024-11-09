@@ -31,4 +31,8 @@ export class MenuComponent {
   navigateToChangePassword() {
     this.router.navigate(['/changePassword']);
   }
+
+  navigateToPasswordRecovery() {
+    this.router.navigate(['/recovery'])
+  }
 }

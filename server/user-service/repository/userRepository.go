@@ -323,3 +323,59 @@ func (ur *UserRepository) ChangePassword(id string, password string) error {
 
 	return nil
 }
+
+func SendRecoveryEmail(userEmail string) error {
+	recoveryURL := fmt.Sprintf("http://localhost:4200/password/recovery/%s", userEmail)
+
+	subject := "Password Recovery"
+	body := fmt.Sprintf(`
+		<html>
+		<body>
+			<p>Dear user,</p>
+			<p>We received a request to reset your password.</p>
+			<p>Please click the button below to reset your password:</p>
+			<a href="%s" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block;">Reset Password</a>
+			<p>If you did not request this, please ignore this email.</p>
+			<p>Thank you!</p>
+		</body>
+		</html>`, recoveryURL)
+
+	message := fmt.Sprintf("Subject: %s\r\n", subject)
+	message += "MIME-Version: 1.0\r\n"
+	message += "Content-Type: text/html; charset=\"UTF-8\"\r\n"
+	message += "\r\n" + body
+
+	from := os.Getenv("SMTP_EMAIL")
+	password := os.Getenv("SMTP_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{userEmail}, []byte(message))
+	if err != nil {
+		return fmt.Errorf("failed to send email: %v", err)
+	}
+
+	return nil
+}
+
+func (ur *UserRepository) HandleRecoveryRequest(email string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	accountCollection := ur.getAccountCollection()
+	var existingAccount data.Account
+
+	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	if err != nil {
+		return err
+	}
+	if len(existingAccount.Email) == 0 {
+		return data.ErrEmailDoesntExist()
+	}
+	err = SendRecoveryEmail(email)
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -5,6 +5,8 @@ import {MemberAdditionComponent} from "./member-addition/member-addition.compone
 import {AddProjectComponent} from "./add-project/add-project.component";
 import {LoginComponent} from "./login/login.component";
 import {ChangePasswordComponent} from "./change-password/change-password.component";
+import {PasswordRecoveryRequestComponent} from "./password-recovery-request/password-recovery-request.component";
+import {PasswordResetComponent} from "./password-reset/password-reset.component";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent },
@@ -13,6 +15,8 @@ export const routes: Routes = [
   { path: 'projects', component: AddProjectComponent},
   { path: 'login', component: LoginComponent },
   { path: 'changePassword', component: ChangePasswordComponent },
+  { path:'recovery', component: PasswordRecoveryRequestComponent },
+  { path: 'password/recovery/:email', component: PasswordResetComponent },
 ];
 
 @NgModule({
