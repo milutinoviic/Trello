@@ -14,7 +14,8 @@ export class ConfigService {
                                                // when api-gateway recieves this path it will redirect to user-server
 
   private _project_api_url = '/api/project-server'; // same a below, it will be redirected to api-gateway, then to project-server
-                                                            
+
+  private _task_api_url = '/api/task-server';
 
   private _register_url = this._api_url + "/register"
 
@@ -67,6 +68,14 @@ export class ConfigService {
 
   get new_project_url(){
     return this._new_project_url;
+  }
+
+  get new_task_url(){
+    return this._task_api_url;
+  }
+
+  getTasksByProjectId(projectId: string): string {
+    return `${this._task_api_url}/tasks/${projectId}`;
   }
 
   get project_base_url() {

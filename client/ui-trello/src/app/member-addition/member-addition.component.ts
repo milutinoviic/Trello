@@ -140,6 +140,11 @@ export class MemberAdditionComponent implements OnInit {
     this.router.navigate(['/register']);
   }
 
+  addNewTask(projectId: string) {
+    this.router.navigate([`/projects/${projectId}/addTask`]);
+
+  }
+
   addNewProject() {
     this.router.navigate(['/projects']);
   }

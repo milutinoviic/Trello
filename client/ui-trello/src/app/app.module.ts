@@ -14,6 +14,7 @@ import { LoginComponent } from './login/login.component';
 import { ChangePasswordComponent } from './change-password/change-password.component';
 import { MenuComponent } from './menu/menu.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import {AddTaskComponent} from "./add-task/add-task.component";
 
 @NgModule({
   declarations: [
@@ -21,7 +22,8 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
     RegistrationComponent,
     MemberAdditionComponent,
     LoginComponent,
-    ChangePasswordComponent
+    ChangePasswordComponent,
+    AddTaskComponent
   ],
   imports: [
     BrowserModule,
