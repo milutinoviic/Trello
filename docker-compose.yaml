@@ -144,9 +144,49 @@ services:
     volumes:
       - redis_data:/data
 
+  notification-server:
+    build:
+      context: ./server/notification-service/
+      dockerfile: Dockerfile
+    restart: always
+    container_name: "notification-service"
+    hostname: "notification-service"
+    ports:
+      - "8085:8080"
+    environment:
+      - PORT=8080
+      - CASSANDRA_HOST=${CASSANDRA_HOST}
+      - CASSANDRA_PORT=${CASSANDRA_PORT}
+      - CASSANDRA_KEYSPACE=${CASSANDRA_KEYSPACE}
+    depends_on:
+      cassandra:
+        condition: service_healthy
+
+  cassandra:
+    image: cassandra:4.0
+    restart: always
+    container_name: "cassandra"
+    hostname: "cassandra"
+    ports:
+      - "9042:9042"
+    environment:
+      - CASSANDRA_CLUSTER_NAME=MyCassandraCluster
+      - CASSANDRA_DC=DC1
+      - CASSANDRA_RACK=RAC1
+      - CASSANDRA_LISTENER_RPC_ADDRESS=0.0.0.0
+    healthcheck:
+      test: ["CMD", "cqlsh", "--username", "cassandra", "--password", "cassandra", "--execute", "describe keyspaces"]
+      interval: 15s
+      retries: 5
+      timeout: 15s
+    volumes:
+      - cassandra_data:/var/lib/cassandra
+
 volumes:
   mongo_project_store:
   mongo_user_store:
   mong_user_express_data:
   mong_project_express_data:
   redis_data:
+  cassandra_data:
+
