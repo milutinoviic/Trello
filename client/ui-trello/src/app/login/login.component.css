@@ -1,0 +1,16 @@
+
+input[type="password"]{
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 0.5rem;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  transition: border-color 0.3s;
+}
+
+
+input[type="password"]:focus {
+  border-color: #1058d1;
+  outline: none;
+}

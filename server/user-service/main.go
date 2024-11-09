@@ -24,7 +24,8 @@ func main() {
 	if err != nil {
 		logger.Fatal(err)
 	}
-	us := service.NewUserService(ur)
+	uc, err := repository.NewCache(logger, ur)
+	us := service.NewUserService(ur, uc)
 	uh := handlers.NewUserHandler(logger, us)
 
 	r := mux.NewRouter()
@@ -34,6 +35,11 @@ func main() {
 		w.WriteHeader(http.StatusOK) // FOR OPTIONS METHOD
 	}).Methods(http.MethodOptions)
 	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet)
+	r.HandleFunc("/verify", uh.VerifyTokenExistence).Methods(http.MethodGet)
+	r.HandleFunc("/login", uh.Login).Methods(http.MethodPost)
+	r.HandleFunc("/logout", uh.Logout).Methods(http.MethodPost)
+	r.HandleFunc("/password/check", uh.CheckPasswords).Methods(http.MethodPost)
+	r.HandleFunc("/password/change", uh.ChangePassword).Methods(http.MethodPost)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
