@@ -88,7 +88,7 @@ services:
     container_name: "user-server"
     hostname: "user-server"
     ports:
-      - 8082:8080
+      - 8087:8080
     environment:
       - PORT=8080
       - MONGO_DB_URI=mongodb://root:pass@mongo-user:27017

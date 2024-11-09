@@ -1,8 +1,8 @@
 import {Component, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
-import {AccountRequest} from "../models/account-request.model";
-import {LoginRequest} from "../models/login-request";
-import {AccountService} from "../services/account.service";
+import {AccountRequest} from "../../models/account-request.model";
+import {LoginRequest} from "../../models/login-request";
+import {AccountService} from "../../services/account.service";
 import {ToastrService} from "ngx-toastr";
 import {Router} from "@angular/router";
 
@@ -10,7 +10,7 @@ import {Router} from "@angular/router";
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
-  styleUrls: ['./login.component.css', '../registration/registration.component.css']
+  styleUrls: ['./login.component.css', '../../registration/registration.component.css']
 })
 export class LoginComponent implements OnInit {
 

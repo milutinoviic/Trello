@@ -10,7 +10,7 @@ export class ConfigService {
 
   constructor() { }
 
-  private _api_url = 'http://localhost:8082';
+  private _api_url = 'http://localhost:8087';
 
   private _project_api_url = 'http://localhost:8080';
 
