@@ -5,6 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="b9618d9a-5429-4182-9c5c-9dff3ae6237a" name="Changes" comment="">
+<<<<<<< HEAD
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/api-gateway/api-gateway.conf" beforeDir="false" afterPath="$PROJECT_DIR$/api-gateway/api-gateway.conf" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/ui-trello/angular.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/angular.json" afterDir="false" />
@@ -16,6 +17,13 @@
       <change beforePath="$PROJECT_DIR$/docker-compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yaml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/user-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/main.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/server/user-service/repository/userRepository.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/repository/userRepository.go" afterDir="false" />
+=======
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docker-compose.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/server/user-service/repository/cache.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/repository/cache.go" afterDir="false" />
+>>>>>>> 098a698a1c23315b8ca282a6b20cead79a6a5c5e
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,6 +57,7 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
+<<<<<<< HEAD
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
     "RunOnceActivity.OpenProjectViewOnStart": "true",
@@ -72,6 +81,26 @@
       <recent name="C:\Users\Stankovic Vladica\Documents\Trello - Project\Trello" />
     </key>
   </component>
+=======
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.automatic.dependencies.download&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;login__feature&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/Stankovic Vladica/Documents/Trello - Project/Trello&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Users\\Stankovic Vladica\\Documents\\Trello - Project\\Trello\\client\\ui-trello\\node_modules\\typescript\\lib&quot;
+  }
+}</component>
+>>>>>>> 098a698a1c23315b8ca282a6b20cead79a6a5c5e
   <component name="SharedIndexes">
     <attachedChunks>
       <set>

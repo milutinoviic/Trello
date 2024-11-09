@@ -10,12 +10,18 @@ import {ToastrModule} from "ngx-toastr";
 import { MemberAdditionComponent } from './member-addition/member-addition.component';
 import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import { LoginComponent } from './login/login.component';
+import { ChangePasswordComponent } from './change-password/change-password.component';
+import { MenuComponent } from './menu/menu.component';
+import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 
 @NgModule({
   declarations: [
     AppComponent,
     RegistrationComponent,
-    MemberAdditionComponent
+    MemberAdditionComponent,
+    LoginComponent,
+    ChangePasswordComponent
   ],
   imports: [
     BrowserModule,
@@ -28,8 +34,13 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
     FormsModule,
     CdkDrag,
     DragDropModule,
+    NgbModule,
+    MenuComponent,
   ],
   providers: [],
+  exports: [
+    MenuComponent
+  ],
   bootstrap: [AppComponent]
 })
 export class AppModule { }
