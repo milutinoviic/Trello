@@ -96,7 +96,7 @@ export class AccountService {
   }
 
   requestPasswordReset(email: string): Observable<any> {
-    return this.http.post(this.config.recovery_password_url, email)
+    return this.http.post(this.config.recovery_password_url, { email })
   }
 
   resetPassword(email: string, newPassword: string) {

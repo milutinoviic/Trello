@@ -243,16 +243,38 @@ func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
 	var req struct {
 		Email string `json:"email"`
 	}
+
+	err := json.NewDecoder(h.Body).Decode(&req)
+	if err != nil || req.Email == "" {
+		http.Error(rw, "Invalid request body or missing email", http.StatusBadRequest)
+		return
+	}
+	defer h.Body.Close()
+
+	err = uh.service.RecoveryRequest(req.Email)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+}
+
+func (uh *UserHandler) HandlePasswordReset(rw http.ResponseWriter, h *http.Request) {
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
 	err := json.NewDecoder(h.Body).Decode(&req)
 	if err != nil {
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 	defer h.Body.Close()
-	err = uh.service.RecoveryRequest(req.Email)
+	err = uh.service.ResettingPassword(req.Email, req.Password)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	rw.WriteHeader(http.StatusOK)
-
 }

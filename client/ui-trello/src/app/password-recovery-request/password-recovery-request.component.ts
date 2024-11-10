@@ -15,11 +15,16 @@ export class PasswordRecoveryRequestComponent {
   requestPasswordReset() {
     this.accountService.requestPasswordReset(this.email).subscribe({
       next: () => {
+        this.email = '';
         this.toastr.success('Recovery email sent. Please check your inbox.');
       },
       error: (err) => {
-        this.toastr.error(err.error.message || 'Failed to send recovery email');
+        console.log(err);
+
+        const errorMessage = err.error?.message || err.error || 'An unexpected error occurred';
+        this.toastr.error(errorMessage);
       }
     });
   }
+
 }

@@ -204,6 +204,7 @@ func (ur *UserRepository) GetAllMembers(ctx context.Context) ([]data.Account, er
 	defer cancel()
 
 	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
+		ur.logger.Println("Database not available")
 		return nil, fmt.Errorf("database not available: %w", err)
 	}
 
@@ -235,6 +236,7 @@ func (ur *UserRepository) GetUserIdByEmail(email string) (primitive.ObjectID, er
 
 	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
+		ur.logger.Println("Error finding account:", err)
 		return primitive.NilObjectID, err
 	}
 
@@ -250,6 +252,7 @@ func (ur *UserRepository) GetUserRoleByEmail(email string) (string, error) {
 
 	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
+		ur.logger.Println("Error finding account:", err)
 		return "", err
 	}
 
@@ -263,6 +266,7 @@ func (ur *UserRepository) GetUserByEmail(email string) (data.Account, error) {
 	var existingAccount data.Account
 	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
+		ur.logger.Println("Error finding account:", err)
 		return data.Account{}, err
 	}
 	return existingAccount, nil
@@ -275,10 +279,12 @@ func (ur *UserRepository) GetUserById(id string) (data.Account, error) {
 	var existingAccount data.Account
 	objectId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
+		ur.logger.Println("Error parsing object id:", err)
 		return data.Account{}, err
 	}
 	err = accountCollection.FindOne(ctx, bson.M{"_id": objectId}).Decode(&existingAccount)
 	if err != nil {
+		ur.logger.Println("Error finding account:", err)
 		return data.Account{}, err
 	}
 	return existingAccount, nil
@@ -287,10 +293,12 @@ func (ur *UserRepository) GetUserById(id string) (data.Account, error) {
 func (ur *UserRepository) CheckIfPasswordIsSame(id string, password string) bool {
 	acc, err := ur.GetUserById(id)
 	if err != nil {
+		ur.logger.Println("Error finding account:", err)
 		return false
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(acc.Password), []byte(password))
 	if err != nil {
+		ur.logger.Println("Error comparing password:", err)
 		return false
 	}
 	return true
@@ -303,11 +311,13 @@ func (ur *UserRepository) ChangePassword(id string, password string) error {
 
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
+		ur.logger.Println("Error hashing password:", err)
 		return err
 	}
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
+		ur.logger.Println("Error parsing object id:", err)
 		return errors.New("invalid user ID format")
 	}
 
@@ -318,6 +328,7 @@ func (ur *UserRepository) ChangePassword(id string, password string) error {
 
 	_, err = accountCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
+		ur.logger.Println("Error updating account:", err)
 		return err
 	}
 
@@ -368,14 +379,50 @@ func (ur *UserRepository) HandleRecoveryRequest(email string) error {
 
 	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
+		ur.logger.Println("Error finding account:", err)
 		return err
 	}
 	if len(existingAccount.Email) == 0 {
+		ur.logger.Println("Error finding account:", data.ErrEmailDoesntExist())
 		return data.ErrEmailDoesntExist()
 	}
 	err = SendRecoveryEmail(email)
 	if err != nil {
+		ur.logger.Println("Error sending recovery email:", err)
 		return err
 	}
 	return nil
+}
+
+func (ur *UserRepository) ResetPassword(email string, password string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	accountCollection := ur.getAccountCollection()
+	var existingAccount data.Account
+
+	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	if err != nil {
+		ur.logger.Println("Error finding account:", err)
+		return err
+	}
+
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		ur.logger.Println("Error hashing password:", err)
+		return err
+	}
+
+	filter := bson.M{"email": email}
+	update := bson.M{
+		"$set": bson.M{
+			"password": hashedPassword,
+		},
+	}
+	_, err = accountCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		ur.logger.Println("Error updating account:", err)
+		return err
+	}
+	return nil
+
 }

@@ -32,7 +32,5 @@ export class MenuComponent {
     this.router.navigate(['/changePassword']);
   }
 
-  navigateToPasswordRecovery() {
-    this.router.navigate(['/recovery'])
-  }
+
 }

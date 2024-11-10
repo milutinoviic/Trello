@@ -91,3 +91,11 @@ func (s *UserService) RecoveryRequest(email string) error {
 	}
 	return nil
 }
+
+func (s *UserService) ResettingPassword(email string, password string) error {
+	err := s.user.ResetPassword(email, password)
+	if err != nil {
+		return err
+	}
+	return nil
+}
