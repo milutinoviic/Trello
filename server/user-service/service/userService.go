@@ -17,7 +17,7 @@ func NewUserService(user *repository.UserRepository, cache *repository.UserCache
 	return &UserService{user, cache}
 }
 
-func (s UserService) Registration(request *data.AccountRequest) error {
+func (s *UserService) Registration(request *data.AccountRequest) error {
 	err := s.user.Registration(request)
 	if err != nil {
 		return err
@@ -26,7 +26,7 @@ func (s UserService) Registration(request *data.AccountRequest) error {
 
 }
 
-func (s UserService) GetAll() (data.Accounts, error) {
+func (s *UserService) GetAll() (data.Accounts, error) {
 	managers, err := s.user.GetAllManagers()
 	if err != nil {
 		return nil, err
@@ -35,7 +35,7 @@ func (s UserService) GetAll() (data.Accounts, error) {
 
 }
 
-func (s UserService) GetAllMembers(ctx context.Context) ([]data.Account, error) {
+func (s *UserService) GetAllMembers(ctx context.Context) ([]data.Account, error) {
 	accounts, err := s.user.GetAllMembers(ctx)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func (s UserService) GetAllMembers(ctx context.Context) ([]data.Account, error) 
 	return accounts, nil
 }
 
-func (s UserService) Login(user *data.LoginCredentials) (id string, err error) {
+func (s *UserService) Login(user *data.LoginCredentials) (id string, err error) {
 	role, err := s.user.GetUserRoleByEmail(user.Email)
 	if err != nil {
 		return "", errors.New("role does not exist")
@@ -63,11 +63,23 @@ func (s UserService) Login(user *data.LoginCredentials) (id string, err error) {
 	return get.Hex(), nil
 }
 
-func (s UserService) Logout(id string) error {
+func (s *UserService) Logout(id string) error {
 	err := s.cache.Logout(id)
 	if err != nil {
 		return err
 	}
 	return nil
 
+}
+
+func (s *UserService) PasswordCheck(id string, password string) bool {
+	return s.user.CheckIfPasswordIsSame(id, password)
+}
+
+func (s *UserService) ChangePassword(id string, password string) error {
+	err := s.user.ChangePassword(id, password)
+	if err != nil {
+		return err
+	}
+	return nil
 }

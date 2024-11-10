@@ -38,6 +38,8 @@ func main() {
 	r.HandleFunc("/verify", uh.VerifyTokenExistence).Methods(http.MethodGet)
 	r.HandleFunc("/login", uh.Login).Methods(http.MethodPost)
 	r.HandleFunc("/logout", uh.Logout).Methods(http.MethodPost)
+	r.HandleFunc("/password/check", uh.CheckPasswords).Methods(http.MethodPost)
+	r.HandleFunc("/password/change", uh.ChangePassword).Methods(http.MethodPost)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

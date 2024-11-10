@@ -34,9 +34,14 @@ export class AccountService {
     return this.http.get<UserResponse[]>(this.config.users_url);
   }
 
-  changePassword(password: string): Observable<any> {
-    return this.http.post(this.config.change_password_url, password);
+  changePassword(newPassword: string): Observable<any> {
+    const payload = {
+      id: this.idOfUser,
+      password: newPassword
+    };
+    return this.http.post(this.config.change_password_url, payload);
   }
+
 
   login(loginCredentials: LoginRequest): Observable<any> {
     return this.http.post<any>(this.config.login_url, loginCredentials);
@@ -80,6 +85,14 @@ export class AccountService {
     if (this.tokenVerificationSub) {
       this.tokenVerificationSub.unsubscribe();
     }
+  }
+
+  checkPassword(password : string): Observable<boolean> {
+    const payload = {
+      id: this.idOfUser,
+      password: password
+    };
+    return this.http.post<boolean>(this.config.password_check_url, payload);
   }
 
 }

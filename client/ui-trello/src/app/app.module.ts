@@ -15,6 +15,7 @@ import { ChangePasswordComponent } from './change-password/change-password.compo
 import { MenuComponent } from './menu/menu.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { NotificationsComponent } from './notifications/notifications.component';
+import {AddTaskComponent} from "./add-task/add-task.component";
 
 @NgModule({
   declarations: [
@@ -23,7 +24,9 @@ import { NotificationsComponent } from './notifications/notifications.component'
     MemberAdditionComponent,
     LoginComponent,
     ChangePasswordComponent,
-    NotificationsComponent
+    NotificationsComponent,
+    ChangePasswordComponent,
+    AddTaskComponent
   ],
   imports: [
     BrowserModule,
