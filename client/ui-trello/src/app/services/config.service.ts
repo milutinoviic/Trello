@@ -14,6 +14,7 @@ export class ConfigService {
 
   private _project_api_url = 'http://localhost:8080';
 
+  private _notifications_api_url = 'http://localhost:8085';
 
   private _register_url = this._api_url + "/register"
 
@@ -29,6 +30,7 @@ export class ConfigService {
 
   private _logout_url = this._api_url + "/logout"
 
+  private _notifications_url = this._notifications_api_url + "/notifications"
 
   get logout_url(): string {
     return this._logout_url;
@@ -36,6 +38,10 @@ export class ConfigService {
 
   get login_url(): string {
     return this._login_url;
+  }
+
+  get notifications_url(): string {
+    return this._notifications_url;
   }
 
   private _project_base_url = this._project_api_url;

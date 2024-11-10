@@ -110,21 +110,25 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 		return
 	}
 
-	var status model.NotificationStatus
+	type statusRequest struct {
+		Status model.NotificationStatus `json:"status"`
+	}
+
+	var req statusRequest
 	decoder := json.NewDecoder(h.Body)
-	err = decoder.Decode(&status)
+	err = decoder.Decode(&req)
 	if err != nil {
 		http.Error(rw, "Unable to decode JSON", http.StatusBadRequest)
 		n.logger.Println("Error decoding JSON:", err)
 		return
 	}
 
-	if status != model.Unread && status != model.Read {
+	if req.Status != model.Unread && req.Status != model.Read {
 		http.Error(rw, "Invalid status value", http.StatusBadRequest)
 		return
 	}
 
-	err = n.repo.UpdateStatus(notificationID, status)
+	err = n.repo.UpdateStatus(notificationID, req.Status)
 	if err != nil {
 		http.Error(rw, "Error updating notification status", http.StatusInternalServerError)
 		n.logger.Println("Error updating notification status:", err)
