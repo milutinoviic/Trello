@@ -1,6 +1,6 @@
 <app-menu></app-menu>
 
-  <div class="form"  [@flyInOut] *ngIf="manager.role === 'manager'">
+  <div class="form"  [@flyInOut] *ngIf="manager?.role === 'manager'">
     <form [formGroup]="newProjectForm"  (ngSubmit)="onSubmit()">
 
       <div class="form-group">
@@ -47,7 +47,6 @@
 
   <br /><br /><br /><br />
 
-<!--<div >-->
   <div class="card" *ngFor="let project of projects">
     <div class="card-header">
       Project info:
@@ -61,7 +60,6 @@
       <button class="btn btn-success mb-3" (click)="manageMembersToProject(project.id)">Manage members</button>
     </div>
   </div>
-<!--</div>-->
 
 
   <button class="btn btn-success mb-3" (click)="navigateToRegistration()">Register</button>

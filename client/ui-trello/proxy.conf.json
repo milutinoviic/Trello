@@ -1,6 +1,7 @@
 {
   "/api": {
-    "target": "http://api_gateway:8084",
-    "secure": false
+    "target": "https://api-gateway:443",
+    "secure": false,
+    "changeOrigin": true
   }
 }

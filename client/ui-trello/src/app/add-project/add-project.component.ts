@@ -113,11 +113,12 @@ export class AddProjectComponent {
       });
   }
   fetchManager(userId: string) { // fetch managers to display them in combobox
-    this.http.get(`/api/user-server/manager/${userId}`) //before /api/user-server/  will be added "http://api_gateway:8084" defined in proxy.conf.json file
+    this.http.get(`/api/user-server/manager/${userId}`) //before /api/user-server/  will be added "https://api_gateway:443" defined in proxy.conf.json file
       .subscribe({                   // when api-gateway recieves this path it will redirect to user-server
         next: (response) => {
           this.manager = response;
           console.log('Manager:', this.manager);
+          console.log('ROle:', this.manager.role);
         },
         error: (error) => {
           console.error('Error fetching data:', error);
