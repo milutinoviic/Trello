@@ -278,3 +278,54 @@ func (uh *UserHandler) HandlePasswordReset(rw http.ResponseWriter, h *http.Reque
 	}
 	rw.WriteHeader(http.StatusOK)
 }
+
+func (uh *UserHandler) HandleMagic(rw http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+	err = uh.service.MagicLink(req.Email)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rw.WriteHeader(http.StatusOK)
+}
+
+func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email string `json:"email"`
+	}
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+	id, err := uh.service.VerifyMagic(req.Email)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rw.WriteHeader(http.StatusOK)
+	rw.Header().Set("Content-Type", "application/json")
+
+	jsonResponse, err := json.Marshal(id)
+	if err != nil {
+		uh.logger.Println("Error encoding response:", err)
+		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+		return
+	}
+	_, err = rw.Write(jsonResponse)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
+		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+		return
+	}
+
+}

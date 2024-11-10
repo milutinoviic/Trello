@@ -28,6 +28,18 @@ export class ConfigService {
 
   private _reset_password_url = this._password_url + "/reset"
 
+  private _magic_link_url = this._api_url + "/magic"
+
+  private _verify_magic_url = this._magic_link_url + "/verify"
+
+
+  get verify_magic_url(): string {
+    return this._verify_magic_url;
+  }
+
+  get magic_link_url(): string {
+    return this._magic_link_url;
+  }
 
   get reset_password_url(): string {
     return this._reset_password_url;

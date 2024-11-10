@@ -42,6 +42,8 @@ func main() {
 	r.HandleFunc("/password/change", uh.ChangePassword).Methods(http.MethodPost)
 	r.HandleFunc("/password/recovery", uh.HandleRecovery).Methods(http.MethodPost)
 	r.HandleFunc("/password/reset", uh.HandlePasswordReset).Methods(http.MethodPost)
+	r.HandleFunc("/magic", uh.HandleMagic).Methods(http.MethodPost)
+	r.HandleFunc("/magic/verify", uh.HandleMagicVerification).Methods(http.MethodPost)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
