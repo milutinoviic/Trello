@@ -199,6 +199,24 @@ func (uh *UserRepository) GetAllManagers() (data.Accounts, error) {
 	return managers, nil
 }
 
+func (uh *UserRepository) GetOne(userId string) (*data.Account, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	managersCollection := uh.getAccountCollection()
+
+	objectId, err := primitive.ObjectIDFromHex(userId)
+
+	var manager data.Account
+	err = managersCollection.FindOne(ctx, bson.M{"_id": objectId}).Decode(&manager)
+	if err != nil {
+		uh.logger.Println("Error finding managerrr:", objectId)
+		return nil, err
+	}
+
+	return &manager, nil
+}
+
 func (ur *UserRepository) GetAllMembers(ctx context.Context) ([]data.Account, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

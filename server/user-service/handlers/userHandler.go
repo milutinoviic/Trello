@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"main.go/data"
 	"main.go/repository"
 	"main.go/service"
+
 	"net/http"
 )
 
@@ -67,6 +69,28 @@ func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
 	}
 
 	err = managers.ToJSON(rw)
+	if err != nil {
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		uh.logger.Fatal("Unable to convert to json :", err)
+		return
+	}
+}
+
+func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	id := vars["userId"]
+	manager, err := uh.service.GetOne(id)
+	if err != nil {
+		uh.logger.Print("Database exception: ", err)
+		uh.logger.Print("Id: ", id)
+	}
+
+	if manager == nil {
+		http.Error(rw, "Manager not found", http.StatusNotFound)
+		return
+	}
+
+	err = manager.ToJSON(rw)
 	if err != nil {
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		uh.logger.Fatal("Unable to convert to json :", err)

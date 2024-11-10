@@ -11,6 +11,7 @@ import {Route, Router} from "@angular/router";
 import {dateValidator} from "../validator/date-validator";
 import {AppModule} from "../app.module";
 import {MenuComponent} from "../menu/menu.component";
+import {AccountService} from "../services/account.service";
 
 
 @Component({
@@ -36,7 +37,9 @@ export class AddProjectComponent {
 
   newProjectForm!: FormGroup;
   projects: any;
-  managers: any;
+  manager: any;
+  managerId: string = "";
+
 
 
   constructor(
@@ -44,20 +47,21 @@ export class AddProjectComponent {
     private projectService: ProjectServiceService,
     private toaster: ToastrService,
     private http: HttpClient,
-    private router: Router
+    private router: Router,
+    private accService: AccountService
   ) {
   }
 
   ngOnInit(): void {
     this.fetchData();
-    this.fetchManagers();
+    this.managerId = this.accService.idOfUser;
+    this.fetchManager(this.managerId);
+
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
       end_date: ['', [Validators.required, dateValidator()]],
       min_members: ['', [Validators.required]],
       max_members: ['', [Validators.required]],
-      manager: ['', [Validators.required]],
-
     });
   }
 
@@ -71,7 +75,7 @@ export class AddProjectComponent {
         end_date: new Date(this.newProjectForm.get('end_date')?.value),
         min_members: this.newProjectForm.get('min_members')?.value.toString(),
         max_members: this.newProjectForm.get('max_members')?.value.toString(),
-        manager: this.newProjectForm.get('manager')?.value,
+        manager: this.manager.email,
         user_ids: [],
       };
       console.log(newProjectRequest);
@@ -108,12 +112,12 @@ export class AddProjectComponent {
         }
       });
   }
-  fetchManagers() { // fetch managers to display them in combobox
-    this.http.get('/api/user-server/managers') //before /api/user-server/  will be added "http://api_gateway:8084" defined in proxy.conf.json file
+  fetchManager(userId: string) { // fetch managers to display them in combobox
+    this.http.get(`/api/user-server/manager/${userId}`) //before /api/user-server/  will be added "http://api_gateway:8084" defined in proxy.conf.json file
       .subscribe({                   // when api-gateway recieves this path it will redirect to user-server
         next: (response) => {
-          this.managers = response;
-          console.log('Data fetched successfully:', this.managers);
+          this.manager = response;
+          console.log('Manager:', this.manager);
         },
         error: (error) => {
           console.error('Error fetching data:', error);

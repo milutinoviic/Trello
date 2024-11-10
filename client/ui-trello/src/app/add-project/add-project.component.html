@@ -1,7 +1,7 @@
 <app-menu></app-menu>
 
-  <div class="form"  [@flyInOut]>
-    <form [formGroup]="newProjectForm" (ngSubmit)="onSubmit()">
+  <div class="form"  [@flyInOut] *ngIf="manager.role === 'manager'">
+    <form [formGroup]="newProjectForm"  (ngSubmit)="onSubmit()">
 
       <div class="form-group">
 
@@ -34,15 +34,6 @@
                >
         <div *ngIf="newProjectForm.get('max_members')?.hasError('required') && newProjectForm.get('max_members')?.touched">
           Maximum members is required.
-        </div>
-        <label>Select manager:</label>
-        <select id="manager" formControlName="manager" class="form-control">
-          <option *ngFor="let manager of managers" [value]="manager.email">
-            {{ manager.email }}
-          </option>
-        </select>
-        <div *ngIf="newProjectForm.get('manager')?.hasError('required') && newProjectForm.get('manager')?.touched">
-          Project must have manager.
         </div>
       </div>
 

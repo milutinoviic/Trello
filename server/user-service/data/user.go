@@ -43,3 +43,8 @@ func (a *Accounts) ToJSON(w io.Writer) error {
 	e := json.NewEncoder(w)
 	return e.Encode(a)
 }
+
+func (a *Account) ToJSON(w io.Writer) error {
+	e := json.NewEncoder(w)
+	return e.Encode(a)
+}
