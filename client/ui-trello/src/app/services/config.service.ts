@@ -15,7 +15,8 @@ export class ConfigService {
 
   private _project_api_url = '/api/project-server'; // same a below, it will be redirected to api-gateway, then to project-server
 
-  private _notifications_api_url = 'http://localhost:8085';
+  private _notifications_api_url = '/api/notification-server';
+
   private _task_api_url = '/api/task-server';
 
   private _register_url = this._api_url + "/register"

@@ -15,7 +15,7 @@ import {Router} from "@angular/router";
 export class LoginComponent implements OnInit {
 
   loginForm!: FormGroup;
-  private isSubmitting: boolean = false;
+  isSubmitting: boolean = false;
 
   constructor(
     private formBuilder: FormBuilder,
@@ -35,7 +35,8 @@ export class LoginComponent implements OnInit {
 
   onSubmit() {
     if (this.loginForm.valid && !this.isSubmitting) {
-      this.isSubmitting = true; // Set loading state
+      this.isSubmitting = true; // Set loading state to true
+
       const accountRequest: LoginRequest = {
         email: this.loginForm.get('email')?.value,
         password: this.loginForm.get('password')?.value,
@@ -52,13 +53,14 @@ export class LoginComponent implements OnInit {
         error: (error) => {
           console.error("Login error:", error);
           this.toastr.error(error.message || error);
+
+          this.isSubmitting = false;
         }
       });
     } else {
       console.log('Form is not valid!');
     }
   }
-
 
 
 

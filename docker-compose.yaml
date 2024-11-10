@@ -58,6 +58,7 @@ services:
       - project-server
       - user-server
       - task-server
+      - notification-server
     environment:
       - CHOKIDAR_USEPOLLING=true
     mem_limit: 2g
@@ -205,6 +206,7 @@ services:
       - project-server
       - angular-app
       - task-server
+      - notification-server
     entrypoint: [ "/bin/bash", "-c", "while ! curl -s user-server:8080; do sleep 1; done; nginx -g 'daemon off;'" ]
 
   redis:
@@ -261,5 +263,4 @@ volumes:
   mong_project_express_data:
   redis_data:
   cassandra_data:
-
   mongo_task_express_data:
