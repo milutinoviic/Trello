@@ -11,10 +11,13 @@
 
   <div>
     <label for="password">Password:</label>
-    <input type="password" id="password" formControlName="password" required>
+    <input [type]="showPassword ? 'text' : 'password'" id="password" formControlName="password" required>
     <div *ngIf="loginForm.get('password')?.touched">
       <p *ngIf="loginForm.get('password')?.errors?.['required']">Password is required.</p>
     </div>
+    <label>
+      <input type="checkbox" (change)="toggleShowPassword()"/><small> Show Password </small>
+    </label>
   </div>
 
   <div>

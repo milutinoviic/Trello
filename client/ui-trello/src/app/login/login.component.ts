@@ -16,6 +16,7 @@ export class LoginComponent implements OnInit {
 
   loginForm!: FormGroup;
   private isSubmitting: boolean = false;
+  showPassword: boolean = false;
 
   constructor(
     private formBuilder: FormBuilder,
@@ -59,7 +60,9 @@ export class LoginComponent implements OnInit {
     }
   }
 
-
+  toggleShowPassword(): void {
+    this.showPassword = !this.showPassword;
+  }
 
 
 

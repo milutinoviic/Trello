@@ -11,6 +11,7 @@ export class ChangePasswordComponent {
   oldPassword!: string;
   newPassword!: string;
   repeatNewPassword!: string;
+  showPassword: boolean = false;
 
   constructor(private toastr: ToastrService, private accountService: AccountService) {
   }
@@ -88,5 +89,10 @@ export class ChangePasswordComponent {
     });
   }
 
+
+
+  toggleShowPassword(): void {
+    this.showPassword = !this.showPassword;
+  }
 
 }
