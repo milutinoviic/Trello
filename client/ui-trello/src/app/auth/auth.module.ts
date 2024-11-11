@@ -1,15 +1,21 @@
 import { NgModule } from '@angular/core';
+
 import { CommonModule } from '@angular/common';
-import { GuardsComponent } from './guards/guards.component';
+import { RouterModule } from '@angular/router';
+import { authRoutes } from './auth.routes';
+import { ReactiveFormsModule } from '@angular/forms';
+import {LoginComponent} from "./login/login.component";
 
 
 
 @NgModule({
   declarations: [
-    GuardsComponent
+    LoginComponent
   ],
   imports: [
-    CommonModule
+    CommonModule,
+    ReactiveFormsModule,
+    RouterModule.forChild(authRoutes)
   ]
 })
 export class AuthModule { }

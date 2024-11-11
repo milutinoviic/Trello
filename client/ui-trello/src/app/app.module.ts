@@ -14,6 +14,7 @@ import { LoginComponent } from './auth/login/login.component';
 import { ChangePasswordComponent } from './change-password/change-password.component';
 import { MenuComponent } from './menu/menu.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import {AuthModule} from "./auth/auth.module";
 
 @NgModule({
   declarations: [
@@ -21,7 +22,8 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
     RegistrationComponent,
     MemberAdditionComponent,
     LoginComponent,
-    ChangePasswordComponent
+    ChangePasswordComponent,
+
   ],
   imports: [
     BrowserModule,
@@ -36,6 +38,7 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
     DragDropModule,
     NgbModule,
     MenuComponent,
+    AuthModule
   ],
   providers: [],
   exports: [
