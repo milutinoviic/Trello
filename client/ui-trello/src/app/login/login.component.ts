@@ -51,9 +51,9 @@ export class LoginComponent implements OnInit {
 
           this.router.navigate(['/projects']);
         },
-        error: (error) => {
-          console.error("Login error:", error);
-          this.toastr.error(error.message || error);
+        error: (err) => {
+          const errorMessage = err.error?.message || err.error || 'An unexpected error occurred';
+          this.toastr.error(errorMessage);
 
           this.isSubmitting = false;
         }
