@@ -4,6 +4,7 @@ import {RegistrationComponent} from "./registration/registration.component";
 import {MemberAdditionComponent} from "./member-addition/member-addition.component";
 import {AddProjectComponent} from "./add-project/add-project.component";
 import {LoginComponent} from "./login/login.component";
+import {NotificationsComponent} from "./notifications/notifications.component";
 import {ChangePasswordComponent} from "./change-password/change-password.component";
 import {AddTaskComponent} from "./add-task/add-task.component";
 
@@ -13,6 +14,7 @@ export const routes: Routes = [
   { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent },
   { path: 'projects', component: AddProjectComponent},
   { path: 'login', component: LoginComponent },
+  { path: 'notifications', component: NotificationsComponent },
   { path: 'changePassword', component: ChangePasswordComponent },
   { path: 'projects/:projectId/addTask', component: AddTaskComponent},
 ];

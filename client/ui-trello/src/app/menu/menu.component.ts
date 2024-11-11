@@ -31,4 +31,8 @@ export class MenuComponent {
   navigateToChangePassword() {
     this.router.navigate(['/changePassword']);
   }
+  notifications(){
+    this.router.navigate(['/notifications']);
+
+  }
 }

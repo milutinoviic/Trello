@@ -15,6 +15,8 @@ export class ConfigService {
 
   private _project_api_url = '/api/project-server'; // same a below, it will be redirected to api-gateway, then to project-server
 
+  private _notifications_api_url = '/api/notification-server';
+
   private _task_api_url = '/api/task-server';
 
   private _register_url = this._api_url + "/register"
@@ -37,6 +39,7 @@ export class ConfigService {
   get password_check_url(): string {
     return this._password_check_url;
   }
+  private _notifications_url = this._notifications_api_url + "/notifications"
 
   get logout_url(): string {
     return this._logout_url;
@@ -44,6 +47,10 @@ export class ConfigService {
 
   get login_url(): string {
     return this._login_url;
+  }
+
+  get notifications_url(): string {
+    return this._notifications_url;
   }
 
   private _project_base_url = this._project_api_url;

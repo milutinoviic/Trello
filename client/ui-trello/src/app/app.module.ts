@@ -14,6 +14,7 @@ import { LoginComponent } from './login/login.component';
 import { ChangePasswordComponent } from './change-password/change-password.component';
 import { MenuComponent } from './menu/menu.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import { NotificationsComponent } from './notifications/notifications.component';
 import {AddTaskComponent} from "./add-task/add-task.component";
 
 @NgModule({
@@ -22,6 +23,8 @@ import {AddTaskComponent} from "./add-task/add-task.component";
     RegistrationComponent,
     MemberAdditionComponent,
     LoginComponent,
+    ChangePasswordComponent,
+    NotificationsComponent,
     ChangePasswordComponent,
     AddTaskComponent
   ],
