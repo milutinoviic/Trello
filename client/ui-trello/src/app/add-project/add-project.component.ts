@@ -56,7 +56,6 @@ export class AddProjectComponent {
 
     this.managerId = this.accService.idOfUser;
     this.fetchManager(this.managerId);
-    // this.fetchData(this.managerId, this.manager.role);
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
       end_date: ['', [Validators.required, dateValidator()]],

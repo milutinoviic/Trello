@@ -39,7 +39,7 @@ func main() {
 	projectsHandler := handlers.NewProjectsHandler(logger, store)
 
 	router := mux.NewRouter()
-	router.HandleFunc("/projects/{id}/users", projectsHandler.AddUsersToProject).Methods(http.MethodPost)
+	router.HandleFunc("/projects/{id}/manager/{managerId}/users", projectsHandler.AddUsersToProject).Methods(http.MethodPost)
 
 	router.Use(projectsHandler.MiddlewareContentTypeSet)
 

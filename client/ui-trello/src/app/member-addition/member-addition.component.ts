@@ -32,6 +32,7 @@ export class MemberAdditionComponent implements OnInit {
   filteredUsers: User[] = [];
   projectId: string = '';
   project: Project | null = null;
+  managerId: string = "";
 
   constructor(
     private projectService: ProjectServiceService,
@@ -41,6 +42,9 @@ export class MemberAdditionComponent implements OnInit {
   ) {}
 
   ngOnInit() {
+    this.managerId = this.accountService.idOfUser;
+    console.log("userId: " + this.managerId);
+
     this.route.paramMap.subscribe(params => {
       this.projectId = params.get('projectId')!;
 
@@ -94,7 +98,7 @@ export class MemberAdditionComponent implements OnInit {
 
       const memberIds = this.projectMembers.map(member => member.id);
 
-      this.projectService.addMembersToProject(this.projectId, memberIds).subscribe({
+      this.projectService.addMembersToProject(this.projectId, memberIds, this.managerId).subscribe({
         next: () => {
           console.log('Members added successfully:', memberIds);
         },
