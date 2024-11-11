@@ -81,6 +81,26 @@ func (pr *ProjectRepo) GetAll() (model.Projects, error) {
 	return projects, nil
 }
 
+func (pr *ProjectRepo) GetAllByManager(managerEmail string) (model.Projects, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	projectsCollection := pr.getCollection()
+
+	var projects model.Projects
+	filter := bson.M{"manager": managerEmail}
+	projectsCursor, err := projectsCollection.Find(ctx, filter)
+	if err != nil {
+		pr.logger.Println(err)
+		return nil, err
+	}
+	if err = projectsCursor.All(ctx, &projects); err != nil {
+		pr.logger.Println(err)
+		return nil, err
+	}
+	return projects, nil
+}
+
 func (pr *ProjectRepo) GetById(id string) (*model.Project, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
