@@ -39,7 +39,6 @@ func main() {
 	projectsHandler := handlers.NewProjectsHandler(logger, store)
 
 	router := mux.NewRouter()
-	router.HandleFunc("/projects/{id}/manager/{managerId}/users", projectsHandler.AddUsersToProject).Methods(http.MethodPost)
 
 	router.Use(projectsHandler.MiddlewareContentTypeSet)
 
@@ -50,12 +49,13 @@ func main() {
 	postRouter := router.Methods(http.MethodPost).Subrouter()
 	postRouter.HandleFunc("/", projectsHandler.PostProject)
 	postRouter.Use(projectsHandler.MiddlewarePatientDeserialization)
+	router.Handle("/projects/{id}/addUsers", projectsHandler.MiddlewareExtractUserFromCookie(http.HandlerFunc(projectsHandler.AddUsersToProject)))
 
 	getByIdRouter := router.Methods(http.MethodGet).Subrouter()
 	getByIdRouter.HandleFunc("/{id}", projectsHandler.GetProjectById)
 
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
-	deleteRouter.HandleFunc("/projects/{id}/users", projectsHandler.RemoveUserFromProject)
+	deleteRouter.HandleFunc("/projects/{id}/users/{userId}", projectsHandler.RemoveUserFromProject)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

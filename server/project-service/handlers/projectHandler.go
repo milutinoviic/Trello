@@ -203,7 +203,6 @@ func (p *ProjectsHandler) MiddlewarePatientDeserialization(next http.Handler) ht
 func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	projectId := vars["id"]
-	managerId := vars["managerId"]
 
 	var userIds []string
 	err := json.NewDecoder(h.Body).Decode(&userIds)
@@ -218,7 +217,14 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	if project.Manager != managerId {
+	userId, ok := h.Context().Value(KeyProject{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		p.logger.Println("User ID not found in context")
+		return
+	}
+
+	if project.Manager != userId {
 		http.Error(rw, "Only the project manager can add users", http.StatusForbidden)
 		return
 	}
@@ -234,10 +240,21 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
+	minMembers, err := strconv.Atoi(project.MinMembers)
+	if err != nil {
+		http.Error(rw, "Invalid minimum members value", http.StatusInternalServerError)
+		return
+	}
+
 	currentMembersCount := len(userIds)
 
 	if currentMembersCount > maxMembers {
 		http.Error(rw, "Cannot add more users than the maximum limit", http.StatusForbidden)
+		return
+	}
+
+	if currentMembersCount < minMembers {
+		http.Error(rw, "Cannot add users to a project without meeting the minimum member requirement", http.StatusForbidden)
 		return
 	}
 

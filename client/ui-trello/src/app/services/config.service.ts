@@ -82,8 +82,8 @@ export class ConfigService {
 
   private _new_project_url = this._project_api_url + "/"
 
-  addMembersUrl(projectId: string, managerId: string): string {
-    return `${this._project_api_url}/projects/${projectId}/manager/${managerId}/users`;
+  addMembersUrl(projectId: string): string {
+    return `${this._project_api_url}/projects/${projectId}/addUsers`;
   }
 
   getProjectByIdUrl(projectId: string): string {

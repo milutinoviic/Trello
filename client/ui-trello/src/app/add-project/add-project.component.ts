@@ -86,7 +86,7 @@ export class AddProjectComponent implements OnInit {
     }
   }
 
-  fetchData() { // Fetch projects after adding a project
+  fetchData() {
     this.http.get<Project[]>('/api/project-server/projects')
       .subscribe({
         next: (response) => {
@@ -100,13 +100,13 @@ export class AddProjectComponent implements OnInit {
       });
   }
 
-  fetchManager() { // Fetch manager details from the backend
-    this.http.get('/api/user-server/manager') // The backend will automatically extract user info from the token
+  fetchManager() {
+    this.http.get('/api/user-server/manager')
       .subscribe({
         next: (response) => {
           this.manager = response;
           console.log('Manager:', this.manager);
-          this.fetchData(); // Now fetch the data after manager details are fetched
+          this.fetchData();
         },
         error: (error) => {
           console.error('Error fetching manager data:', error);
@@ -118,7 +118,4 @@ export class AddProjectComponent implements OnInit {
     this.router.navigate(['/project/manageMembers/', id]);
   }
 
-  navigateToRegistration() {
-    this.router.navigate(['/register']);
-  }
 }

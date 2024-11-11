@@ -25,8 +25,8 @@ export class ProjectServiceService {
     return this.http.get<Project>(this.config.getProjectByIdUrl(projectId))
   }
 
-  addMembersToProject(projectId: string, memberIds: string[], managerId: string): Observable<any> {
-    const url = `${this.config.addMembersUrl(projectId, managerId)}`;
+  addMembersToProject(projectId: string, memberIds: string[]): Observable<any> {
+    const url = `${this.config.addMembersUrl(projectId)}`;
     return this.http.post<string[]>(url, memberIds);
   }
 

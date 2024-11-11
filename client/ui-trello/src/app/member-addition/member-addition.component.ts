@@ -98,7 +98,7 @@ export class MemberAdditionComponent implements OnInit {
 
       const memberIds = this.projectMembers.map(member => member.id);
 
-      this.projectService.addMembersToProject(this.projectId, memberIds, this.managerId).subscribe({
+      this.projectService.addMembersToProject(this.projectId, memberIds).subscribe({
         next: () => {
           console.log('Members added successfully:', memberIds);
         },
@@ -140,9 +140,6 @@ export class MemberAdditionComponent implements OnInit {
     return this.projectMembers.length >= this.maxMembers;
   }
 
-  navigateToRegistration() {
-    this.router.navigate(['/register']);
-  }
 
   addNewTask(projectId: string) {
     this.router.navigate([`/projects/${projectId}/addTask`]);

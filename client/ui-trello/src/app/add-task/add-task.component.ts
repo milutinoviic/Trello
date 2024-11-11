@@ -72,12 +72,13 @@ export class AddTaskComponent implements OnInit {
 
 
       this.taskService.addTask(taskData).subscribe({
-        next: () => console.log(`Proslo sve kako treba`),
+        next: () => { console.log(`Proslo sve kako treba`);
+          this.fetchTasks(this.projectId);
+        },
         error: (error) => console.error('Greška prlikom .....', error)
       });
         console.log('Task Created:', taskData);
         console.log('IdProject:', this.projectId);
-
 
     }
 
