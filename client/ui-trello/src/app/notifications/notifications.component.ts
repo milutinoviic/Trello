@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {NotificationService} from "../services/notification-service.service";
 import {AccountService} from "../services/account.service";
 
@@ -15,7 +15,7 @@ export interface Notification {
   templateUrl: './notifications.component.html',
   styleUrl: './notifications.component.css'
 })
-export class NotificationsComponent {
+export class NotificationsComponent implements OnInit{
   notifications: Notification[] = [];
   errorMessage: string = '';
   userId: string = '';
@@ -23,7 +23,7 @@ export class NotificationsComponent {
   constructor(private notificationService: NotificationService, private accService: AccountService) {}
 
   ngOnInit(): void {
-    this.userId = this.accService.idOfUser;
+    this.userId = this.accService.getUserId()!;
     this.loadNotifications();
   }
 

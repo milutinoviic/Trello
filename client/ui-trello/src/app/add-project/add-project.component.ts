@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ToastrService} from "ngx-toastr";
 import {Project} from "../models/project.model";
@@ -33,7 +33,7 @@ import {AccountService} from "../services/account.service";
     ])
   ]
 })
-export class AddProjectComponent {
+export class AddProjectComponent implements OnInit{
 
   newProjectForm!: FormGroup;
   projects: any;
@@ -54,7 +54,7 @@ export class AddProjectComponent {
 
   ngOnInit(): void {
 
-    this.managerId = this.accService.idOfUser;
+    this.managerId = this.accService.getUserId()!;
     this.fetchManager(this.managerId);
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
