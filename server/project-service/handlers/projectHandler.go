@@ -43,6 +43,49 @@ func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request
 	}
 }
 
+func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	role, e := vars["role"]
+	if !e {
+		http.Error(rw, "Role not defined", http.StatusBadRequest)
+		return
+	}
+	userId, exists := vars["userId"]
+	if !exists {
+		http.Error(rw, "Manager ID is missing in URL", http.StatusBadRequest)
+		return
+	}
+
+	var projects model.Projects
+	var err error
+
+	if role == "manager" {
+		projects, err = p.repo.GetAllByManager(userId)
+	} else if role == "member" {
+		projects, err = p.repo.GetAllByMember(userId)
+	} else {
+		http.Error(rw, "Invalid role specified", http.StatusBadRequest)
+		return
+	}
+
+	if err != nil {
+		p.logger.Print("Database exception: ", err)
+		http.Error(rw, "Database error", http.StatusInternalServerError)
+		return
+	}
+	if projects == nil {
+		http.Error(rw, "No projects found", http.StatusNotFound)
+		return
+	}
+
+	err = projects.ToJSON(rw)
+	if err != nil {
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		p.logger.Fatal("Unable to convert to json :", err)
+		return
+	}
+}
+
 func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	id := vars["id"]

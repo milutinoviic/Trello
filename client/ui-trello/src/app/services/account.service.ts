@@ -60,7 +60,7 @@ export class AccountService {
       this.tokenVerificationSub.unsubscribe();
     }
 
-    this.tokenVerificationSub = interval(60000)
+    this.tokenVerificationSub = interval(300000)// set it to 5 minutes
       .pipe(
         switchMap(() => {
           const headers = new HttpHeaders().set('X-User-ID', this.idOfUser);

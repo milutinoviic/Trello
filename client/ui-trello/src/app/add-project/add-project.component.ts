@@ -53,10 +53,10 @@ export class AddProjectComponent {
   }
 
   ngOnInit(): void {
-    this.fetchData();
+
     this.managerId = this.accService.idOfUser;
     this.fetchManager(this.managerId);
-
+    // this.fetchData(this.managerId, this.manager.role);
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
       end_date: ['', [Validators.required, dateValidator()]],
@@ -75,7 +75,7 @@ export class AddProjectComponent {
         end_date: new Date(this.newProjectForm.get('end_date')?.value),
         min_members: this.newProjectForm.get('min_members')?.value.toString(),
         max_members: this.newProjectForm.get('max_members')?.value.toString(),
-        manager: this.manager.email,
+        manager: this.managerId,
         user_ids: [],
       };
       console.log(newProjectRequest);
@@ -83,7 +83,7 @@ export class AddProjectComponent {
         next: (result) => {
           this.toaster.success("Ok");
           this.newProjectForm.reset();
-          this.fetchData();
+          this.fetchData(this.managerId, this.manager.role);
           console.log(result);
 
         },
@@ -100,8 +100,8 @@ export class AddProjectComponent {
   }
 
 
-  fetchData() { // fetch projects to display them
-    this.http.get<Project[]>('/api/project-server/') // added /project-servise/ to test apigateway
+  fetchData(userId: string, role: string) { // fetch projects to display them
+    this.http.get<Project[]>(`/api/project-server/projects/user/${role}/${userId}`) // added /project-servise/ to test apigateway
       .subscribe({
         next: (response) => {
           this.projects = response.reverse();
@@ -109,6 +109,7 @@ export class AddProjectComponent {
         },
         error: (error) => {
           console.error('Error fetching data:', error);
+          this.projects = [];
         }
       });
   }
@@ -118,7 +119,8 @@ export class AddProjectComponent {
         next: (response) => {
           this.manager = response;
           console.log('Manager:', this.manager);
-          console.log('ROle:', this.manager.role);
+          this.fetchData(this.managerId, this.manager.role);
+
         },
         error: (error) => {
           console.error('Error fetching data:', error);
