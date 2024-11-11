@@ -3,10 +3,10 @@ import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ToastrService} from "ngx-toastr";
 import {Project} from "../models/project.model";
 import {ProjectServiceService} from "../services/project-service.service";
-import { ReactiveFormsModule } from '@angular/forms';
+import {ReactiveFormsModule} from '@angular/forms';
 import {HttpClient} from "@angular/common/http";
 import {animate, state, style, transition, trigger} from "@angular/animations";
-import { CommonModule } from '@angular/common';
+import {CommonModule} from '@angular/common';
 import {Route, Router} from "@angular/router";
 import {dateValidator} from "../validator/date-validator";
 import {AppModule} from "../app.module";
@@ -19,7 +19,7 @@ import {AccountService} from "../services/account.service";
   standalone: true,
   imports: [ReactiveFormsModule, CommonModule, MenuComponent],
   templateUrl: './add-project.component.html',
-  styleUrl: './add-project.component.scss',
+  styleUrls: ['./add-project.component.scss'],
   animations: [
     trigger('flyInOut', [
       state('in', style({ opacity: 1 })),
@@ -33,14 +33,11 @@ import {AccountService} from "../services/account.service";
     ])
   ]
 })
-export class AddProjectComponent implements OnInit{
+export class AddProjectComponent implements OnInit {
 
   newProjectForm!: FormGroup;
   projects: any;
   manager: any;
-  managerId: string = "";
-
-
 
   constructor(
     private formBuilder: FormBuilder,
@@ -49,13 +46,10 @@ export class AddProjectComponent implements OnInit{
     private http: HttpClient,
     private router: Router,
     private accService: AccountService
-  ) {
-  }
+  ) { }
 
   ngOnInit(): void {
-
-    this.managerId = this.accService.getUserId()!;
-    this.fetchManager(this.managerId);
+    this.fetchManager();
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
       end_date: ['', [Validators.required, dateValidator()]],
@@ -64,47 +58,40 @@ export class AddProjectComponent implements OnInit{
     });
   }
 
-
   onSubmit() {
-
     if (this.newProjectForm.valid) {
-
       const newProjectRequest: Project = {
         name: this.newProjectForm.get('project_name')?.value,
         end_date: new Date(this.newProjectForm.get('end_date')?.value),
         min_members: this.newProjectForm.get('min_members')?.value.toString(),
         max_members: this.newProjectForm.get('max_members')?.value.toString(),
-        manager: this.managerId,
+        manager: this.manager.id,
         user_ids: [],
       };
       console.log(newProjectRequest);
       this.projectService.addProject(newProjectRequest).subscribe({
         next: (result) => {
-          this.toaster.success("Ok");
+          this.toaster.success("Project added successfully!");
           this.newProjectForm.reset();
-          this.fetchData(this.managerId, this.manager.role);
-          console.log(result);
-
+          this.fetchData();
         },
         error: (error) => {
-          console.log(newProjectRequest)
+          console.error('Error:', error);
           this.toaster.error('Adding project failed');
-          console.error('Error:', error.message || error);        }
+        }
       });
     } else {
-      console.log(this.newProjectForm)
-      // this.toaster.error('Input field can not be empty!');
+      console.log(this.newProjectForm);
       this.newProjectForm.markAllAsTouched();
     }
   }
 
-
-  fetchData(userId: string, role: string) { // fetch projects to display them
-    this.http.get<Project[]>(`/api/project-server/projects/user/${role}/${userId}`) // added /project-servise/ to test apigateway
+  fetchData() { // Fetch projects after adding a project
+    this.http.get<Project[]>('/api/project-server/projects')
       .subscribe({
         next: (response) => {
           this.projects = response.reverse();
-          console.log('Data fetched successfully:', this.projects);
+          console.log('Projects fetched successfully:', this.projects);
         },
         error: (error) => {
           console.error('Error fetching data:', error);
@@ -112,21 +99,20 @@ export class AddProjectComponent implements OnInit{
         }
       });
   }
-  fetchManager(userId: string) { // fetch managers to display them in combobox
-    this.http.get(`/api/user-server/manager/${userId}`) //before /api/user-server/  will be added "https://api_gateway:443" defined in proxy.conf.json file
-      .subscribe({                   // when api-gateway recieves this path it will redirect to user-server
+
+  fetchManager() { // Fetch manager details from the backend
+    this.http.get('/api/user-server/manager') // The backend will automatically extract user info from the token
+      .subscribe({
         next: (response) => {
           this.manager = response;
           console.log('Manager:', this.manager);
-          this.fetchData(this.managerId, this.manager.role);
-
+          this.fetchData(); // Now fetch the data after manager details are fetched
         },
         error: (error) => {
-          console.error('Error fetching data:', error);
+          console.error('Error fetching manager data:', error);
         }
       });
   }
-
 
   manageMembersToProject(id: string) {
     this.router.navigate(['/project/manageMembers/', id]);

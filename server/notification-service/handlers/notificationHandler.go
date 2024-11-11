@@ -48,7 +48,6 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 	})
 }
 
-// Function to verify the token with the User Service
 func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, error) {
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
@@ -71,7 +70,10 @@ func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, 
 
 	var result struct {
 		UserID string `json:"user_id"`
+		Role   string `json:"role"`
 	}
+
+	n.logger.Println("ROLE IS " + result.Role)
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return "", err
@@ -139,7 +141,6 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 }
 
 func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h *http.Request) {
-	// Retrieve the user ID from the context set by the MiddlewareExtractUserFromCookie middleware
 	userID, ok := h.Context().Value(KeyProduct{}).(string)
 	if !ok {
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
@@ -149,7 +150,6 @@ func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h
 
 	n.logger.Println("User ID:", userID)
 
-	// Fetch notifications for the user from the repository
 	notifications, err := n.repo.GetByUserID(userID)
 	if err != nil {
 		http.Error(rw, "Error fetching notifications", http.StatusInternalServerError)
@@ -157,7 +157,6 @@ func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h
 		return
 	}
 
-	// Set the response headers and encode the notifications in JSON format
 	rw.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(rw).Encode(notifications)
 	if err != nil {

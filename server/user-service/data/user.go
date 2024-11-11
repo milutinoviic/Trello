@@ -29,7 +29,6 @@ type LoginCredentials struct {
 }
 
 type ChangePasswordRequest struct {
-	Id       string `bson:"_id" json:"id"`
 	Password string `bson:"password" json:"password"`
 }
 

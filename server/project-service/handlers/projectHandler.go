@@ -3,15 +3,18 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"project-service/model"
 	"project-service/repositories"
 	"strconv"
+	"strings"
 )
 
 type KeyProject struct{}
+type KeyRole struct{}
 
 type ProjectsHandler struct {
 	logger *log.Logger
@@ -19,7 +22,63 @@ type ProjectsHandler struct {
 	repo *repositories.ProjectRepo
 }
 
-const testManager = "gabifranjo@gmail.com"
+func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		cookie, err := h.Cookie("auth_token")
+		if err != nil {
+			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
+			p.logger.Println("No token in cookie:", err)
+			return
+		}
+
+		userID, role, err := p.verifyTokenWithUserService(cookie.Value)
+		if err != nil {
+			http.Error(rw, "Invalid token", http.StatusUnauthorized)
+			p.logger.Println("Invalid token:", err)
+			return
+		}
+
+		ctx := context.WithValue(h.Context(), KeyProject{}, userID)
+		ctx = context.WithValue(ctx, KeyRole{}, role)
+
+		h = h.WithContext(ctx)
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
+func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, string, error) {
+	userServiceURL := "http://user-server:8080/validate-token"
+	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
+	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+	}
+
+	var result struct {
+		UserID string `json:"user_id"`
+		Role   string `json:"role"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", "", err
+	}
+
+	return result.UserID, result.Role, nil
+}
 
 func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
 	return &ProjectsHandler{l, r}
@@ -44,18 +103,17 @@ func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request
 }
 
 func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.Request) {
-	vars := mux.Vars(h)
-	role, e := vars["role"]
+	role, e := h.Context().Value(KeyRole{}).(string)
 	if !e {
 		http.Error(rw, "Role not defined", http.StatusBadRequest)
 		return
 	}
-	userId, exists := vars["userId"]
-	if !exists {
-		http.Error(rw, "Manager ID is missing in URL", http.StatusBadRequest)
+	userId, ok := h.Context().Value(KeyProject{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		p.logger.Println("User ID not found in context")
 		return
 	}
-
 	var projects model.Projects
 	var err error
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/gorilla/mux"
 	"io"
 	"log"
 	"main.go/data"
@@ -76,13 +75,45 @@ func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
 	}
 }
 
+func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+
+		cookie, err := h.Cookie("auth_token")
+		if err != nil {
+			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
+			uh.logger.Println("No token in cookie:", err)
+			return
+		}
+
+		uh.logger.Println("Token retrieved from cookie:", cookie.Value) // Log token value
+
+		userID, role, err := uh.service.ValidateToken(cookie.Value)
+		uh.logger.Println("User ID is:", userID, "Role is:", role)
+
+		if err != nil {
+			uh.logger.Println("Token validation failed:", err)
+			http.Error(rw, `{"message": "Invalid token"}`, http.StatusUnauthorized)
+			return
+		}
+
+		ctx := context.WithValue(h.Context(), KeyAccount{}, userID)
+		h = h.WithContext(ctx)
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
 func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
-	vars := mux.Vars(h)
-	id := vars["userId"]
-	manager, err := uh.service.GetOne(id)
+	userID, ok := h.Context().Value(KeyAccount{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		uh.logger.Println("User ID not found in context")
+		return
+	}
+	manager, err := uh.service.GetOne(userID)
 	if err != nil {
 		uh.logger.Print("Database exception: ", err)
-		uh.logger.Print("Id: ", id)
+		uh.logger.Print("Id: ", userID)
 	}
 
 	if manager == nil {
@@ -210,19 +241,20 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
-	body, err := io.ReadAll(h.Body)
-	if err != nil {
-		http.Error(rw, "Failed to read request body", http.StatusBadRequest)
+	userID, ok := h.Context().Value(KeyAccount{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		uh.logger.Println("User ID not found in context")
 		return
 	}
-	defer h.Body.Close()
-	requestString := string(body)
 
-	err = uh.service.Logout(requestString)
+	err := uh.service.Logout(userID)
 	if err != nil {
 		uh.logger.Println("Error logging out:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+		return
 	}
+
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 }
@@ -236,7 +268,14 @@ func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	isPasswordCorrect := uh.service.PasswordCheck(req.Id, req.Password)
+	userID, ok := r.Context().Value(KeyAccount{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		uh.logger.Println("User ID not found in context")
+		return
+	}
+
+	isPasswordCorrect := uh.service.PasswordCheck(userID, req.Password)
 	uh.logger.Println("Password is correct:", isPasswordCorrect)
 
 	responseString := "false"
@@ -263,7 +302,14 @@ func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 	}
 	defer h.Body.Close()
 
-	err = uh.service.ChangePassword(req.Id, req.Password)
+	userID, ok := h.Context().Value(KeyAccount{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		uh.logger.Println("User ID not found in context")
+		return
+	}
+
+	err = uh.service.ChangePassword(userID, req.Password)
 	if err != nil {
 		http.Error(rw, "Failed to change password", http.StatusInternalServerError)
 		return
@@ -364,7 +410,7 @@ func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.R
 }
 
 func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
-	uh.logger.Println("the path is hit")
+	uh.logger.Println("The path is hit")
 	var req struct {
 		Token string `json:"token"`
 	}
@@ -376,8 +422,8 @@ func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
 	}
 	defer h.Body.Close()
 
-	userID, err := uh.service.ValidateToken(req.Token)
-	uh.logger.Println("user id is:", userID)
+	userID, role, err := uh.service.ValidateToken(req.Token)
+	uh.logger.Println("User ID is:", userID, "Role is:", role)
 
 	if err != nil {
 		uh.logger.Println("Token validation failed:", err)
@@ -385,7 +431,10 @@ func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	response := map[string]string{"user_id": userID}
+	response := map[string]string{
+		"user_id": userID,
+		"role":    role,
+	}
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(rw).Encode(response)

@@ -246,3 +246,32 @@ func (uc *UserCache) VerifyTokenWithUserId(token string) (string, error) {
 
 	return userID, nil
 }
+
+func (uc *UserCache) GetUserRole(token string) (string, error) {
+	userRole, err := uc.GetRoleFromToken(token)
+	if err != nil {
+		return "", err
+	}
+
+	return userRole, nil
+}
+
+func (uc *UserCache) GetRoleFromToken(token string) (string, error) {
+	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(os.Getenv("SECRET_KEY")), nil
+	})
+	if err != nil {
+		uc.log.Println("Error parsing token:", err)
+		return "", errors.New("invalid token")
+	}
+
+	if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok && parsedToken.Valid {
+		userRole := claims["role"].(string)
+		return userRole, nil
+	}
+
+	return "", errors.New("role not found in token")
+}

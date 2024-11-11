@@ -128,16 +128,20 @@ func (s *UserService) VerifyMagic(email string) (string, error) {
 	return id, nil
 }
 
-func (us *UserService) ValidateToken(token string) (string, error) {
-	userID, err := us.cache.VerifyTokenWithUserId(token) // Cache or DB check
+func (us *UserService) ValidateToken(token string) (string, string, error) {
+	userID, err := us.cache.VerifyTokenWithUserId(token)
 	if err != nil {
 		us.logger.Println("Error verifying token:", err)
-		return "", err
+		return "", "", err
 	}
-
 	if userID == "" {
-		return "", errors.New("invalid token")
+		return "", "", errors.New("invalid token")
+	}
+	role, err := us.cache.GetUserRole(token)
+	if err != nil {
+		us.logger.Println("Error retrieving user role:", err)
+		return "", "", err
 	}
 
-	return userID, nil
+	return userID, role, nil
 }

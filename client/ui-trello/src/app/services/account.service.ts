@@ -38,7 +38,6 @@ export class AccountService {
 
   changePassword(newPassword: string): Observable<any> {
     const payload = {
-      id: this.userId$,
       password: newPassword
     };
     return this.http.post(this.config.change_password_url, payload);
@@ -51,7 +50,7 @@ export class AccountService {
 
   logout(): Observable<any> {
     this.stopTokenVerification();
-    return this.http.post(this.config.logout_url, this.userId$);
+    return this.http.post(this.config.logout_url, null);
   }
 
   startTokenVerification(userId: string) {
