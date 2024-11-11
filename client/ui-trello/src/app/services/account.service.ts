@@ -66,7 +66,7 @@ export class AccountService {
       this.tokenVerificationSub.unsubscribe();
     }
 
-    this.tokenVerificationSub = interval(60000)
+    this.tokenVerificationSub = interval(300000)// set it to 5 minutes
       .pipe(
         switchMap(() => {
           console.log(`[Verification] Checking token for user: ${key} at ${new Date().toLocaleTimeString()}`);
@@ -119,5 +119,13 @@ export class AccountService {
     }
 
     return this.http.post(this.config.reset_password_url, payload)
+  }
+
+  sendMagicLink(email: string) {
+    return this.http.post(this.config.magic_link_url, {email})
+  }
+
+  verifyMagic(email: string): Observable<string> {
+    return this.http.post<string>(this.config.verify_magic_url, {email})
   }
 }

@@ -108,3 +108,19 @@ func (s *UserService) ResettingPassword(email string, password string) error {
 	}
 	return nil
 }
+
+func (s *UserService) MagicLink(email string) error {
+	err := s.cache.ImplementMagic(email)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *UserService) VerifyMagic(email string) (string, error) {
+	id, err := s.cache.VerifyMagic(email)
+	if err != nil {
+		return "", err
+	}
+	return id, nil
+}

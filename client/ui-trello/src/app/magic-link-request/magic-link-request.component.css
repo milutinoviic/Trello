@@ -1,0 +1,86 @@
+.magic-container {
+  max-width: 500px;
+  margin: 50px auto;
+  padding: 40px;
+  background: linear-gradient(145deg, #1a1a2e, #16213e);
+  border-radius: 20px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4), 0 6px 6px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  color: #f0f8ff;
+  font-family: 'Papyrus', cursive;
+}
+
+
+.magic-title {
+  font-size: 2rem;
+  margin-bottom: 30px;
+  color: #ffbbcc;
+  text-shadow: 0 0 10px #ff99cc, 0 0 20px #ff66b2, 0 0 30px #ff3399;
+}
+
+
+.magic-label {
+  font-size: 1.2rem;
+  display: block;
+  margin-bottom: 10px;
+  color: #f5f5f5;
+}
+
+.magic-input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  outline: none;
+  background: #22254b;
+  color: #f5f5f5;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease-in-out;
+}
+.magic-input:focus {
+  box-shadow: 0 0 10px rgba(145, 77, 255, 0.8), 0 0 20px rgba(145, 77, 255, 0.6);
+}
+
+
+.magic-button {
+  margin-top: 20px;
+  background: #8338ec;
+  color: #fff;
+  padding: 12px 25px;
+  border-radius: 50px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(131, 56, 236, 0.4);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.magic-button:hover {
+  background: #7b2cbf;
+  box-shadow: 0 6px 20px rgba(123, 44, 191, 0.5);
+}
+
+.magic-text {
+  position: relative;
+  z-index: 1;
+}
+.magic-button::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+  animation: magic-glow 3s infinite;
+  transition: opacity 0.3s;
+}
+
+@keyframes magic-glow {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1.5);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}

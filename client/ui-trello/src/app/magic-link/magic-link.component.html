@@ -1,0 +1,18 @@
+<div class="container">
+  <div class="message-box" *ngIf="loading">
+    <div class="loading-spinner"></div>
+    <p>Verifying your link...</p>
+  </div>
+
+  <div class="message-box success" *ngIf="!loading && linkValid">
+    <p>✨ Link verified! Redirecting in 10 seconds... ✨</p>
+  </div>
+
+  <div class="message-box error" *ngIf="!loading && !linkValid">
+    <p>⚠️ The link has expired. Please re-send the link or log in.</p>
+    <div class="button-group">
+      <button class="btn resend-btn" (click)="resendLink()">Re-send Link</button>
+      <button class="btn login-btn" (click)="goToLogin()">Log In</button>
+    </div>
+  </div>
+</div>

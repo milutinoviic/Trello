@@ -45,6 +45,7 @@ func main() {
 
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.HandleFunc("/", projectsHandler.GetAllProjects)
+	getRouter.HandleFunc("/projects/user/{role}/{userId}", projectsHandler.GetAllProjectsByUser)
 
 	postRouter := router.Methods(http.MethodPost).Subrouter()
 	postRouter.HandleFunc("/", projectsHandler.PostProject)
