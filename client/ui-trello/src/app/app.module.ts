@@ -10,7 +10,7 @@ import {ToastrModule} from "ngx-toastr";
 import { MemberAdditionComponent } from './member-addition/member-addition.component';
 import {CdkDrag, CdkDropList, DragDropModule} from "@angular/cdk/drag-drop";
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { LoginComponent } from './auth/login/login.component';
+
 import { ChangePasswordComponent } from './change-password/change-password.component';
 import { MenuComponent } from './menu/menu.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
@@ -21,7 +21,6 @@ import {AuthModule} from "./auth/auth.module";
     AppComponent,
     RegistrationComponent,
     MemberAdditionComponent,
-    LoginComponent,
     ChangePasswordComponent,
 
   ],

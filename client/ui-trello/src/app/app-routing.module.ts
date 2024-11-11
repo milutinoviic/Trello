@@ -15,7 +15,6 @@ export const routes: Routes = [
     component: AddProjectComponent,
     canActivate:[RoleGuard],
     data:{expectedRoles:"MANAGER"}},
-  { path: 'login', component: LoginComponent },
   { path: 'changePassword', component: ChangePasswordComponent },
 ];
 

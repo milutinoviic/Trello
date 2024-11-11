@@ -8,13 +8,8 @@
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app.module.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/auth/auth.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/auth/auth.module.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/auth/auth.routes.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/auth/auth.routes.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/auth/guards/login.guard.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/auth/guards/login.guard.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/auth/guards/role.guard.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/auth/guards/role.guard.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/auth/login/login.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/auth/login/login.component.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/auth/services/auth.service.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/auth/services/auth.service.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/shared/interceptor/interceptor.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/shared/interceptor/interceptor.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/login.guard.spec.ts" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/login.guard.ts" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
