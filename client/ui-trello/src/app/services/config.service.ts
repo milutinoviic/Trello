@@ -27,6 +27,19 @@ export class ConfigService {
 
   private _change_password_url = this._password_url + "/change"
 
+  private _recovery_password_url = this._password_url + "/recovery"
+
+  private _reset_password_url = this._password_url + "/reset"
+
+
+  get reset_password_url(): string {
+    return this._reset_password_url;
+  }
+
+  get recovery_password_url(): string {
+    return this._recovery_password_url;
+  }
+
   private _verify_token_url = this._api_url + "/verify"
 
   private _login_url = this._api_url + "/login"

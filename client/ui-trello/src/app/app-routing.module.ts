@@ -7,6 +7,8 @@ import {LoginComponent} from "./login/login.component";
 import {NotificationsComponent} from "./notifications/notifications.component";
 import {ChangePasswordComponent} from "./change-password/change-password.component";
 import {AddTaskComponent} from "./add-task/add-task.component";
+import { PasswordRecoveryRequestComponent } from './password-recovery-request/password-recovery-request.component';
+import {PasswordResetComponent} from "./password-reset/password-reset.component";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent },
@@ -17,6 +19,8 @@ export const routes: Routes = [
   { path: 'notifications', component: NotificationsComponent },
   { path: 'changePassword', component: ChangePasswordComponent },
   { path: 'projects/:projectId/addTask', component: AddTaskComponent},
+  { path:'recovery', component: PasswordRecoveryRequestComponent },
+  { path: 'password/recovery/:email', component: PasswordResetComponent },
 ];
 
 @NgModule({

@@ -16,6 +16,8 @@ import { MenuComponent } from './menu/menu.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 import { NotificationsComponent } from './notifications/notifications.component';
 import {AddTaskComponent} from "./add-task/add-task.component";
+import { PasswordRecoveryRequestComponent } from './password-recovery-request/password-recovery-request.component';
+import { PasswordResetComponent } from './password-reset/password-reset.component';
 
 @NgModule({
   declarations: [
@@ -26,7 +28,9 @@ import {AddTaskComponent} from "./add-task/add-task.component";
     ChangePasswordComponent,
     NotificationsComponent,
     ChangePasswordComponent,
-    AddTaskComponent
+    AddTaskComponent,
+    PasswordRecoveryRequestComponent,
+    PasswordResetComponent,
   ],
   imports: [
     BrowserModule,
