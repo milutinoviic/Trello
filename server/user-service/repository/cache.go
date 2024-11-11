@@ -1,13 +1,17 @@
 package repository
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/go-redis/redis"
+	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"main.go/data"
+	"main.go/utils"
+	"net/smtp"
 	"os"
 	"time"
 )
@@ -21,6 +25,8 @@ type UserCache struct {
 const (
 	cacheRequestConstruct = "requests:%s"
 	cacheUserConstruct    = "activeUser:%s"
+	cacheMagicConstruct   = "magic:%s"
+	cacheMagic            = "magic"
 	cacheRequests         = "requests"
 	cacheUser             = "activeUser"
 )
@@ -31,6 +37,10 @@ func constructKeyForRequest(id string) string {
 
 func constructKeyForUser(id string) string {
 	return fmt.Sprintf(cacheUserConstruct, id)
+}
+
+func constructKeyForMagic(email string) string {
+	return fmt.Sprintf(cacheMagicConstruct, email)
 }
 
 func NewCache(logger *log.Logger, repo *UserRepository) (*UserCache, error) {
@@ -105,4 +115,95 @@ func (uc *UserCache) Logout(id string) error {
 		return err
 	}
 	return nil
+}
+
+func SendMagicLink(userEmail string) error {
+	recoveryURL := fmt.Sprintf("https://localhost:4200/magic/%s", userEmail)
+
+	subject := "Magic Link"
+	body := fmt.Sprintf(`
+		<html>
+		<body>
+			<p>Dear user,</p>
+			<p>We received a request for a magic link.</p>
+			<p>Please click the button below to log in without the password:</p>
+			<a href="%s" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block;">Abracadabra</a>
+			<p>The link expires in 5 minutes.</p>
+			<p>Thank you!</p>
+		</body>
+		</html>`, recoveryURL)
+
+	message := fmt.Sprintf("Subject: %s\r\n", subject)
+	message += "MIME-Version: 1.0\r\n"
+	message += "Content-Type: text/html; charset=\"UTF-8\"\r\n"
+	message += "\r\n" + body
+
+	from := os.Getenv("SMTP_EMAIL")
+	password := os.Getenv("SMTP_PASSWORD")
+	smtpHost := os.Getenv("SMTP_HOST")
+	smtpPort := os.Getenv("SMTP_PORT")
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{userEmail}, []byte(message))
+	if err != nil {
+		return fmt.Errorf("failed to send email: %v", err)
+	}
+
+	return nil
+}
+
+func (c *UserCache) ImplementMagic(email string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	accountCollection := c.userRepository.getAccountCollection()
+	var existingAccount data.Account
+
+	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	if err != nil {
+		c.log.Println("Error finding account:", err)
+		return err
+	}
+
+	id := constructKeyForMagic(email)
+	err = c.cli.Set(id, existingAccount.ID.String(), 5*time.Minute).Err()
+	if err != nil {
+		c.log.Println("Error setting token:", err)
+		return err
+	}
+	err = SendMagicLink(email)
+	if err != nil {
+		c.log.Println("Error sending magic link:", err)
+		return err
+	}
+	return nil
+}
+
+func (c *UserCache) VerifyMagic(email string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	accountCollection := c.userRepository.getAccountCollection()
+	var existingAccount data.Account
+	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	if err != nil {
+		c.log.Println("Error finding account:", err)
+		return "", err
+	}
+	id := constructKeyForMagic(email)
+	err = c.cli.Get(id).Err()
+	if err != nil {
+		c.log.Println("Error getting token:", err)
+		return "", err
+	}
+	token, err := utils.CreateToken(email, existingAccount.Role)
+	if err != nil {
+		c.log.Println("Error creating token:", err)
+		return "", err
+	}
+	err = c.cli.Set(constructKeyForUser(existingAccount.ID.String()), token, 5*time.Minute).Err()
+	if err != nil {
+		c.log.Println("Error setting token:", err)
+		return "", err
+	}
+	return existingAccount.ID.Hex(), nil
 }

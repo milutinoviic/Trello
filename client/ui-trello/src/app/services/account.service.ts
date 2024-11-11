@@ -107,4 +107,12 @@ export class AccountService {
 
     return this.http.post(this.config.reset_password_url, payload)
   }
+
+  sendMagicLink(email: string) {
+    return this.http.post(this.config.magic_link_url, {email})
+  }
+
+  verifyMagic(email: string): Observable<string> {
+    return this.http.post<string>(this.config.verify_magic_url, {email})
+  }
 }

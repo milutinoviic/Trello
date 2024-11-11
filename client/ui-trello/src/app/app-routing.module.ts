@@ -9,6 +9,8 @@ import {ChangePasswordComponent} from "./change-password/change-password.compone
 import {AddTaskComponent} from "./add-task/add-task.component";
 import { PasswordRecoveryRequestComponent } from './password-recovery-request/password-recovery-request.component';
 import {PasswordResetComponent} from "./password-reset/password-reset.component";
+import {MagicLinkRequestComponent} from "./magic-link-request/magic-link-request.component";
+import {MagicLinkComponent} from "./magic-link/magic-link.component";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent },
@@ -21,6 +23,8 @@ export const routes: Routes = [
   { path: 'projects/:projectId/addTask', component: AddTaskComponent},
   { path:'recovery', component: PasswordRecoveryRequestComponent },
   { path: 'password/recovery/:email', component: PasswordResetComponent },
+  { path: 'magic', component: MagicLinkRequestComponent },
+  { path: 'magic/:email', component: MagicLinkComponent },
 ];
 
 @NgModule({

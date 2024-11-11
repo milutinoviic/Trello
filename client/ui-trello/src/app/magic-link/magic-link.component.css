@@ -1,0 +1,88 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  background: linear-gradient(135deg, #3a1c71, #d76d77, #ffaf7b);
+  background-size: 400% 400%;
+  animation: gradient-animation 10s ease infinite;
+  font-family: 'Poppins', sans-serif;
+  color: #fff;
+  text-align: center;
+}
+
+@keyframes gradient-animation {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.message-box {
+  background: rgba(0, 0, 0, 0.6);
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  max-width: 400px;
+  margin: 20px;
+  transition: all 0.3s ease;
+}
+
+.message-box.success {
+  border-left: 8px solid #28a745;
+}
+
+.message-box.error {
+  border-left: 8px solid #dc3545;
+}
+
+.loading-spinner {
+  border: 6px solid rgba(255, 255, 255, 0.2);
+  border-top: 6px solid #fff;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+
+.button-group {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.btn {
+  background: #ffffff;
+  color: #3a1c71;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn:hover {
+  transform: translateY(-3px);
+}
+
+.resend-btn {
+  background: linear-gradient(135deg, #6dd5ed, #2193b0);
+}
+
+.login-btn {
+  background: linear-gradient(135deg, #ff9966, #ff5e62);
+}
+
+.resend-btn:hover,
+.login-btn:hover {
+  filter: brightness(1.2);
+}

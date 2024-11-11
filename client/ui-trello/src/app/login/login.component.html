@@ -26,6 +26,9 @@
   <div>
   <small style="text-align: center"><a routerLink="/recovery">Forgot password?</a></small>
 </div>
+  <div>
+    <small style="text-align: center">Or maybe you want to log in with a <a routerLink="/magic">link 🪄</a></small>
+  </div>
   <div style="text-align: center;">
     <button class="btn" type="submit" [disabled]="!loginForm.valid || isSubmitting">Login</button>
   </div>

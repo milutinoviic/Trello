@@ -18,6 +18,8 @@ import { NotificationsComponent } from './notifications/notifications.component'
 import {AddTaskComponent} from "./add-task/add-task.component";
 import { PasswordRecoveryRequestComponent } from './password-recovery-request/password-recovery-request.component';
 import { PasswordResetComponent } from './password-reset/password-reset.component';
+import { MagicLinkRequestComponent } from './magic-link-request/magic-link-request.component';
+import { MagicLinkComponent } from './magic-link/magic-link.component';
 
 @NgModule({
   declarations: [
@@ -31,6 +33,8 @@ import { PasswordResetComponent } from './password-reset/password-reset.componen
     AddTaskComponent,
     PasswordRecoveryRequestComponent,
     PasswordResetComponent,
+    MagicLinkRequestComponent,
+    MagicLinkComponent
   ],
   imports: [
     BrowserModule,
