@@ -1,4 +1,4 @@
-import { NgModule } from '@angular/core';
+import {APP_INITIALIZER, NgModule} from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
@@ -18,6 +18,16 @@ import { NotificationsComponent } from './notifications/notifications.component'
 import {AddTaskComponent} from "./add-task/add-task.component";
 import { PasswordRecoveryRequestComponent } from './password-recovery-request/password-recovery-request.component';
 import { PasswordResetComponent } from './password-reset/password-reset.component';
+import {AccountService} from "./services/account.service";
+
+function initTokenVerification(accountService: AccountService) {
+  return () => {
+    const userId = accountService.getUserId();
+    if (userId) {
+      accountService.startTokenVerification(userId);
+    }
+  };
+}
 
 @NgModule({
   declarations: [
@@ -46,7 +56,14 @@ import { PasswordResetComponent } from './password-reset/password-reset.componen
     NgbModule,
     MenuComponent,
   ],
-  providers: [],
+  providers: [
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initTokenVerification,
+      deps: [AccountService],
+      multi: true
+    }
+  ],
   exports: [
     MenuComponent
   ],

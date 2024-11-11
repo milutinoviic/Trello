@@ -54,7 +54,7 @@ export class AddProjectComponent {
 
   ngOnInit(): void {
     this.fetchData();
-    this.managerId = this.accService.idOfUser;
+    this.managerId = this.accService.getUserId()!;
     this.fetchManager(this.managerId);
 
     this.newProjectForm = this.formBuilder.group({
