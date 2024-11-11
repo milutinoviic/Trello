@@ -176,12 +176,21 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	id, err := uh.service.Login(request)
+	id, token, err := uh.service.Login(request)
 	if err != nil {
 		uh.logger.Println("Error logging in:", err)
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
+
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "auth_token",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode, // Set SameSite policy to prevent CSRF attacks
+		Path:     "/",                     // Cookie valid for the entire site
+	})
 
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
@@ -352,4 +361,36 @@ func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.R
 		return
 	}
 
+}
+
+func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
+	uh.logger.Println("the path is hit")
+	var req struct {
+		Token string `json:"token"`
+	}
+	err := json.NewDecoder(h.Body).Decode(&req)
+	if err != nil {
+		uh.logger.Println("Error decoding request body:", err)
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	defer h.Body.Close()
+
+	userID, err := uh.service.ValidateToken(req.Token)
+	uh.logger.Println("user id is:", userID)
+
+	if err != nil {
+		uh.logger.Println("Token validation failed:", err)
+		http.Error(rw, `{"message": "Invalid token"}`, http.StatusUnauthorized)
+		return
+	}
+
+	response := map[string]string{"user_id": userID}
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(rw).Encode(response)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
+		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+	}
 }

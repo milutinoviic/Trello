@@ -25,7 +25,7 @@ func main() {
 		logger.Fatal(err)
 	}
 	uc, err := repository.NewCache(logger, ur)
-	us := service.NewUserService(ur, uc)
+	us := service.NewUserService(ur, uc, logger)
 	uh := handlers.NewUserHandler(logger, us)
 
 	r := mux.NewRouter()
@@ -45,6 +45,7 @@ func main() {
 	r.HandleFunc("/password/reset", uh.HandlePasswordReset).Methods(http.MethodPost)
 	r.HandleFunc("/magic", uh.HandleMagic).Methods(http.MethodPost)
 	r.HandleFunc("/magic/verify", uh.HandleMagicVerification).Methods(http.MethodPost)
+	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

@@ -18,17 +18,15 @@ export interface Notification {
 export class NotificationsComponent implements OnInit{
   notifications: Notification[] = [];
   errorMessage: string = '';
-  userId: string = '';
 
   constructor(private notificationService: NotificationService, private accService: AccountService) {}
 
   ngOnInit(): void {
-    this.userId = this.accService.getUserId()!;
     this.loadNotifications();
   }
 
   loadNotifications(): void {
-    this.notificationService.getAllNotifications(this.userId).subscribe({
+    this.notificationService.getAllNotifications().subscribe({
       next: (notifications) => {
         this.notifications = notifications;
         console.log(this.notifications);

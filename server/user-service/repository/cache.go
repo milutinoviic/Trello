@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-redis/redis"
+	"github.com/golang-jwt/jwt"
 	"go.mongodb.org/mongo-driver/bson"
 	"golang.org/x/crypto/bcrypt"
 	"log"
@@ -117,6 +118,25 @@ func (uc *UserCache) Logout(id string) error {
 	return nil
 }
 
+func (uc *UserCache) GetUserIDFromToken(token string) (string, error) {
+	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
+		}
+		return []byte(os.Getenv("SECRET_KEY")), nil
+	})
+	if err != nil {
+		uc.log.Println("Error parsing token:", err)
+		return "", errors.New("invalid token")
+	}
+
+	if claims, ok := parsedToken.Claims.(jwt.MapClaims); ok && parsedToken.Valid {
+		userID := claims["user_id"].(string)
+		return userID, nil
+	}
+	return "", errors.New("invalid token or missing user ID")
+}
+
 func SendMagicLink(userEmail string) error {
 	recoveryURL := fmt.Sprintf("https://localhost:4200/magic/%s", userEmail)
 
@@ -195,7 +215,7 @@ func (c *UserCache) VerifyMagic(email string) (string, error) {
 		c.log.Println("Error getting token:", err)
 		return "", err
 	}
-	token, err := utils.CreateToken(email, existingAccount.Role)
+	token, err := utils.CreateToken(email, existingAccount.Role, existingAccount.ID.Hex())
 	if err != nil {
 		c.log.Println("Error creating token:", err)
 		return "", err
@@ -206,4 +226,23 @@ func (c *UserCache) VerifyMagic(email string) (string, error) {
 		return "", err
 	}
 	return existingAccount.ID.Hex(), nil
+}
+
+func (uc *UserCache) VerifyTokenWithUserId(token string) (string, error) {
+	userID, err := uc.GetUserIDFromToken(token)
+	if err != nil {
+		return "", err
+	}
+
+	key := constructKeyForUser(userID)
+	exists, err := uc.cli.Exists(key).Result()
+	if err != nil {
+		return "", err
+	}
+
+	if exists == 0 {
+		return "", errors.New("invalid token or user not found")
+	}
+
+	return userID, nil
 }

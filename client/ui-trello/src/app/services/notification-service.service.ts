@@ -26,8 +26,8 @@ export class NotificationService {
     return this.http.get<Notification[]>(this.config.notifications_url + '/user/' );
   }
 
-  getAllNotifications(userID: string): Observable<Notification[]> {
-    return this.http.get<Notification[]>(this.config.notifications_url + `/user/${userID}` );
+  getAllNotifications(): Observable<Notification[]> {
+    return this.http.get<Notification[]>(this.config.notifications_url + `/user` );
 
   }
 }

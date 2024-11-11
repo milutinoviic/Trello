@@ -3,18 +3,20 @@ package service
 import (
 	"context"
 	"errors"
+	"log"
 	"main.go/data"
 	"main.go/repository"
 	"main.go/utils"
 )
 
 type UserService struct {
-	user  *repository.UserRepository
-	cache *repository.UserCache
+	user   *repository.UserRepository
+	cache  *repository.UserCache
+	logger *log.Logger
 }
 
-func NewUserService(user *repository.UserRepository, cache *repository.UserCache) *UserService {
-	return &UserService{user, cache}
+func NewUserService(user *repository.UserRepository, cache *repository.UserCache, logger *log.Logger) *UserService {
+	return &UserService{user, cache, logger}
 }
 
 func (s *UserService) Registration(request *data.AccountRequest) error {
@@ -52,24 +54,25 @@ func (s *UserService) GetAllMembers(ctx context.Context) ([]data.Account, error)
 	return accounts, nil
 }
 
-func (s *UserService) Login(user *data.LoginCredentials) (id string, err error) {
+func (s UserService) Login(user *data.LoginCredentials) (id string, token string, err error) {
 	role, err := s.user.GetUserRoleByEmail(user.Email)
 	if err != nil {
-		return "", errors.New("role does not exist")
-	}
-	token, err := utils.CreateToken(user.Email, role)
-	if err != nil {
-		return "", errors.New("error creating token")
-	}
-	err = s.cache.Login(user, token)
-	if err != nil {
-		return "", err
+		return "", "", errors.New("role does not exist")
 	}
 	get, err := s.user.GetUserIdByEmail(user.Email)
 	if err != nil {
-		return "", errors.New("error getting user")
+		return "", "", errors.New("error getting user")
 	}
-	return get.Hex(), nil
+	token, err = utils.CreateToken(user.Email, role, get.Hex())
+	if err != nil {
+		return "", "", errors.New("error creating token")
+	}
+	err = s.cache.Login(user, token)
+	if err != nil {
+		return "", "", err
+	}
+
+	return get.Hex(), token, nil
 }
 
 func (s *UserService) Logout(id string) error {
@@ -123,4 +126,18 @@ func (s *UserService) VerifyMagic(email string) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+
+func (us *UserService) ValidateToken(token string) (string, error) {
+	userID, err := us.cache.VerifyTokenWithUserId(token) // Cache or DB check
+	if err != nil {
+		us.logger.Println("Error verifying token:", err)
+		return "", err
+	}
+
+	if userID == "" {
+		return "", errors.New("invalid token")
+	}
+
+	return userID, nil
 }

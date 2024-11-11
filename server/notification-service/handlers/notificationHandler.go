@@ -3,15 +3,17 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
 	"notification-service/model"
 	"notification-service/repository"
+	"strings"
 )
 
-type KeyProduct struct{}
+type KeyProduct struct{} // Context key for storing user data
 
 type NotificationHandler struct {
 	logger *log.Logger
@@ -20,6 +22,62 @@ type NotificationHandler struct {
 
 func NewNotificationHandler(l *log.Logger, r *repository.NotificationRepo) *NotificationHandler {
 	return &NotificationHandler{l, r}
+}
+
+// Middleware to extract user ID from HTTP-only cookie and validate it
+func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		cookie, err := h.Cookie("AuthToken")
+		if err != nil {
+			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
+			n.logger.Println("No token in cookie:", err)
+			return
+		}
+
+		userID, err := n.verifyTokenWithUserService(cookie.Value)
+		if err != nil {
+			http.Error(rw, "Invalid token", http.StatusUnauthorized)
+			n.logger.Println("Invalid token:", err)
+			return
+		}
+
+		ctx := context.WithValue(h.Context(), KeyProduct{}, userID)
+		h = h.WithContext(ctx)
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
+// Function to verify the token with the User Service
+func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, error) {
+	userServiceURL := "http://api-gateway/api/user-server/validate-token"
+	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
+	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+	}
+
+	var result struct {
+		UserID string `json:"user_id"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", err
+	}
+
+	return result.UserID, nil
 }
 
 func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http.Request) {
@@ -81,8 +139,9 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 }
 
 func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h *http.Request) {
-	vars := mux.Vars(h)
-	userID := vars["user_id"]
+	// Retrieve the user ID from the context set by the middleware
+	userID := h.Context().Value(KeyProduct{}).(string)
+	n.logger.Println("User ID:", userID)
 
 	notifications, err := n.repo.GetByUserID(userID)
 	if err != nil {
@@ -157,21 +216,6 @@ func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func (n *NotificationHandler) MiddlewareNotificationDeserialization(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
-		notification := &model.Notification{}
-		err := notification.FromJSON(h.Body)
-		if err != nil {
-			http.Error(rw, "Unable to decode json", http.StatusBadRequest)
-			n.logger.Fatal(err)
-			return
-		}
-		ctx := context.WithValue(h.Context(), KeyProduct{}, notification)
-		h = h.WithContext(ctx)
-		next.ServeHTTP(rw, h)
-	})
 }
 
 func (n *NotificationHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
