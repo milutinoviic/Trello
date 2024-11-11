@@ -50,7 +50,6 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 
 // Function to verify the token with the User Service
 func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, error) {
-	n.logger.Println("does this work for fucks sake")
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
