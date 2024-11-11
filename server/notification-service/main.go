@@ -36,7 +36,7 @@ func main() {
 
 	r.HandleFunc("/notifications", notificationHandler.CreateNotification).Methods("POST")
 	r.HandleFunc("/notifications/{id}", notificationHandler.GetNotificationByID).Methods("GET")
-	r.HandleFunc("/notifications/user", notificationHandler.GetNotificationsByUserID).Methods("GET")
+	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(http.HandlerFunc(notificationHandler.GetNotificationsByUserID)))
 	r.HandleFunc("/notifications/{id}", notificationHandler.UpdateNotificationStatus).Methods("PUT")
 	r.HandleFunc("/notifications/{id}", notificationHandler.DeleteNotification).Methods("DELETE")
 
