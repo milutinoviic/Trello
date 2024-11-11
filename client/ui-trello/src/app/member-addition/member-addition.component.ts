@@ -42,7 +42,7 @@ export class MemberAdditionComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.managerId = this.accountService.idOfUser;
+    this.managerId = this.accountService.getUserId()!;
     console.log("userId: " + this.managerId);
 
     this.route.paramMap.subscribe(params => {
