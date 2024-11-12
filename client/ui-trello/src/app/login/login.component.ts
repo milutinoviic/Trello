@@ -23,8 +23,7 @@ export class LoginComponent implements OnInit {
     private accountService: AccountService,
     private toastr: ToastrService,
     private router: Router,
-  ) {
-  }
+  ){}
 
   ngOnInit(): void {
     this.loginForm = this.formBuilder.group({
@@ -47,7 +46,9 @@ export class LoginComponent implements OnInit {
       this.accountService.login(accountRequest).subscribe({
         next: (result) => {
           const userId = result.id;
+
           this.accountService.startTokenVerification(userId);
+
           this.router.navigate(['/projects']);
         },
         error: (error) => {
@@ -72,4 +73,6 @@ export class LoginComponent implements OnInit {
   toggleShowPassword(): void {
     this.showPassword = !this.showPassword;
   }
+
+
 }

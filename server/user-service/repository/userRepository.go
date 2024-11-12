@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"main.go/data"
 	"net/smtp"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -327,6 +329,12 @@ func (ur *UserRepository) ChangePassword(id string, password string) error {
 
 	accountCollection := ur.getAccountCollection()
 
+	err := ForbidPassword(password)
+	if err != nil {
+		ur.logger.Println("Error forbiding password:", err)
+		return err
+	}
+
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
 		ur.logger.Println("Error hashing password:", err)
@@ -423,6 +431,11 @@ func (ur *UserRepository) ResetPassword(email string, password string) error {
 		ur.logger.Println("Error finding account:", err)
 		return err
 	}
+	err = ForbidPassword(password)
+	if err != nil {
+		ur.logger.Println("Password forbidden:", err)
+		return err
+	}
 
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
@@ -443,4 +456,26 @@ func (ur *UserRepository) ResetPassword(email string, password string) error {
 	}
 	return nil
 
+}
+
+func ForbidPassword(password string) error {
+	file, err := os.Open("10k-worst-passwords.txt")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.EqualFold(line, password) {
+			return data.ErrPasswordIsNotAllowed()
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
