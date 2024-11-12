@@ -41,15 +41,15 @@ func main() {
 
 	router := mux.NewRouter()
 
+	router.Use(taskHandler.MiddlewareContentTypeSet)
+
 	getRouter := router.Methods(http.MethodGet).Subrouter()
-	getRouter.HandleFunc("/tasks", taskHandler.GetAllTask)
-	getRouter.HandleFunc("/tasks/{projectId}", taskHandler.GetAllTasksByProjectId)
+	getRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetAllTask))))
+	getRouter.Handle("/tasks/{projectId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(taskHandler.GetAllTasksByProjectId))))
 
 	postPutRouter := router.Methods(http.MethodPost, http.MethodPut).Subrouter()
-	postPutRouter.HandleFunc("/tasks", taskHandler.PostTask)
+	postPutRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(taskHandler.PostTask))))
 	postPutRouter.Use(taskHandler.MiddlewareTaskDeserialization)
-
-	router.Use(taskHandler.MiddlewareContentTypeSet)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

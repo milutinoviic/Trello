@@ -120,12 +120,12 @@ func (s *UserService) MagicLink(email string) error {
 	return nil
 }
 
-func (s *UserService) VerifyMagic(email string) (string, error) {
-	id, err := s.cache.VerifyMagic(email)
+func (s *UserService) VerifyMagic(email string) (string, string, error) {
+	id, token, err := s.cache.VerifyMagic(email)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return id, nil
+	return id, token, nil
 }
 
 func (us *UserService) ValidateToken(token string) (string, string, error) {

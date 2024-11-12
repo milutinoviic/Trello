@@ -14,6 +14,7 @@ import (
 )
 
 type KeyProduct struct{} // Context key for storing user data
+type KeyRole struct{}
 
 type NotificationHandler struct {
 	logger *log.Logger
@@ -34,7 +35,7 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 			return
 		}
 
-		userID, err := n.verifyTokenWithUserService(cookie.Value)
+		userID, role, err := n.verifyTokenWithUserService(cookie.Value)
 		if err != nil {
 			http.Error(rw, "Invalid token", http.StatusUnauthorized)
 			n.logger.Println("Invalid token:", err)
@@ -42,30 +43,32 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 		}
 
 		ctx := context.WithValue(h.Context(), KeyProduct{}, userID)
+		ctx = context.WithValue(ctx, KeyRole{}, role)
+
 		h = h.WithContext(ctx)
 
 		next.ServeHTTP(rw, h)
 	})
 }
 
-func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, error) {
+func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, string, error) {
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
 	}
 
 	var result struct {
@@ -76,10 +79,10 @@ func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, 
 	n.logger.Println("ROLE IS " + result.Role)
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return result.UserID, nil
+	return result.UserID, result.Role, nil
 }
 
 func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http.Request) {
@@ -225,10 +228,29 @@ func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (n *NotificationHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
+func (uh *NotificationHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
-		n.logger.Println("Method [", h.Method, "] - Hit path :", h.URL.Path)
-		rw.Header().Add("Content-Type", "application/json")
+		role, ok := h.Context().Value(KeyRole{}).(string)
+		if !ok {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role not found in context")
+			return
+		}
+
+		allowed := false
+		for _, r := range allowedRoles {
+			if role == r {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role validation failed: missing permissions")
+			return
+		}
+
 		next.ServeHTTP(rw, h)
 	})
 }

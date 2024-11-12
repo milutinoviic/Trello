@@ -84,6 +84,11 @@ func (repo *NotificationRepo) CreateTables() {
 	if err != nil {
 		repo.logger.Println("Error creating index on user_id:", err)
 	}
+
+	err = repo.InsertPredefinedNotifications()
+	if err != nil {
+		repo.logger.Println("Error inserting predefined notifications:", err)
+	}
 }
 
 func (repo *NotificationRepo) Create(notification *model.Notification) error {
@@ -171,5 +176,55 @@ func (repo *NotificationRepo) Delete(id gocql.UUID) error {
 		repo.logger.Println("Error deleting notification:", err)
 		return err
 	}
+	return nil
+}
+
+func (repo *NotificationRepo) InsertPredefinedNotifications() error {
+	predefinedNotifications := []model.Notification{
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "67315b4b90e4b2f004fb1168",
+			Message:   "Welcome to the service!",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "67315b4b90e4b2f004fb1168",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "67315b6790e4b2f004fb1169",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "67315b6790e4b2f004fb1169",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "67315b6790e4b2f004fb1169",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+	}
+
+	for _, notification := range predefinedNotifications {
+		err := repo.Create(&notification)
+		if err != nil {
+			repo.logger.Println("Error inserting predefined notification:", err)
+			return err
+		}
+	}
+	repo.logger.Println("Predefined notifications inserted successfully.")
 	return nil
 }

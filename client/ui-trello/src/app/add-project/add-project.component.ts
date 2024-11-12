@@ -50,6 +50,7 @@ export class AddProjectComponent implements OnInit {
 
   ngOnInit(): void {
     this.fetchManager();
+    this.fetchData();
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
       end_date: ['', [Validators.required, dateValidator()]],
@@ -87,17 +88,21 @@ export class AddProjectComponent implements OnInit {
   }
 
   fetchData() {
-    this.http.get<Project[]>('/api/project-server/projects')
-      .subscribe({
-        next: (response) => {
-          this.projects = response.reverse();
-          console.log('Projects fetched successfully:', this.projects);
-        },
-        error: (error) => {
-          console.error('Error fetching data:', error);
+    this.http.get<Project[]>('/api/project-server/projects').subscribe({
+      next: (response) => {
+        this.projects = response.reverse();
+        console.log('Projects fetched successfully:', this.projects);
+      },
+      error: (error) => {
+        console.error('Error fetching data:', error);
+
+        if (error.status === 401) {
+          this.router.navigate(['login']);
+        } else {
           this.projects = [];
         }
-      });
+      }
+    });
   }
 
   fetchManager() {

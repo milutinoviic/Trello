@@ -3,9 +3,11 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"strings"
 	"task--service/model"
 	"task--service/repositories"
 )
@@ -16,6 +18,8 @@ type TasksHandler struct {
 }
 
 type KeyTask struct{}
+type KeyId struct{}
+type KeyRole struct{}
 
 func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository) *TasksHandler {
 	return &TasksHandler{l, r}
@@ -85,4 +89,89 @@ func (t *TasksHandler) MiddlewareTaskDeserialization(next http.Handler) http.Han
 
 		next.ServeHTTP(rw, h)
 	})
+}
+
+func (uh *TasksHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		role, ok := h.Context().Value(KeyRole{}).(string)
+		if !ok {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role not found in context")
+			return
+		}
+
+		allowed := false
+		for _, r := range allowedRoles {
+			if role == r {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role validation failed: missing permissions")
+			return
+		}
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
+func (p *TasksHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		cookie, err := h.Cookie("auth_token")
+		if err != nil {
+			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
+			p.logger.Println("No token in cookie:", err)
+			return
+		}
+
+		userID, role, err := p.verifyTokenWithUserService(cookie.Value)
+		if err != nil {
+			http.Error(rw, "Invalid token", http.StatusUnauthorized)
+			p.logger.Println("Invalid token:", err)
+			return
+		}
+
+		ctx := context.WithValue(h.Context(), KeyId{}, userID)
+		ctx = context.WithValue(ctx, KeyRole{}, role)
+
+		h = h.WithContext(ctx)
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
+func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string, error) {
+	userServiceURL := "http://user-server:8080/validate-token"
+	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
+	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
+	if err != nil {
+		return "", "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+	}
+
+	var result struct {
+		UserID string `json:"user_id"`
+		Role   string `json:"role"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return "", "", err
+	}
+
+	return result.UserID, result.Role, nil
 }

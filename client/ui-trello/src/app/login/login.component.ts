@@ -23,7 +23,8 @@ export class LoginComponent implements OnInit {
     private accountService: AccountService,
     private toastr: ToastrService,
     private router: Router,
-  ){}
+  ) {
+  }
 
   ngOnInit(): void {
     this.loginForm = this.formBuilder.group({
@@ -46,14 +47,19 @@ export class LoginComponent implements OnInit {
       this.accountService.login(accountRequest).subscribe({
         next: (result) => {
           const userId = result.id;
-
           this.accountService.startTokenVerification(userId);
-
           this.router.navigate(['/projects']);
         },
         error: (error) => {
           console.error("Login error:", error);
-          this.toastr.error(error.message || error);
+
+          if (error.status === 403) {
+            this.toastr.error('You are already logged in');
+          } else if (error.status === 500) {
+            this.toastr.error('Incorrect credentials.');
+          } else {
+            this.toastr.error(error.message || 'An error occurred during login');
+          }
 
           this.isSubmitting = false;
         }
@@ -66,6 +72,4 @@ export class LoginComponent implements OnInit {
   toggleShowPassword(): void {
     this.showPassword = !this.showPassword;
   }
-
-
 }

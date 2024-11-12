@@ -108,7 +108,13 @@ func (pr *ProjectRepo) GetAllByMember(userID string) (model.Projects, error) {
 	projectsCollection := pr.getCollection()
 
 	var projects model.Projects
-	filter := bson.M{"user_ids": userID}
+
+	objID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid user ID: %v", err)
+	}
+
+	filter := bson.M{"user_ids": objID}
 	projectsCursor, err := projectsCollection.Find(ctx, filter)
 	if err != nil {
 		pr.logger.Println(err)

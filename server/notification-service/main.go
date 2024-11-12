@@ -34,11 +34,11 @@ func main() {
 
 	r := mux.NewRouter()
 
-	r.HandleFunc("/notifications", notificationHandler.CreateNotification).Methods("POST")
-	r.HandleFunc("/notifications/{id}", notificationHandler.GetNotificationByID).Methods("GET")
-	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(http.HandlerFunc(notificationHandler.GetNotificationsByUserID)))
-	r.HandleFunc("/notifications/{id}", notificationHandler.UpdateNotificationStatus).Methods("PUT")
-	r.HandleFunc("/notifications/{id}", notificationHandler.DeleteNotification).Methods("DELETE")
+	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.CreateNotification)))).Methods("POST")
+	r.Handle("/notifications/{id}", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.GetNotificationByID)))).Methods("GET")
+	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc((notificationHandler.GetNotificationsByUserID)))))
+	r.Handle("/notifications/{id}", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.UpdateNotificationStatus)))).Methods("PUT")
+	r.Handle("/notifications/{id}", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.DeleteNotification)))).Methods("DELETE")
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

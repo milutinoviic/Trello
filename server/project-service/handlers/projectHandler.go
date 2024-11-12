@@ -116,7 +116,7 @@ func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.R
 	}
 	var projects model.Projects
 	var err error
-
+	p.logger.Println("USER ID JE " + userId)
 	if role == "manager" {
 		projects, err = p.repo.GetAllByManager(userId)
 	} else if role == "member" {
@@ -283,4 +283,31 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 
 func hasActiveTasksPlaceholder() bool {
 	return true
+}
+
+func (uh *ProjectsHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		role, ok := h.Context().Value(KeyRole{}).(string)
+		if !ok {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role not found in context")
+			return
+		}
+
+		allowed := false
+		for _, r := range allowedRoles {
+			if role == r {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role validation failed: missing permissions")
+			return
+		}
+
+		next.ServeHTTP(rw, h)
+	})
 }

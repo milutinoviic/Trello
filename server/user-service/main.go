@@ -29,23 +29,28 @@ func main() {
 	uh := handlers.NewUserHandler(logger, us)
 
 	r := mux.NewRouter()
-	r.HandleFunc("/register", uh.Registration).Methods(http.MethodPost)
-	r.HandleFunc("/members", uh.GetAllMembers).Methods(http.MethodGet)
-	r.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
+
+	r.Handle("/register", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.Registration))).Methods(http.MethodPost)
+	r.Handle("/register", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK) // FOR OPTIONS METHOD
-	}).Methods(http.MethodOptions)
-	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet)
+	}))).Methods(http.MethodOptions)
+	r.Handle("/login", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.Login))).Methods(http.MethodPost)
+
+	r.Handle("/members", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.GetAllMembers)))).Methods(http.MethodGet)
 	r.Handle("/manager", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.GetManager)))
-	r.HandleFunc("/verify", uh.VerifyTokenExistence).Methods(http.MethodGet)
-	r.HandleFunc("/login", uh.Login).Methods(http.MethodPost)
-	r.Handle("/logout", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.Logout)))
-	r.Handle("/password/check", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.CheckPasswords)))
-	r.Handle("/password/change", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.ChangePassword)))
-	r.HandleFunc("/password/recovery", uh.HandleRecovery).Methods(http.MethodPost)
-	r.HandleFunc("/password/reset", uh.HandlePasswordReset).Methods(http.MethodPost)
-	r.HandleFunc("/magic", uh.HandleMagic).Methods(http.MethodPost)
-	r.HandleFunc("/magic/verify", uh.HandleMagicVerification).Methods(http.MethodPost)
+	r.Handle("/verify", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.VerifyTokenExistence)))).Methods(http.MethodGet)
+	r.Handle("/logout", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.Logout))))
+	r.Handle("/password/check", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.CheckPasswords))))
+	r.Handle("/password/change", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.ChangePassword))))
+
+	r.Handle("/password/recovery", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleRecovery))).Methods(http.MethodPost)
+	r.Handle("/password/reset", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandlePasswordReset))).Methods(http.MethodPost)
+	r.Handle("/magic", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagic))).Methods(http.MethodPost)
+	r.Handle("/magic/verify", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagicVerification))).Methods(http.MethodPost)
+
+	// SAMO IM SERVIS PRISTUPA
 	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)
+	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet) //GDE SE UOPSTE POZIVA
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

@@ -15,6 +15,8 @@ import (
 
 type KeyAccount struct{}
 
+type KeyRole struct{}
+
 type UserHandler struct {
 	logger  *log.Logger
 	service *service.UserService
@@ -97,6 +99,8 @@ func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 		}
 
 		ctx := context.WithValue(h.Context(), KeyAccount{}, userID)
+		ctx = context.WithValue(ctx, KeyRole{}, role)
+
 		h = h.WithContext(ctx)
 
 		next.ServeHTTP(rw, h)
@@ -255,8 +259,31 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "auth_token",
+		Value:    "", // Clear the value
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/", // Cookie valid for the entire site
+		MaxAge:   0,   // Set MaxAge to 0 to delete the cookie
+	})
+
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
+
+	response := map[string]string{"message": "Logged out successfully"}
+	jsonResponse, err := json.Marshal(response)
+	if err != nil {
+		uh.logger.Println("Error encoding response:", err)
+		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
+		return
+	}
+
+	_, err = rw.Write(jsonResponse)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
+	}
 }
 
 func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
@@ -386,11 +413,21 @@ func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.R
 		return
 	}
 	defer r.Body.Close()
-	id, err := uh.service.VerifyMagic(req.Email)
+	id, token, err := uh.service.VerifyMagic(req.Email)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	http.SetCookie(rw, &http.Cookie{
+		Name:     "auth_token",
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode, // Prevents CSRF attacks
+		Path:     "/",
+	})
+
 	rw.WriteHeader(http.StatusOK)
 	rw.Header().Set("Content-Type", "application/json")
 
@@ -442,4 +479,48 @@ func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
 		uh.logger.Println("Error writing response:", err)
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 	}
+}
+
+func (uh *UserHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		role, ok := h.Context().Value(KeyRole{}).(string)
+		if !ok {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role not found in context")
+			return
+		}
+
+		allowed := false
+		for _, r := range allowedRoles {
+			if role == r {
+				allowed = true
+				break
+			}
+		}
+
+		if !allowed {
+			http.Error(rw, "Forbidden", http.StatusForbidden)
+			uh.logger.Println("Role validation failed: missing permissions")
+			return
+		}
+
+		next.ServeHTTP(rw, h)
+	})
+}
+
+func (uh *UserHandler) MiddlewareCheckAuthenticated(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+
+		cookie, err := r.Cookie("auth_token")
+		if err == nil && cookie != nil {
+			_, _, err := uh.service.ValidateToken(cookie.Value)
+			if err == nil {
+				http.Error(rw, "You are already logged in", http.StatusForbidden)
+				uh.logger.Println("User is already authenticated. Forbidden access.")
+				return
+			}
+		}
+
+		next.ServeHTTP(rw, r)
+	})
 }

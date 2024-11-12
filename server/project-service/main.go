@@ -44,18 +44,18 @@ func main() {
 
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.HandleFunc("/", projectsHandler.GetAllProjects)
-	getRouter.Handle("/projects", projectsHandler.MiddlewareExtractUserFromCookie(http.HandlerFunc(projectsHandler.GetAllProjectsByUser)))
+	getRouter.Handle("/projects", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetAllProjectsByUser))))
 
 	postRouter := router.Methods(http.MethodPost).Subrouter()
 	postRouter.HandleFunc("/", projectsHandler.PostProject)
 	postRouter.Use(projectsHandler.MiddlewarePatientDeserialization)
-	router.Handle("/projects/{id}/addUsers", projectsHandler.MiddlewareExtractUserFromCookie(http.HandlerFunc(projectsHandler.AddUsersToProject)))
+	router.Handle("/projects/{id}/addUsers", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(projectsHandler.AddUsersToProject))))
 
 	getByIdRouter := router.Methods(http.MethodGet).Subrouter()
-	getByIdRouter.HandleFunc("/{id}", projectsHandler.GetProjectById)
+	getByIdRouter.Handle("/{id}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetProjectById))))
 
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
-	deleteRouter.HandleFunc("/projects/{id}/users/{userId}", projectsHandler.RemoveUserFromProject)
+	deleteRouter.Handle("/projects/{id}/users/{userId}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(projectsHandler.RemoveUserFromProject))))
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

@@ -199,7 +199,7 @@ func (c *UserCache) ImplementMagic(email string) error {
 	return nil
 }
 
-func (c *UserCache) VerifyMagic(email string) (string, error) {
+func (c *UserCache) VerifyMagic(email string) (string, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	accountCollection := c.userRepository.getAccountCollection()
@@ -207,25 +207,28 @@ func (c *UserCache) VerifyMagic(email string) (string, error) {
 	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
 		c.log.Println("Error finding account:", err)
-		return "", err
+		return "", "", err
 	}
 	id := constructKeyForMagic(email)
 	err = c.cli.Get(id).Err()
 	if err != nil {
 		c.log.Println("Error getting token:", err)
-		return "", err
+		return "", "", err
 	}
+	c.log.Println("email is " + email + "role is " + existingAccount.Role + "user id is " + existingAccount.ID.Hex())
 	token, err := utils.CreateToken(email, existingAccount.Role, existingAccount.ID.Hex())
 	if err != nil {
 		c.log.Println("Error creating token:", err)
-		return "", err
+		return "", "", err
 	}
-	err = c.cli.Set(constructKeyForUser(existingAccount.ID.String()), token, 5*time.Minute).Err()
+	c.log.Println("token is created " + token)
+	err = c.cli.Set(constructKeyForUser(existingAccount.ID.Hex()), token, 5*time.Minute).Err()
 	if err != nil {
 		c.log.Println("Error setting token:", err)
-		return "", err
+		return "", "", err
 	}
-	return existingAccount.ID.Hex(), nil
+
+	return existingAccount.ID.Hex(), token, nil
 }
 
 func (uc *UserCache) VerifyTokenWithUserId(token string) (string, error) {
