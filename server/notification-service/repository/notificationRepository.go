@@ -173,3 +173,53 @@ func (repo *NotificationRepo) Delete(id gocql.UUID) error {
 	}
 	return nil
 }
+
+func (repo *NotificationRepo) InsertPredefinedNotifications() error {
+	predefinedNotifications := []model.Notification{
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "6732eb074aab1e2851c9401f",
+			Message:   "Welcome to the service!",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "67315b4b90e4b2f004fb1168",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "6732eb1c4aab1e2851c94020",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "6732eb1c4aab1e2851c94020",
+			Message:   "Your profile is complete.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+		{
+			ID:        gocql.TimeUUID(),
+			UserID:    "6732eb2c4aab1e2851c94021",
+			Message:   "You have a new notification.",
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		},
+	}
+
+	for _, notification := range predefinedNotifications {
+		err := repo.Create(&notification)
+		if err != nil {
+			repo.logger.Println("Error inserting predefined notification:", err)
+			return err
+		}
+	}
+	repo.logger.Println("Predefined notifications inserted successfully.")
+	return nil
+}
