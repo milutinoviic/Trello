@@ -147,6 +147,9 @@ services:
     depends_on:
       mongo-user:
         condition: service_healthy
+    volumes:
+      - ./server/user-service/10k-worst-passwords.txt:/app/10k-worst-passwords.txt
+
 
   mongo-user:
     image: mongo

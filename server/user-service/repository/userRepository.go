@@ -459,9 +459,9 @@ func (ur *UserRepository) ResetPassword(email string, password string) error {
 }
 
 func ForbidPassword(password string) error {
-	file, err := os.Open("10k-worst-passwords.txt")
+	file, err := os.Open("/app/10k-worst-passwords.txt")
 	if err != nil {
-		return err
+		log.Fatal("Error opening file:", err)
 	}
 	defer file.Close()
 
