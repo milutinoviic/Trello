@@ -6,27 +6,16 @@
   <component name="ChangeListManager">
     <list default="true" id="77ecde39-2373-458b-ae61-b9aab02c8344" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/login/login.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/login/login.component.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/notification-service/handlers/notificationHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/notification-service/handlers/notificationHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/notification-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/notification-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/notification-service/repository/notificationRepository.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/notification-service/repository/notificationRepository.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/project-service/handlers/projectHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/handlers/projectHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/project-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/project-service/repositories/projectRepo.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/repositories/projectRepo.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/task-service/handlers/taskHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/task-service/handlers/taskHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/task-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/task-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/handlers/userHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/handlers/userHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/repository/cache.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/repository/cache.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/service/userService.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/service/userService.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/app-routing.module.ts" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="GOROOT" url="file://$PROJECT_DIR$/../../../../../Program Files/Go" />
+  <component name="GOROOT" url="file://$USER_HOME$/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.23.2.windows-amd64" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -34,6 +23,9 @@
   &quot;associatedIndex&quot;: 8
 }</component>
   <component name="ProjectId" id="2ohrk2yIVU9N8emRcx3dDwFZ4L4" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -44,13 +36,14 @@
     "RunOnceActivity.go.formatter.settings.were.checked": "true",
     "RunOnceActivity.go.migrated.go.modules.settings": "true",
     "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "authorization",
+    "git-widget-placeholder": "auth-guards-feature",
     "go.import.settings.migrated": "true",
     "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "C:/Users/Gabriela",
+    "last_opened_file_path": "C:/Users/HP",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm"
+    "nodejs_package_manager_path": "npm",
+    "ts.external.directory.path": "C:\\Users\\HP\\Desktop\\TrelloProject123\\Trello\\client\\ui-trello\\node_modules\\typescript\\lib"
   }
 }]]></component>
   <component name="SharedIndexes">

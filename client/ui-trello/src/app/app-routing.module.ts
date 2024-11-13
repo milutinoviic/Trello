@@ -11,16 +11,18 @@ import { PasswordRecoveryRequestComponent } from './password-recovery-request/pa
 import {PasswordResetComponent} from "./password-reset/password-reset.component";
 import {MagicLinkRequestComponent} from "./magic-link-request/magic-link-request.component";
 import {MagicLinkComponent} from "./magic-link/magic-link.component";
+import {loginGuard} from "./guards/login.guard";
+import {roleGuard} from "./guards/role.guard";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent },
   { path: '', redirectTo: '/register', pathMatch: 'full' },
   { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent },
   { path: 'projects', component: AddProjectComponent},
-  { path: 'login', component: LoginComponent },
+  { path: 'login', component: LoginComponent, canActivate:[loginGuard] },
   { path: 'notifications', component: NotificationsComponent },
   { path: 'changePassword', component: ChangePasswordComponent },
-  { path: 'projects/:projectId/addTask', component: AddTaskComponent},
+  { path: 'projects/:projectId/addTask', component: AddTaskComponent, canActivate:[roleGuard], data:{expectedRoles:"manager"}},
   { path:'recovery', component: PasswordRecoveryRequestComponent },
   { path: 'password/recovery/:email', component: PasswordResetComponent },
   { path: 'magic', component: MagicLinkRequestComponent },
