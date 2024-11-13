@@ -9,6 +9,7 @@ import (
 	"main.go/data"
 	"main.go/repository"
 	"main.go/service"
+	"main.go/utils"
 
 	"net/http"
 )
@@ -209,6 +210,17 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		uh.logger.Println("Error decoding request:", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	boolean, err := utils.VerifyRecaptcha(request.RecaptchaToken)
+	if !boolean {
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusForbidden)
+			return
+		}
+		http.Error(rw, "Error validating reCAPTCHA", http.StatusForbidden)
+		return
+
 	}
 
 	id, token, err := uh.service.Login(request)
