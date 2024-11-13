@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"log"
 	"net/http"
 	"project-service/model"
@@ -264,7 +265,48 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
+	nc, err := Conn()
+	if err != nil {
+		log.Println("Error connecting to NATS:", err)
+		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
+		return
+	}
+	defer nc.Close()
+
+	for _, uid := range userIds {
+		subject := "project.joined"
+
+		message := struct {
+			UserID      string `json:"userId"`
+			ProjectName string `json:"projectName"`
+		}{
+			UserID:      uid,
+			ProjectName: project.Name,
+		}
+
+		jsonMessage, err := json.Marshal(message)
+		if err != nil {
+			log.Println("Error marshalling message:", err)
+			continue
+		}
+
+		err = nc.Publish(subject, jsonMessage)
+		if err != nil {
+			log.Println("Error publishing message to NATS:", err)
+		}
+	}
+	p.logger.Println("a message has been sent")
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func Conn() (*nats.Conn, error) {
+	conn, err := nats.Connect("nats://nats:4222")
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	return conn, nil
 }
 
 func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.Request) {

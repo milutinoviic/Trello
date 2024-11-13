@@ -40,7 +40,7 @@ export class NotificationsComponent implements OnInit{
 
   toggleStatus(notification: Notification): void {
     const newStatus = notification.status === 'read' ? 'unread' : 'read';
-    this.notificationService.updateNotificationStatus(notification.id, newStatus).subscribe({
+    this.notificationService.updateNotificationStatus(notification.id, newStatus, notification.created_at).subscribe({
       next: () => {
         notification.status = newStatus;
       },

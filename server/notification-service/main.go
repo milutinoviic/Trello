@@ -31,7 +31,16 @@ func main() {
 	repo.CreateTables()
 
 	notificationHandler := handler.NewNotificationHandler(logger, repo)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Println("Recovered in NotificationListener:", r)
+			}
+		}()
+		notificationHandler.NotificationListener()
+		logger.Println("invoked successfully")
 
+	}()
 	r := mux.NewRouter()
 
 	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.CreateNotification)))).Methods("POST")

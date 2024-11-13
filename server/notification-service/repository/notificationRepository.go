@@ -70,24 +70,21 @@ func (repo *NotificationRepo) CloseSession() {
 
 func (repo *NotificationRepo) CreateTables() {
 	err := repo.session.Query(`CREATE TABLE IF NOT EXISTS notifications (
-		id UUID PRIMARY KEY,
 		user_id TEXT,
-		message TEXT,
 		created_at TIMESTAMP,
-		status TEXT
-	)`).Exec()
+		id UUID,
+		message TEXT,
+		status TEXT,
+		PRIMARY KEY (user_id, created_at, id)
+	) WITH CLUSTERING ORDER BY (created_at DESC);`).Exec()
 	if err != nil {
-		repo.logger.Println("Error creating notifications table:", err)
+		repo.logger.Println("Error creating notifications table with clustering:", err)
+		return
 	}
 
 	err = repo.session.Query(`CREATE INDEX IF NOT EXISTS user_id_idx ON notifications (user_id)`).Exec()
 	if err != nil {
 		repo.logger.Println("Error creating index on user_id:", err)
-	}
-
-	err = repo.InsertPredefinedNotifications()
-	if err != nil {
-		repo.logger.Println("Error inserting predefined notifications:", err)
 	}
 }
 
@@ -140,9 +137,12 @@ func (repo *NotificationRepo) GetByID(id gocql.UUID) (*model.Notification, error
 
 func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification, error) {
 	var notifications []*model.Notification
+
 	iter := repo.session.Query(`
 		SELECT id, user_id, message, created_at, status
-		FROM notifications WHERE user_id = ?`, userID).Iter()
+		FROM notifications 
+		WHERE user_id = ? 
+		ORDER BY created_at DESC`, userID).Iter()
 
 	for {
 		var notification model.Notification
@@ -151,17 +151,22 @@ func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification,
 		}
 		notifications = append(notifications, &notification)
 	}
+
 	if err := iter.Close(); err != nil {
 		repo.logger.Println("Error closing iterator:", err)
 		return nil, err
 	}
+
 	return notifications, nil
 }
 
-func (repo *NotificationRepo) UpdateStatus(id gocql.UUID, status model.NotificationStatus) error {
+func (repo *NotificationRepo) UpdateStatus(createdAt time.Time, userID string, id gocql.UUID, status model.NotificationStatus) error {
 	err := repo.session.Query(`
-		UPDATE notifications SET status = ? WHERE id = ?`,
-		status, id).Exec()
+        UPDATE notifications 
+        SET status = ? 
+        WHERE user_id = ? AND created_at = ? AND id = ?`,
+		status, userID, createdAt, id).Exec()
+
 	if err != nil {
 		repo.logger.Println("Error updating notification status:", err)
 		return err
@@ -176,55 +181,5 @@ func (repo *NotificationRepo) Delete(id gocql.UUID) error {
 		repo.logger.Println("Error deleting notification:", err)
 		return err
 	}
-	return nil
-}
-
-func (repo *NotificationRepo) InsertPredefinedNotifications() error {
-	predefinedNotifications := []model.Notification{
-		{
-			ID:        gocql.TimeUUID(),
-			UserID:    "6732eb074aab1e2851c9401f",
-			Message:   "Welcome to the service!",
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		},
-		{
-			ID:        gocql.TimeUUID(),
-			UserID:    "67315b4b90e4b2f004fb1168",
-			Message:   "Your profile is complete.",
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		},
-		{
-			ID:        gocql.TimeUUID(),
-			UserID:    "6732eb1c4aab1e2851c94020",
-			Message:   "Your profile is complete.",
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		},
-		{
-			ID:        gocql.TimeUUID(),
-			UserID:    "6732eb1c4aab1e2851c94020",
-			Message:   "Your profile is complete.",
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		},
-		{
-			ID:        gocql.TimeUUID(),
-			UserID:    "6732eb2c4aab1e2851c94021",
-			Message:   "You have a new notification.",
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		},
-	}
-
-	for _, notification := range predefinedNotifications {
-		err := repo.Create(&notification)
-		if err != nil {
-			repo.logger.Println("Error inserting predefined notification:", err)
-			return err
-		}
-	}
-	repo.logger.Println("Predefined notifications inserted successfully.")
 	return nil
 }

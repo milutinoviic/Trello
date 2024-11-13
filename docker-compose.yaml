@@ -15,6 +15,8 @@ services:
     depends_on:
       mongo-project:
         condition: service_healthy
+      nats:
+        condition: service_started
 
   # NoSQL: MongoDB
   mongo-project:
@@ -88,6 +90,8 @@ services:
     depends_on:
       mongo-task:
         condition: service_healthy
+      nats:
+        condition: service_started
 
   mongo-task:
     image: mongo
@@ -226,6 +230,8 @@ services:
     depends_on:
       cassandra:
         condition: service_healthy
+      nats:
+        condition: service_started
 
   cassandra:
     image: cassandra:4.0
@@ -246,6 +252,14 @@ services:
       timeout: 15s
     volumes:
       - cassandra_data:/var/lib/cassandra
+
+  nats:
+    image: 'nats:latest'
+    expose:
+      - "4222"
+    ports:
+      - "4222:4222"
+
 
 volumes:
   mongo_project_store:

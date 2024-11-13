@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"log"
 	"net/http"
 	"notification-service/model"
 	"notification-service/repository"
 	"strings"
+	"time"
 )
 
 type KeyProduct struct{} // Context key for storing user data
@@ -180,7 +182,8 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 	}
 
 	type statusRequest struct {
-		Status model.NotificationStatus `json:"status"`
+		Status    model.NotificationStatus `json:"status"`
+		CreatedAt time.Time                `json:"created_at"`
 	}
 
 	var req statusRequest
@@ -197,7 +200,14 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 		return
 	}
 
-	err = n.repo.UpdateStatus(notificationID, req.Status)
+	userID, ok := h.Context().Value(KeyProduct{}).(string)
+	if !ok {
+		n.logger.Println("User id not found in context")
+		http.Error(rw, "User id not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	err = n.repo.UpdateStatus(req.CreatedAt, userID, notificationID, req.Status)
 	if err != nil {
 		http.Error(rw, "Error updating notification status", http.StatusInternalServerError)
 		n.logger.Println("Error updating notification status:", err)
@@ -253,4 +263,61 @@ func (uh *NotificationHandler) MiddlewareCheckRoles(allowedRoles []string, next 
 
 		next.ServeHTTP(rw, h)
 	})
+}
+
+func (n *NotificationHandler) NotificationListener() {
+	n.logger.Println("method started")
+	nc, err := Conn()
+	if err != nil {
+		log.Fatal("Error connecting to NATS:", err)
+	}
+	defer nc.Close()
+
+	subject := "project.joined"
+	_, err = nc.Subscribe(subject, func(msg *nats.Msg) {
+		fmt.Printf("User received notification: %s\n", string(msg.Data))
+
+		var data struct {
+			UserID      string `json:"userId"`
+			ProjectName string `json:"projectName"`
+		}
+
+		err := json.Unmarshal(msg.Data, &data)
+		if err != nil {
+			log.Println("Error unmarshalling message:", err)
+			return
+		}
+
+		fmt.Printf("User ID: %s, Project Name: %s\n", data.UserID, data.ProjectName)
+
+		message := fmt.Sprintf("You have been added to the %s project", data.ProjectName)
+
+		notification := model.Notification{
+			UserID:    data.UserID,
+			Message:   message,
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		}
+
+		err = n.repo.Create(&notification)
+		if err != nil {
+			n.logger.Print("Error inserting notification:", err)
+			return
+		}
+	})
+
+	if err != nil {
+		log.Println("Error subscribing to NATS subject:", err)
+	}
+
+	select {}
+}
+
+func Conn() (*nats.Conn, error) {
+	conn, err := nats.Connect("nats://nats:4222")
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	return conn, nil
 }
