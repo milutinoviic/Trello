@@ -479,3 +479,29 @@ func ForbidPassword(password string) error {
 
 	return nil
 }
+
+func (us *UserRepository) Delete(userID string) error {
+	objectID, err := primitive.ObjectIDFromHex(userID)
+	if err != nil {
+		us.logger.Printf("Invalid userID format: %v", err)
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": objectID}
+	result, err := us.getAccountCollection().DeleteOne(ctx, filter)
+	if err != nil {
+		us.logger.Printf("Error deleting user: %v", err)
+		return err
+	}
+
+	if result.DeletedCount == 0 {
+		us.logger.Printf("No user found with ID %s", userID)
+		return mongo.ErrNoDocuments
+	}
+
+	us.logger.Printf("User with ID %s successfully deleted", userID)
+	return nil
+}

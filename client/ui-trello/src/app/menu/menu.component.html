@@ -7,18 +7,20 @@
     >
       Change Password
     </button>
-    
+
     <button
       class="btn btn-outline-primary me-2"
       (click)="notifications()"
     >
       Notifications
     </button>
-    <button
-      class="btn btn-outline-danger ms-auto"
-      (click)="logout()"
-    >
-      Logout
-    </button>
+    <div class="d-flex ms-auto">
+      <button class="btn btn-outline-danger me-2" (click)="logout()">
+        Logout
+      </button>
+      <button class="btn btn-outline-danger" (click)="deleteAccount()">
+        Delete Account
+      </button>
+    </div>
   </div>
 </nav>

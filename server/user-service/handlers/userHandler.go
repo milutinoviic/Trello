@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"main.go/data"
 	"main.go/repository"
 	"main.go/service"
-
 	"net/http"
 )
 
@@ -21,6 +21,13 @@ type UserHandler struct {
 	logger  *log.Logger
 	service *service.UserService
 }
+type Project struct {
+	ID string `json:"id"`
+}
+type Task struct {
+	Status TaskStatus `bson:"status" json:"status"`
+}
+type TaskStatus string
 
 func NewUserHandler(logger *log.Logger, service *service.UserService) *UserHandler {
 	return &UserHandler{logger, service}
@@ -131,6 +138,125 @@ func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
 		uh.logger.Fatal("Unable to convert to json :", err)
 		return
 	}
+}
+
+func (uh *UserHandler) DeleteManager(rw http.ResponseWriter, h *http.Request) {
+	userID, _ := h.Context().Value(KeyAccount{}).(string)
+	manager, err := uh.service.GetOne(userID)
+	if err != nil {
+		uh.logger.Print("Database exception: ", err)
+		uh.logger.Print("Id: ", userID)
+		http.Error(rw, "Error fetching manager details", http.StatusInternalServerError)
+		return
+	}
+
+	projectServiceURL := "http://project-server:8080/projects"
+	req, err := http.NewRequest("GET", projectServiceURL, nil)
+	if err != nil {
+		uh.logger.Println("Failed to create request to project-service:", err)
+		http.Error(rw, "Error communicating with project service", http.StatusInternalServerError)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-User-ID", userID)
+	if manager.Role == "manager" {
+		req.Header.Set("X-User-Role", "manager")
+	} else {
+		req.Header.Set("X-User-Role", "member")
+	}
+	authTokenCookie, err := h.Cookie("auth_token")
+	if err == nil {
+		req.AddCookie(authTokenCookie)
+	} else {
+		uh.logger.Println("No auth token cookie found:", err)
+		http.Error(rw, "Authorization token required", http.StatusUnauthorized)
+		return
+	}
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		uh.logger.Println("Failed to reach project-service:", err)
+		http.Error(rw, "Error reaching project service", http.StatusInternalServerError)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		uh.logger.Println("No active projects found, proceeding with deletion.")
+	} else if resp.StatusCode != http.StatusOK {
+		uh.logger.Printf("Unexpected response from project-service: %s", resp.Status)
+		http.Error(rw, "Error checking manager projects", http.StatusInternalServerError)
+		return
+	} else { // if found projects, check if project has all completed tasks
+		var projects []Project
+		if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+			uh.logger.Println("Failed to decode project-service response:", err)
+			http.Error(rw, "Error parsing project service response", http.StatusInternalServerError)
+			return
+		}
+		if uh.checkTasks(projects, userID, manager.Role, authTokenCookie) {
+			http.Error(rw, "Manager has active tasks, deletion blocked", http.StatusConflict)
+			return
+		}
+	}
+
+	//TODO: implement delete logic for member
+
+	err = uh.service.Delete(userID)
+	if err != nil {
+		uh.logger.Println("Failed to delete manager:", err)
+		http.Error(rw, "Error deleting manager", http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	rw.Write([]byte("Manager deleted successfully"))
+
+}
+
+func (uh *UserHandler) checkTasks(projects []Project, userID, role string, authTokenCookie *http.Cookie) bool {
+	client := &http.Client{}
+	for _, project := range projects {
+		taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID)
+		taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
+		if err != nil {
+			uh.logger.Println("Failed to create request to task-service:", err)
+			continue
+		}
+		taskReq.Header.Set("X-User-ID", userID)
+		if role == "manager" {
+			taskReq.Header.Set("X-User-Role", "manager")
+		} else {
+			taskReq.Header.Set("X-User-Role", "member")
+		}
+		taskReq.Header.Set("Content-Type", "application/json")
+		taskReq.AddCookie(authTokenCookie)
+
+		taskResp, err := client.Do(taskReq)
+		if err != nil {
+			uh.logger.Println("Failed to reach task-service:", err)
+			continue
+		}
+		defer taskResp.Body.Close()
+
+		if taskResp.StatusCode != http.StatusOK {
+			uh.logger.Printf("Unexpected response from task-service for project %s: %s", project.ID, taskResp.Status)
+			continue
+		}
+
+		var tasks []Task
+		if err := json.NewDecoder(taskResp.Body).Decode(&tasks); err != nil {
+			uh.logger.Println("Failed to decode task-service response:", err)
+			continue
+		}
+
+		for _, task := range tasks {
+			if task.Status == "Pending" || task.Status == "InProgress" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func decodeBody(r io.Reader) (*data.AccountRequest, error) {

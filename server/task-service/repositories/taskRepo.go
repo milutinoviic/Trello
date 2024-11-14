@@ -127,7 +127,6 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 	}
 	defer tasksCursor.Close(ctx)
 
-	// Decode documents into Task structs
 	for tasksCursor.Next(ctx) {
 		var task model.Task
 		if err := tasksCursor.Decode(&task); err != nil {

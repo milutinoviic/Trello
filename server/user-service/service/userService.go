@@ -145,3 +145,11 @@ func (us *UserService) ValidateToken(token string) (string, string, error) {
 
 	return userID, role, nil
 }
+
+func (us *UserService) Delete(userId string) error {
+	err := us.user.Delete(userId)
+	if err != nil {
+		return err
+	}
+	return nil
+}

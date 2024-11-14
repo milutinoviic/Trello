@@ -38,6 +38,8 @@ func main() {
 
 	r.Handle("/members", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.GetAllMembers)))).Methods(http.MethodGet)
 	r.Handle("/manager", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.GetManager)))
+	r.Handle("/user", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.DeleteManager))).Methods(http.MethodDelete) // for deleting account
+
 	r.Handle("/verify", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.VerifyTokenExistence)))).Methods(http.MethodGet)
 	r.Handle("/logout", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.Logout))))
 	r.Handle("/password/check", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.CheckPasswords))))
@@ -50,7 +52,7 @@ func main() {
 
 	// SAMO IM SERVIS PRISTUPA
 	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)
-	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet) //GDE SE UOPSTE POZIVA
+	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet) //GDE SE UOPSTE POZIVA -- VISE NIGDE, pozivalo se kod pravljenja projekta(pre logina) da se popune menageri u dropdown listi
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
