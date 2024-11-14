@@ -16,6 +16,8 @@ export class LoginComponent implements OnInit {
   showPassword: boolean = false;
   isSubmitting: boolean = false;
   siteKey: string = environment.recaptcha.siteKey;
+  captchaResolvedTime: Date | null = null;
+  captchaResetTimeout: any;
 
   constructor(
     private formBuilder: FormBuilder,
@@ -38,10 +40,32 @@ export class LoginComponent implements OnInit {
 
   onCaptchaResolved(captchaResponse: string | null) {
     this.recaptchaControl.setValue(captchaResponse);
+    this.captchaResolvedTime = new Date();
+
+
+    if (this.captchaResetTimeout) {
+      clearTimeout(this.captchaResetTimeout);
+    }
+    this.captchaResetTimeout = setTimeout(() => {
+      this.resetCaptcha();
+    }, 5 * 60 * 1000);
+  }
+
+  resetCaptcha() {
+    this.recaptchaControl.setValue(null);
+    this.captchaResolvedTime = null;
+    this.toastr.warning('Please complete the CAPTCHA again.');
   }
 
   onSubmit() {
-    if (this.loginForm.valid && !this.isSubmitting) {
+    const fiveMinutes = 5 * 60 * 1000;
+
+    if (
+      this.loginForm.valid &&
+      !this.isSubmitting &&
+      this.captchaResolvedTime &&
+      new Date().getTime() - this.captchaResolvedTime.getTime() < fiveMinutes
+    ) {
       this.isSubmitting = true;
 
       const accountRequest: LoginRequest = {
@@ -68,6 +92,8 @@ export class LoginComponent implements OnInit {
           }
         },
       });
+    } else if (!this.captchaResolvedTime || new Date().getTime() - this.captchaResolvedTime.getTime() >= fiveMinutes) {
+      this.resetCaptcha();
     } else {
       console.log('Form is not valid!');
     }

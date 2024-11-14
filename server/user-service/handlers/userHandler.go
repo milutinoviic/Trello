@@ -9,8 +9,6 @@ import (
 	"main.go/data"
 	"main.go/repository"
 	"main.go/service"
-	"main.go/utils"
-
 	"net/http"
 )
 
@@ -212,7 +210,7 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	boolean, err := utils.VerifyRecaptcha(request.RecaptchaToken)
+	boolean, err := uh.service.VerifyRecaptcha(request.RecaptchaToken)
 	if !boolean {
 		if err != nil {
 			http.Error(rw, err.Error(), http.StatusForbidden)
