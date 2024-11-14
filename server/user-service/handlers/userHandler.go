@@ -21,11 +21,9 @@ type UserHandler struct {
 	logger  *log.Logger
 	service *service.UserService
 }
-type Project struct {
-	ID string `json:"id"`
-}
 type Task struct {
-	Status TaskStatus `bson:"status" json:"status"`
+	Status  TaskStatus `bson:"status" json:"status"`
+	UserIDs []string   `bson:"user_ids" json:"user_ids"`
 }
 type TaskStatus string
 
@@ -140,7 +138,7 @@ func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
 	}
 }
 
-func (uh *UserHandler) DeleteManager(rw http.ResponseWriter, h *http.Request) {
+func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 	userID, _ := h.Context().Value(KeyAccount{}).(string)
 	manager, err := uh.service.GetOne(userID)
 	if err != nil {
@@ -181,6 +179,7 @@ func (uh *UserHandler) DeleteManager(rw http.ResponseWriter, h *http.Request) {
 	}
 	defer resp.Body.Close()
 
+	var projects []service.Project
 	if resp.StatusCode == http.StatusNotFound {
 		uh.logger.Println("No active projects found, proceeding with deletion.")
 	} else if resp.StatusCode != http.StatusOK {
@@ -188,33 +187,41 @@ func (uh *UserHandler) DeleteManager(rw http.ResponseWriter, h *http.Request) {
 		http.Error(rw, "Error checking manager projects", http.StatusInternalServerError)
 		return
 	} else { // if found projects, check if project has all completed tasks
-		var projects []Project
 		if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
 			uh.logger.Println("Failed to decode project-service response:", err)
 			http.Error(rw, "Error parsing project service response", http.StatusInternalServerError)
 			return
 		}
+		if manager.Role == "member" { // check if member is part of project, if so don`t delete account
+			for _, project := range projects {
+				for _, user := range project.UserIDs {
+					if user == userID {
+						http.Error(rw, "Member has active projects, deletion blocked", http.StatusConflict)
+						return
+					}
+				}
+			}
+
+		}
 		if uh.checkTasks(projects, userID, manager.Role, authTokenCookie) {
-			http.Error(rw, "Manager has active tasks, deletion blocked", http.StatusConflict)
+			http.Error(rw, "User has active projects, deletion blocked", http.StatusConflict)
 			return
 		}
 	}
 
-	//TODO: implement delete logic for member
-
 	err = uh.service.Delete(userID)
 	if err != nil {
 		uh.logger.Println("Failed to delete manager:", err)
-		http.Error(rw, "Error deleting manager", http.StatusInternalServerError)
+		http.Error(rw, "Error deleting user", http.StatusInternalServerError)
 		return
 	}
 
 	rw.WriteHeader(http.StatusOK)
-	rw.Write([]byte("Manager deleted successfully"))
+	rw.Write([]byte("User deleted successfully"))
 
 }
 
-func (uh *UserHandler) checkTasks(projects []Project, userID, role string, authTokenCookie *http.Cookie) bool {
+func (uh *UserHandler) checkTasks(projects []service.Project, userID, role string, authTokenCookie *http.Cookie) bool {
 	client := &http.Client{}
 	for _, project := range projects {
 		taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID)
@@ -250,11 +257,25 @@ func (uh *UserHandler) checkTasks(projects []Project, userID, role string, authT
 			continue
 		}
 
-		for _, task := range tasks {
-			if task.Status == "Pending" || task.Status == "InProgress" {
-				return true
+		if role == "manager" { // if user is manager check if the project he made has tasks with status: pending/inProgress
+			for _, task := range tasks {
+				if task.Status == "Pending" || task.Status == "InProgress" {
+					return true
+				}
+
+			}
+		} else { // if member check if he is added to task with status pending/inProgress
+			for _, task := range tasks {
+				if task.Status == "Pending" || task.Status == "InProgress" {
+					for _, id := range task.UserIDs {
+						if id == userID {
+							return true
+						}
+					}
+				}
 			}
 		}
+
 	}
 	return false
 }

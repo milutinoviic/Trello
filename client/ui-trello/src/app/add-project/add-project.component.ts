@@ -38,6 +38,11 @@ export class AddProjectComponent implements OnInit {
   newProjectForm!: FormGroup;
   projects: any;
   manager: any;
+  showForm: boolean = false;
+
+  toggleForm() {
+    this.showForm = !this.showForm;
+  }
 
   constructor(
     private formBuilder: FormBuilder,

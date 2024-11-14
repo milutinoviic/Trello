@@ -15,6 +15,11 @@ type UserService struct {
 	logger *log.Logger
 }
 
+type Project struct {
+	ID      string   `json:"id"`
+	UserIDs []string `bson:"user_ids" json:"user_ids"`
+}
+
 func NewUserService(user *repository.UserRepository, cache *repository.UserCache, logger *log.Logger) *UserService {
 	return &UserService{user, cache, logger}
 }

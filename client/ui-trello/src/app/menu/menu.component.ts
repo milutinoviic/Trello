@@ -3,20 +3,23 @@ import {AccountService} from "../services/account.service";
 import {ToastrService} from "ngx-toastr";
 import {Router} from "@angular/router";
 import {DeleteService} from "../services/delete.service";
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-menu',
   templateUrl: './menu.component.html',
   standalone: true,
-  styleUrl: './menu.component.css'
+  styleUrl: './menu.component.css',
+  imports: [CommonModule]
 })
 export class MenuComponent {
 
   constructor(private accountService: AccountService, private toastrService: ToastrService, private router: Router, private deleteService: DeleteService,) {
 
   }
-
+  visible: boolean = false;
   userId: string | null = ""
+  message: string = "Are you sure you want to delete your account?"
 
   logout() {
     this.accountService.logout().subscribe({
@@ -50,14 +53,17 @@ export class MenuComponent {
         },
         error: (error) => {
           console.log("Deleting account failed.");
-          console.log("Status Code:", error.status);
-          console.log("Message:", error.message);
           console.log("Response Body:", error.error);
           alert(error.error)
         }
       })
 
+    this.cancel();
 
+
+  }
+  cancel() {
+    this.visible = !this.visible;
   }
 
   navigateToChangePassword() {

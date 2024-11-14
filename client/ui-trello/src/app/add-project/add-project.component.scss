@@ -1,6 +1,6 @@
 * {
   font-family: Verdana, Geneva, Tahoma, sans-serif;
-  background-color: whitesmoke;
+  background-color: white;
 }
 
 .hidden {
@@ -55,9 +55,6 @@ label {
     margin-bottom: 10%;
 }
 
-body {
-    background-color: white;
-}
 .hidden {
     display: none;
 }
@@ -77,30 +74,29 @@ body {
     color: #564592;
 }
 .btn {
-    background-color: #0F8B8D;
+    background-color: var(--primary-color);
     color: white;
     min-width: 100%;
     width: 5%;
     padding: 10px;
-    border-radius: 5px;
-    border: none
+    border: none;
 }
 .btn:hover {
-    background-color: white;
-    color: #0F8B8D;
-    border: 1px solid #0F8B8D;
+    background-color: var(--hover-background-color);
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
 }
 .btn:focus {
     color: whitesmoke;
-    box-shadow: 0 0 10px #143642;
-    background-color: #143642;
+    box-shadow: 0 0 10px var(--tercial-color);
+    background-color: var(--tercial-color);
     border: none;
 }
 .wider{
   display:flex;
   }
 .devide-line {
-    background-color: #143642;
+    background-color: var(--tercial-color);
     width: 90%;
 }
 
@@ -109,11 +105,12 @@ body {
   margin-right: 20%;
   margin-bottom: 5%;
   padding: 50px;
-  box-shadow: 0 0 10px #143642;
   border-radius: 5px;
 
-
   }
+.card-header{
+  background-color: white;
+}
 
 .error-message{
   color: #CA3C25 !important;
@@ -121,4 +118,11 @@ body {
 
 input.ng-invalid.ng-touched {
   border: 1px solid #CA3C25;
+}
+
+.btn-container{
+  margin-left: 30%;
+  margin-right: 30%;
+  margin-top: 2%;
+  background-color: var(--secondary-color);
 }

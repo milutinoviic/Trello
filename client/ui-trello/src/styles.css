@@ -1,1 +1,18 @@
 /* You can add global styles to this file, and also import other style files */
+
+body{
+  background-color: var(--secondary-color);
+}
+
+:root {
+  /*--primary-color: #183446;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #0090C1;*/
+  /*--tercial-color: #046E8F;*/
+
+
+  --primary-color: #136F63;
+  --hover-background-color: white;
+  --secondary-color: #22AAA1;
+  --tercial-color: #041B15;
+}

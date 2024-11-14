@@ -38,7 +38,7 @@ func main() {
 
 	r.Handle("/members", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.GetAllMembers)))).Methods(http.MethodGet)
 	r.Handle("/manager", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.GetManager)))
-	r.Handle("/user", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.DeleteManager))).Methods(http.MethodDelete) // for deleting account
+	r.Handle("/user", uh.MiddlewareExtractUserFromCookie(http.HandlerFunc(uh.DeleteUser))).Methods(http.MethodDelete) // for deleting account
 
 	r.Handle("/verify", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.VerifyTokenExistence)))).Methods(http.MethodGet)
 	r.Handle("/logout", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.Logout))))

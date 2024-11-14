@@ -1,6 +1,12 @@
 <app-menu></app-menu>
 
-  <div class="form"  [@flyInOut] *ngIf="manager?.role === 'manager'">
+<div class="btn-container">
+<button class="btn" (click)="toggleForm()">
+  {{ showForm ? 'Close' : 'Add new project' }}
+</button>
+</div>
+
+  <div class="form"  [@flyInOut] *ngIf="showForm && manager?.role === 'manager'">
     <form [formGroup]="newProjectForm"  (ngSubmit)="onSubmit()">
 
       <div class="form-group">

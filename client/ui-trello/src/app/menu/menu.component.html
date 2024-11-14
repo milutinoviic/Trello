@@ -1,26 +1,40 @@
-<nav class="navbar navbar-expand-lg navbar-light bg-light">
+<nav class="navbar navbar-expand-lg navbar-light bg-dark">
   <div class="container-fluid">
-    <a class="navbar-brand" href="#">My App</a>
+    <a class="navbar-brand" href="#">Trello-copy</a>
     <button
-      class="btn btn-outline-primary me-2"
+      class="btn btn-outline-light me-2"
       (click)="navigateToChangePassword()"
     >
       Change Password
     </button>
 
     <button
-      class="btn btn-outline-primary me-2"
+      class="btn btn-outline-light me-2"
       (click)="notifications()"
     >
       Notifications
     </button>
     <div class="d-flex ms-auto">
-      <button class="btn btn-outline-danger me-2" (click)="logout()">
+      <button class="btn btn-outline-light me-2" (click)="logout()">
         Logout
       </button>
-      <button class="btn btn-outline-danger" (click)="deleteAccount()">
+      <button class="btn btn-outline-danger" (click)="cancel()">
         Delete Account
       </button>
     </div>
   </div>
 </nav>
+
+
+
+<div *ngIf="visible" class="q-box">
+  <p class="q-text">{{message}}</p>
+  <div class="d-flex ms-auto button-container">
+    <button class="btn btn-outline-primary me-2" (click)="cancel()">
+      Cancel
+    </button>
+    <button class="btn btn-outline-danger" (click)="deleteAccount()">
+      Delete
+    </button>
+  </div>
+</div>
