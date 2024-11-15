@@ -10,8 +10,8 @@ services:
     ports:
       - 8080:8080
     environment:
-      - PORT=8080
-      - MONGO_DB_URI=mongodb://root:pass@mongo-project:27017
+      - PORT=${PORT}
+      - MONGO_DB_URI=${MONGO_DB_URI_PROJECT}
     depends_on:
       mongo-project:
         condition: service_healthy
@@ -58,12 +58,12 @@ services:
     image: mongo-express
     restart: always
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo-project
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
+      - ME_CONFIG_MONGODB_SERVER=${PROJECT_HOST} #mongo-project
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_INITDB_ROOT_USERNAME} #root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD} #pass
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
-      - ME_CONFIG_MONGODB_URL=mongodb://root:pass@mongo-project:27017
+      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI_PROJECT} #mongodb://root:pass@mongo-project:27017
     depends_on:
       - mongo-project
     ports:
@@ -138,8 +138,8 @@ services:
     ports:
       - 8090:8080
     environment:
-      - PORT=8080
-      - MONGO_DB_URI=mongodb://root:pass@mongo-user:27017
+      - PORT=${PORT}
+      - MONGO_DB_URI=${MONGO_DB_URI} #mongodb://root:pass@mongo-user:27017
       - SMTP_EMAIL=${SMTP_EMAIL}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_HOST=${SMTP_HOST}
@@ -180,7 +180,7 @@ services:
       - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
       - ME_CONFIG_BASICAUTH_USERNAME=admin
       - ME_CONFIG_BASICAUTH_PASSWORD=admin
-      - ME_CONFIG_MONGODB_URL=mongodb://root:pass@mongo-user:27017
+      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI} #mongodb://root:pass@mongo-user:27017
     depends_on:
       - mongo-user
     ports:
@@ -222,7 +222,7 @@ services:
     ports:
       - "8085:8080"
     environment:
-      - PORT=8080
+      - PORT=${PORT}
       - CASSANDRA_HOST=${CASSANDRA_HOST}
       - CASSANDRA_PORT=${CASSANDRA_PORT}
       - CASSANDRA_KEYSPACE=${CASSANDRA_KEYSPACE}
