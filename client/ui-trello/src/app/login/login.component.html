@@ -1,3 +1,4 @@
+<div class="centered">
 <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
   <div>
     <label for="email">Email:</label>
@@ -43,3 +44,4 @@
 
   <button class="btn" type="submit" [disabled]="!loginForm.valid || isSubmitting">Login</button>
 </form>
+</div>

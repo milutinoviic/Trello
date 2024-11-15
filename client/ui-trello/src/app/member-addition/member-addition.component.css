@@ -1,6 +1,6 @@
 .project-members {
   min-height: 200px;
-  background-color: #a6bbec;
+  background-color: var(--secondary-color);
   border: 1px dashed #ccc;
 }
 
@@ -8,3 +8,19 @@
   margin-bottom: 5px;
 }
 
+
+.main-text{
+  text-align: center;
+  color: var(--hover-background-color);
+}
+
+.btn-danger{
+  background-color: var(--red-primary-color);
+  border-color: var(--red-primary-color);
+}
+
+
+.btn-danger:hover{
+  background-color: var(--red-secondary-color);
+  border-color: var(--red-secondary-color);
+}

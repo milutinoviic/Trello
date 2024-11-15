@@ -77,8 +77,4 @@ export class RegistrationComponent implements OnInit{
     }
   }
 
-
-  addNewProject() {
-    this.router.navigate(['/projects']);
-  }
 }

@@ -6,11 +6,12 @@
   justify-content: center;
   align-items: center;
   height: 20vh;
-  background-color: white;
+  background-color: #333333;
   border-radius: 5px;
   z-index: 9999;
   box-shadow: 0 0 10px #333333;
   outline: none;
+
 }
 .navbar-brand{
   color: white;
@@ -18,10 +19,23 @@
 .q-text {
   margin-top: 5%;
   text-align: center;
+  color: var(--hover-background-color);
 }
 
 .button-container {
   justify-content: center;
   gap: 10px;
 }
+
+.btn-outline-danger{
+  color: var(--red-primary-color);
+  border-color: var(--red-primary-color);
+}
+
+.btn-outline-danger:hover{
+  background-color: var(--red-primary-color);
+  color: #121420;
+}
+
+
 
