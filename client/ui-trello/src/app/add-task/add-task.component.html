@@ -45,9 +45,31 @@
       <h4>{{ task.name }}</h4>
       <p>{{ task.description }}</p>
       <p>Status: {{ task.status }}</p>
-      <p>Created At: <span class="bold">{{ task.createdAt | date }}</span></p>
-      <p>Updated At:<span class="bold"> {{ task.updatedAt | date }}</span></p>
-      <p>Blocked:<span class="bold"> {{ task.blocked ? 'Yes' : 'No' }}</span></p>
+      <p>Created At: <span class="bold">{{ task.createdAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
+      <p>Updated At: <span class="bold">{{ task.updatedAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
+      <p>Blocked: <span class="bold">{{ task.blocked ? 'Yes' : 'No' }}</span></p>
+
+      <!-- Display Dependencies if any -->
+      <div *ngIf="task.dependencies && task.dependencies.length > 0">
+        <h5>Dependencies:</h5>
+        <ul>
+          <li *ngFor="let dep of getTaskDependencies(task)">
+            {{ dep.name }} - Status: {{ dep.status }}
+          </li>
+        </ul>
+      </div>
+
+      <label for="taskStatus">Change Status:</label>
+      <select
+        id="taskStatus"
+        [(ngModel)]="task.status"
+        (change)="changeTaskStatus(task)"
+        class="form-control"
+      >
+        <option value="Pending">Pending</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Finished">Finished</option>
+      </select>
     </li>
   </ul>
 </div>
@@ -55,3 +77,4 @@
 <ng-template #noTasks>
   <p>No tasks available.</p>
 </ng-template>
+

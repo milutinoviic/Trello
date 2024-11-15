@@ -19,8 +19,9 @@ export class TaskService {
   }
 
 
-
-
-
+  updateTaskStatus(task: Task) {
+    const headers = { 'Content-Type': 'application/json' };
+    return this.http.post(this.config.update_status_url, task, { headers });
+  }
 
 }

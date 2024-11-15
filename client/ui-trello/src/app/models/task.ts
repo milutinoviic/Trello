@@ -1,12 +1,14 @@
+export type TaskStatus = 'Pending' | 'In Progress' | 'Completed';
+
 export class Task {
   id: string;
   projectId: string;
   name: string;
   description: string;
-  status: string = 'Pending';
+  status: TaskStatus = 'Pending';
   createdAt: Date;
   updatedAt: Date;
-  userIds: string[];
+  user_ids: string[];
   dependencies: string[];
   blocked: boolean;
 
@@ -15,10 +17,10 @@ export class Task {
     projectId: string,
     name: string,
     description: string,
-    status: string = 'Pending',
+    status: TaskStatus = 'Pending',
     createdAt: Date,
     updatedAt: Date,
-    userIds: string[] = [],
+    user_ids: string[] = [],
     dependencies: string[] = [],
     blocked: boolean = false
   ) {
@@ -29,7 +31,7 @@ export class Task {
     this.status = status;
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
-    this.userIds = userIds;
+    this.user_ids = user_ids;
     this.dependencies = dependencies;
     this.blocked = blocked;
   }
