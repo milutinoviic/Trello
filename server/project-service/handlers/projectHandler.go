@@ -22,6 +22,12 @@ type ProjectsHandler struct {
 	repo *repositories.ProjectRepo
 }
 
+type Task struct {
+	Status  TaskStatus `bson:"status" json:"status"`
+	UserIDs []string   `bson:"user_ids" json:"user_ids"`
+}
+type TaskStatus string
+
 func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
 		cookie, err := h.Cookie("auth_token")
@@ -272,13 +278,66 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 	projectId := vars["id"]
 	userId := vars["userId"]
 
-	err := p.repo.RemoveUserFromProject(projectId, userId)
+	project, _ := p.repo.GetById(projectId)
+	if project == nil {
+		http.Error(rw, "Project not found", http.StatusNotFound)
+		return
+	}
+	cookie, err := h.Cookie("auth_token")
+
+	if p.checkTasks(*project, userId, cookie) {
+		http.Error(rw, "User id added to active tasks, deletion blocked", http.StatusConflict)
+		return
+	}
+
+	err = p.repo.RemoveUserFromProject(projectId, userId)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	rw.WriteHeader(http.StatusOK)
+}
+
+func (ph *ProjectsHandler) checkTasks(project model.Project, userID string, authTokenCookie *http.Cookie) bool {
+	client := &http.Client{}
+	taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID.Hex())
+	taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
+	if err != nil {
+		ph.logger.Println("Failed to create request to task-service:", err)
+		return false
+	}
+	taskReq.Header.Set("Content-Type", "application/json")
+	taskReq.AddCookie(authTokenCookie)
+
+	taskResp, err := client.Do(taskReq)
+	if err != nil {
+		ph.logger.Println("Failed to reach task-service:", err)
+		return false
+	}
+	defer taskResp.Body.Close()
+
+	if taskResp.StatusCode != http.StatusOK {
+		ph.logger.Printf("Unexpected response from task-service for project %s: %s", project.ID, taskResp.Status)
+		return false
+	}
+
+	var tasks []Task
+	if err := json.NewDecoder(taskResp.Body).Decode(&tasks); err != nil {
+		ph.logger.Println("Failed to decode task-service response:", err)
+		return false
+	}
+	for _, task := range tasks {
+		if task.Status == "Pending" || task.Status == "InProgress" {
+			for _, id := range task.UserIDs {
+				if id == userID {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
 }
 
 func hasActiveTasksPlaceholder() bool {

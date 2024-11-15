@@ -155,13 +155,6 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		http.Error(rw, "Error communicating with project service", http.StatusInternalServerError)
 		return
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-User-ID", userID)
-	if manager.Role == "manager" {
-		req.Header.Set("X-User-Role", "manager")
-	} else {
-		req.Header.Set("X-User-Role", "member")
-	}
 	authTokenCookie, err := h.Cookie("auth_token")
 	if err == nil {
 		req.AddCookie(authTokenCookie)
@@ -229,12 +222,6 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 		if err != nil {
 			uh.logger.Println("Failed to create request to task-service:", err)
 			continue
-		}
-		taskReq.Header.Set("X-User-ID", userID)
-		if role == "manager" {
-			taskReq.Header.Set("X-User-Role", "manager")
-		} else {
-			taskReq.Header.Set("X-User-Role", "member")
 		}
 		taskReq.Header.Set("Content-Type", "application/json")
 		taskReq.AddCookie(authTokenCookie)

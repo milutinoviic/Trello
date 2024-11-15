@@ -117,16 +117,21 @@ export class MemberAdditionComponent implements OnInit {
       alert("Cannot remove member: Minimum number of members required.")
       return;
     }
-    console.log("---------------------------------------------")
-    console.log(`Obrisan je user id-- ${userId}`);
-    console.log("---------------------------------------------")
-    this.projectMembers = this.projectMembers.filter(member => member.id !== userId);
-    this.filterUsers();
+    console.log(`Deleted user id-- ${userId}`);
     console.log(`Project id-- ${this.projectId}`);
 
     this.projectService.deleteMemberFromProject(this.projectId,userId).subscribe({
-      next: () => console.log(`User sa ID ${userId} je uspesoo obrisan.`),
-      error: (error) => console.error('Greška prlikom .....', error)
+      next: () => {
+        console.log(`User sa ID ${userId} je uspesoo obrisan.`);
+        this.projectMembers = this.projectMembers.filter(member => member.id !== userId);
+        this.filterUsers();
+      },
+      error: (error) =>{
+        if(error.status == 409){
+          alert("Cannot remove member: Member is added to active task.")
+        }
+        console.error('Greška prlikom .....', error)
+      }
     });
 
   }
