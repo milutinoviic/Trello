@@ -133,6 +133,8 @@ services:
     restart: always
     container_name: "user-server"
     hostname: "user-server"
+    env_file:
+      - .env
     ports:
       - 8090:8080
     environment:
@@ -143,6 +145,7 @@ services:
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_PORT=${SMTP_PORT}
       - REDIS_PORT=${REDIS_PORT}
+      - CAPTCHA=${CAPTCHA}
       - REDIS_HOST=${REDIS_HOST}
     depends_on:
       mongo-user:
