@@ -211,7 +211,7 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	id, token, err := uh.service.Login(request)
+	id, role, token, err := uh.service.Login(request)
 	if err != nil {
 		uh.logger.Println("Error logging in:", err)
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
@@ -230,7 +230,10 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
 
-	response := map[string]string{"id": id}
+	response := map[string]string{
+		"id":   id,
+		"role": role,
+	}
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
 		uh.logger.Println("Error encoding response:", err)

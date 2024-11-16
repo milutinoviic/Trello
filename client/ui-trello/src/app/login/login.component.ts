@@ -7,6 +7,7 @@ import {ToastrService} from "ngx-toastr";
 import {Router} from "@angular/router";
 
 
+
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
@@ -22,7 +23,7 @@ export class LoginComponent implements OnInit {
     private formBuilder: FormBuilder,
     private accountService: AccountService,
     private toastr: ToastrService,
-    private router: Router,
+    private router: Router
   ){}
 
   ngOnInit(): void {
@@ -48,7 +49,7 @@ export class LoginComponent implements OnInit {
           const userId = result.id;
 
           this.accountService.startTokenVerification(userId);
-
+          localStorage.setItem("role", result.role);
           this.router.navigate(['/projects']);
         },
         error: (error) => {

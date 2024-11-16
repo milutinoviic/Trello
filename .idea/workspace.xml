@@ -4,29 +4,13 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="77ecde39-2373-458b-ae61-b9aab02c8344" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/add-project/add-project.component.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/ui-trello/src/app/login/login.component.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/ui-trello/src/app/login/login.component.ts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/notification-service/handlers/notificationHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/notification-service/handlers/notificationHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/notification-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/notification-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/notification-service/repository/notificationRepository.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/notification-service/repository/notificationRepository.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/project-service/handlers/projectHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/handlers/projectHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/project-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/project-service/repositories/projectRepo.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/project-service/repositories/projectRepo.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/task-service/handlers/taskHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/task-service/handlers/taskHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/task-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/task-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/handlers/userHandler.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/handlers/userHandler.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/main.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/main.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/repository/cache.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/repository/cache.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/server/user-service/service/userService.go" beforeDir="false" afterPath="$PROJECT_DIR$/server/user-service/service/userService.go" afterDir="false" />
-    </list>
+    <list default="true" id="77ecde39-2373-458b-ae61-b9aab02c8344" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
-  <component name="GOROOT" url="file://$PROJECT_DIR$/../../../../../Program Files/Go" />
+  <component name="GOROOT" url="file://$USER_HOME$/go/pkg/mod/golang.org/toolchain@v0.0.1-go1.23.2.linux-amd64" />
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
@@ -34,30 +18,35 @@
   &quot;associatedIndex&quot;: 8
 }</component>
   <component name="ProjectId" id="2ohrk2yIVU9N8emRcx3dDwFZ4L4" />
+  <component name="ProjectLevelVcsManager">
+    <ConfirmationsSetting value="1" id="Add" />
+  </component>
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.go.formatter.settings.were.checked": "true",
-    "RunOnceActivity.go.migrated.go.modules.settings": "true",
-    "RunOnceActivity.go.modules.go.list.on.any.changes.was.set": "true",
-    "git-widget-placeholder": "authorization",
-    "go.import.settings.migrated": "true",
-    "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "C:/Users/Gabriela",
-    "node.js.detected.package.eslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.formatter.settings.were.checked&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.migrated.go.modules.settings&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.go.modules.go.list.on.any.changes.was.set&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;authorization-guards-feature&quot;,
+    &quot;go.import.settings.migrated&quot;: &quot;true&quot;,
+    &quot;go.sdk.automatically.set&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/stefan/Desktop/Trello&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;/home/stefan/Desktop/Trello/client/ui-trello/node_modules/typescript/lib&quot;
   }
-}]]></component>
+}</component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-gosdk-5df93f7ad4aa-df9ad98b711f-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-242.23339.24" />
-        <option value="bundled-js-predefined-d6986cc7102b-5c90d61e3bab-JavaScript-GO-242.23339.24" />
+        <option value="bundled-gosdk-d297c17c1fbd-b87a2f8923ed-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-243.21565.208" />
+        <option value="bundled-js-predefined-d6986cc7102b-e768b9ed790e-JavaScript-GO-243.21565.208" />
       </set>
     </attachedChunks>
   </component>

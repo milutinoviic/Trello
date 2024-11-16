@@ -21,6 +21,7 @@ import { PasswordResetComponent } from './password-reset/password-reset.componen
 import { AccountService } from './services/account.service';
 import { MagicLinkComponent } from './magic-link/magic-link.component';
 import { MagicLinkRequestComponent } from './magic-link-request/magic-link-request.component';
+import { ForbiddenComponent } from './forbidden/forbidden.component';
 
 
 function initTokenVerification(accountService: AccountService) {
@@ -46,6 +47,7 @@ function initTokenVerification(accountService: AccountService) {
     PasswordResetComponent,
     MagicLinkRequestComponent,
     MagicLinkComponent,
+    ForbiddenComponent,
   ],
   imports: [
     BrowserModule,
