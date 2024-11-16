@@ -48,7 +48,6 @@ export class LoginComponent implements OnInit {
         next: (result) => {
           const userId = result.id;
 
-          console.log("rola je " + result.role);
           this.accountService.startTokenVerification(userId);
           localStorage.setItem("role", result.role);
           this.router.navigate(['/projects']);
