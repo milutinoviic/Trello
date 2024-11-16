@@ -18,8 +18,12 @@ export class NotificationService {
     return this.http.get<Notification>(this.config.notifications_url);
   }
 
-  updateNotificationStatus(id: string, status: string): Observable<void> {
-    return this.http.put<void>(this.config.notifications_url + `/` + id, { status });
+  updateNotificationStatus(id: string, status: string, createdAt: string): Observable<void> {
+    const body = {
+      status: status,
+      created_at: createdAt,
+    };
+    return this.http.put<void>(this.config.notifications_url + `/` + id, body);
   }
 
   getNotificationByUserId(): Observable<Notification[]> {

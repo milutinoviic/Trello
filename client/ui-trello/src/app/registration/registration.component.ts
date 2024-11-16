@@ -76,5 +76,5 @@ export class RegistrationComponent implements OnInit{
       this.toaster.error('Form is not valid!');
     }
   }
-
+  
 }
