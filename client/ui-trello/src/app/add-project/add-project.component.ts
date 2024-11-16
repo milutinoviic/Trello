@@ -12,6 +12,7 @@ import {dateValidator} from "../validator/date-validator";
 import {AppModule} from "../app.module";
 import {MenuComponent} from "../menu/menu.component";
 import {AccountService} from "../services/account.service";
+import {DeleteService} from "../services/delete.service";
 
 
 @Component({
@@ -59,7 +60,8 @@ export class AddProjectComponent implements OnInit {
     private toaster: ToastrService,
     private http: HttpClient,
     private router: Router,
-    private accService: AccountService
+    private accService: AccountService,
+    private deleteService: DeleteService,
   ) { }
 
   ngOnInit(): void {
@@ -139,7 +141,24 @@ export class AddProjectComponent implements OnInit {
 
   deleteProject(){
     console.log(`Deleting project with ID: ` + this.selectedProjectId);
-    this.visible = false;
+    if(this.selectedProjectId != null){
+      this.deleteService.deleteProject(this.selectedProjectId).subscribe({
+        next: () => {
+          alert("Succesfully deleted project.");
+          console.log("Succesfully deleted project: " + this.selectedProjectId);
+          this.visible = false;
+        },
+        error: (error) => {
+          alert("Error deleted project.");
+          console.log("Error deleting project: ", error.error);
+
+        }
+
+
+      });
+
+    }
+
   }
 
 

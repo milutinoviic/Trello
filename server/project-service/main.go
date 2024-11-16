@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"github.com/rs/cors"
 	"log"
 	"net/http"
@@ -16,6 +17,16 @@ import (
 
 func main() {
 	fmt.Print("Hello from project-service")
+
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://nats:4222"
+	}
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Fatalf("Error connecting to NATS: %v", err)
+	}
+	defer nc.Close()
 
 	port := os.Getenv("PORT")
 	if len(port) == 0 {
@@ -36,7 +47,7 @@ func main() {
 
 	store.Ping()
 
-	projectsHandler := handlers.NewProjectsHandler(logger, store)
+	projectsHandler := handlers.NewProjectsHandler(logger, store, nc)
 
 	router := mux.NewRouter()
 
@@ -56,6 +67,8 @@ func main() {
 
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
 	deleteRouter.Handle("/projects/{id}/users/{userId}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(projectsHandler.RemoveUserFromProject))))
+
+	deleteRouter.Handle("/projects/{id}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(projectsHandler.DeleteProject))))
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

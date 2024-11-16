@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"log"
 	"net/http"
 	"strings"
@@ -13,16 +14,17 @@ import (
 )
 
 type TasksHandler struct {
-	logger *log.Logger
-	repo   *repositories.TaskRepository
+	logger   *log.Logger
+	repo     *repositories.TaskRepository
+	natsConn *nats.Conn
 }
 
 type KeyTask struct{}
 type KeyId struct{}
 type KeyRole struct{}
 
-func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository) *TasksHandler {
-	return &TasksHandler{l, r}
+func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn) *TasksHandler {
+	return &TasksHandler{l, r, natsConn}
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
@@ -66,6 +68,28 @@ func (t *TasksHandler) GetAllTasksByProjectId(rw http.ResponseWriter, h *http.Re
 	}
 
 }
+
+func (t *TasksHandler) HandleProjectDeleted(projectID string) {
+
+	err := t.repo.DeleteAllTasksByProjectId(projectID)
+	if err != nil {
+		t.logger.Printf("Failed to delete tasks for project %s: %v", projectID, err)
+
+		// Publish a "CompensateProjectDeletion" event via NATS
+		//event := map[string]string{"projectId": projectID}
+		//eventData, err := json.Marshal(event) // Convert event to JSON format
+		//if err != nil {
+		//	t.logger.Printf("Failed to marshal compensate event: %v", err)
+		//	return
+		//}
+		//
+		//err = t.natsConn.Publish("CompensateProjectDeletion", eventData)
+		//if err != nil {
+		//	t.logger.Printf("Failed to publish compensate event: %v", err)
+		//}
+	}
+}
+
 func (t *TasksHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
 		t.logger.Println("Method [", h.Method, "] - Hit path :", h.URL.Path)

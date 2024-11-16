@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"github.com/rs/cors"
 	"log"
 	"net/http"
@@ -17,6 +18,16 @@ import (
 func main() {
 
 	fmt.Println("Task Service is starting...")
+
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://nats:4222"
+	}
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Fatalf("Error connecting to NATS: %v", err)
+	}
+	defer nc.Close()
 
 	port := os.Getenv("PORT")
 	if len(port) == 0 {
@@ -37,7 +48,22 @@ func main() {
 
 	store.Ping()
 
-	taskHandler := handlers.NewTasksHandler(logger, store)
+	taskHandler := handlers.NewTasksHandler(logger, store, nc)
+	// subscribe to "ProjectDeleted" events to delete tasks that belong to project
+	sub, err := nc.Subscribe("ProjectDeleted", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		taskHandler.HandleProjectDeleted(projectID)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub.Unsubscribe()
+	defer func() {
+		if err := nc.Drain(); err != nil {
+			logger.Printf("Error draining NATS connection: %v", err)
+		}
+		nc.Close()
+	}()
 
 	router := mux.NewRouter()
 

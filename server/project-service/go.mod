@@ -3,20 +3,19 @@ module project-service
 go 1.22.1
 
 require (
-	github.com/gorilla/handlers v1.5.2
+	github.com/asaskevich/EventBus v0.0.0-20200907212545-49d423059eef
 	github.com/gorilla/mux v1.8.1
+	github.com/nats-io/nats.go v1.37.0
+	github.com/rs/cors v1.11.1
 	go.mongodb.org/mongo-driver v1.17.1
 )
 
 require (
-	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/klauspost/compress v1.17.2 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
-	github.com/nats-io/nats.go v1.37.0 // indirect
 	github.com/nats-io/nkeys v0.4.7 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
-	github.com/rs/cors v1.11.1 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect

@@ -144,6 +144,42 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 
 }
 
+func (tr *TaskRepository) DeleteTask(taskId primitive.ObjectID) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	collection := tr.getCollection()
+	_, err := collection.DeleteOne(ctx, bson.M{"_id": taskId})
+	if err != nil {
+		return fmt.Errorf("Failed to delete task with id %s: %v", taskId.Hex(), err)
+	}
+	return nil
+}
+
+func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
+
+	//TODO: before deleting all tasks implement archive functionality, in case if 'rollback' is necessary
+
+	tasks, err := t.GetAllByProjectId(projectID)
+	if err != nil {
+		t.logger.Printf("Failed to fetch tasks for project %s: %v", projectID, err)
+		return fmt.Errorf("failed to fetch tasks: %w", err)
+	}
+
+	for _, task := range tasks {
+		err := t.DeleteTask(task.ID)
+		if err != nil {
+			t.logger.Printf("Failed to delete task with ID %s: %v", task.ID.Hex(), err)
+			return fmt.Errorf("failed to delete task with ID %s: %w", task.ID.Hex(), err)
+		}
+	}
+
+	t.logger.Printf("Successfully deleted tasks")
+
+	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+	return nil
+}
+
 func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

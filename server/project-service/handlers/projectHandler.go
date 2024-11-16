@@ -18,9 +18,9 @@ type KeyProject struct{}
 type KeyRole struct{}
 
 type ProjectsHandler struct {
-	logger *log.Logger
-	// NoSQL: injecting product repository
-	repo *repositories.ProjectRepo
+	logger   *log.Logger
+	repo     *repositories.ProjectRepo
+	natsConn *nats.Conn
 }
 
 type Task struct {
@@ -87,8 +87,8 @@ func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, stri
 	return result.UserID, result.Role, nil
 }
 
-func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
-	return &ProjectsHandler{l, r}
+func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo, natsConn *nats.Conn) *ProjectsHandler {
+	return &ProjectsHandler{l, r, natsConn}
 }
 
 func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request) {
@@ -335,6 +335,36 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 	err = p.repo.RemoveUserFromProject(projectId, userId)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+}
+
+func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	projectId := vars["id"]
+
+	project, _ := p.repo.GetById(projectId)
+	if project == nil {
+		http.Error(rw, "Project not found", http.StatusNotFound)
+		return
+	}
+
+	//TODO: before deleting project implement archive project functionality, in case if 'rollback' is necessary
+	//TODO: finish SAGA pattern with rollback
+
+	err := p.repo.DeleteProject(projectId)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// publish a "ProjectDeleted" event to NATS, => this will be executed in taskHnadler/HandleProjectDeleted
+	err = p.natsConn.Publish("ProjectDeleted", []byte(projectId))
+	if err != nil {
+		p.logger.Printf("Failed to publish ProjectDeleted event: %v", err)
+		http.Error(rw, "Failed to publish event", http.StatusInternalServerError)
 		return
 	}
 

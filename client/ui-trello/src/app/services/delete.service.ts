@@ -18,4 +18,10 @@ export class DeleteService {
   }
 
 
+  deleteProject(id: string): Observable<any> {
+    const url = `${this.config.project_api_url}/projects/${id}`;
+    return this.http.delete(url,  { responseType: 'text' });
+  }
+
+
 }

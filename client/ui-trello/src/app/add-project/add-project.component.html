@@ -69,7 +69,8 @@
       <p class="card-text">Manager: {{ project.manager }}</p>
       <div class="btn-group">
       <button class="btn-next btn-success mb-3" (click)="manageMembersToProject(project.id)">Project details</button>
-      <button class="btn-next btn-danger mb-3" (click)="showDeleteConfirmation(project.id)">Delete project</button>
+      <button  *ngIf="manager.role === 'manager'" class="btn-next btn-danger mb-3" (click)="showDeleteConfirmation(project.id)">Delete project</button>
+
       </div>
     </div>
   </div>
@@ -89,3 +90,4 @@
     </button>
   </div>
 </div>
+

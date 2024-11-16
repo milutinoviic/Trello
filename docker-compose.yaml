@@ -12,6 +12,7 @@ services:
     environment:
       - PORT=${PORT}
       - MONGO_DB_URI=${MONGO_DB_URI_PROJECT}
+      - NATS_URL=nats://nats:4222
     depends_on:
       mongo-project:
         condition: service_healthy
@@ -87,6 +88,7 @@ services:
     environment:
       - PORT=8080
       - MONGO_DB_URI=mongodb://root:pass@mongo-task:27017
+      - NATS_URL=nats://nats:4222
     depends_on:
       mongo-task:
         condition: service_healthy
