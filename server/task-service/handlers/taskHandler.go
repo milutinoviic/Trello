@@ -175,3 +175,26 @@ func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string,
 
 	return result.UserID, result.Role, nil
 }
+
+func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {
+	th.logger.Println("Received request to update task status")
+
+	task, ok := req.Context().Value(KeyTask{}).(*model.Task)
+	if !ok || task == nil {
+		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
+		th.logger.Println("Error retrieving task from context")
+		return
+	}
+
+	th.logger.Printf("Task received: %+v", task)
+
+	err := th.repo.UpdateStatus(task)
+	if err != nil {
+		th.logger.Println("Failed to update task status:", err)
+		http.Error(rw, "Failed to update status", http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	th.logger.Println("Task status updated successfully")
+}
