@@ -12,8 +12,8 @@ import {Router} from "@angular/router";
 })
 export class AccountService {
   private userIdSource = new BehaviorSubject<string | null>(null);
+  private roleSource = new BehaviorSubject<string | null>(null);
   userId$ = this.userIdSource.asObservable();
-
   private tokenVerificationSub!: Subscription;
 
   constructor(private http: HttpClient, private config: ConfigService, private router: Router) {}
@@ -27,6 +27,7 @@ export class AccountService {
   getUserId(): string | null {
     return this.userIdSource.getValue();
   }
+
 
   register(accountRequest: AccountRequest): Observable<any> {
     return this.http.post(this.config.register_url, accountRequest);
@@ -50,16 +51,17 @@ export class AccountService {
 
   logout(): Observable<any> {
     this.stopTokenVerification();
+    localStorage.removeItem("role");
     return this.http.post(this.config.logout_url, null);
   }
+
+
 
   startTokenVerification(userId: string) {
     console.log("Token verification started for user:", userId);
 
     this.setUserId(userId);
     const key = this.getUserId();
-
-
 
     if (this.tokenVerificationSub) {
       this.tokenVerificationSub.unsubscribe();
