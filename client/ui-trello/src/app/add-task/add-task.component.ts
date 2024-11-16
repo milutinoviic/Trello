@@ -1,10 +1,11 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from "@angular/forms";
-import { ActivatedRoute } from "@angular/router";
-import { Task } from "../models/task";
-import { TaskService } from "../services/task.service";
-import { HttpClient } from "@angular/common/http";
+import {Component, OnInit} from '@angular/core';
+import {FormBuilder, FormGroup, Validators} from "@angular/forms";
+import {ActivatedRoute} from "@angular/router";
+import {Task} from "../models/task";
+import {TaskService} from "../services/task.service";
+import {HttpClient} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
+import {AccountService} from "../services/account.service";
 
 @Component({
   selector: 'app-add-task',
@@ -23,6 +24,7 @@ export class AddTaskComponent implements OnInit {
     private taskService: TaskService,
     private http: HttpClient,
     private toastr: ToastrService,
+    private accountService: AccountService,
   ) {}
 
   ngOnInit(): void {
@@ -90,12 +92,24 @@ export class AddTaskComponent implements OnInit {
 
 
   changeTaskStatus(task: Task): void {
-    console.log(task);
+    const dependencies = this.getTaskDependencies(task);
+
+    const hasPendingDependencies = dependencies.some(dep => dep.status === 'Pending');
+
+    if (hasPendingDependencies) {
+      this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
+      return;
+    }
+    if (!this.checkIfUserIsAssigned(task)) {
+      this.toastr.warning("Cannot change status: You are not assigned to this task.")
+      return;
+    }
+
     this.taskService.updateTaskStatus(task).subscribe({
       next: () => {
         console.log('Task status updated to:', task.status);
         this.fetchTasks(this.projectId);
-        this.toastr.success("Task successfully updated");
+        this.toastr.success("Task status successfully updated");
       },
       error: (error) => {
         console.error('Error updating task status:', error);
@@ -103,4 +117,19 @@ export class AddTaskComponent implements OnInit {
       }
     });
   }
+
+  checkIfUserIsAssigned(task: Task): boolean {
+    const id = this.accountService.getUserId();
+    console.log("User id: ", id)
+    if (id) {
+      // **REMOVE COMMENTS WHEN ASSIGNING USERS TO TASK IS FINISHED!!!!**
+
+      // return task.user_ids.includes(id);
+      return true;
+    }
+    return false;
+
+
+  }
+
 }

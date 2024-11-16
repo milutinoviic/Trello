@@ -1,4 +1,4 @@
-import {NgModule } from '@angular/core';
+import {APP_INITIALIZER, NgModule} from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
@@ -22,8 +22,16 @@ import { MagicLinkComponent } from './magic-link/magic-link.component';
 import { MagicLinkRequestComponent } from './magic-link-request/magic-link-request.component';
 import { RECAPTCHA_SETTINGS, RecaptchaFormsModule, RecaptchaModule, RecaptchaSettings } from 'ng-recaptcha';
 import {environment} from "../environments/environment";
+import {AccountService} from "./services/account.service";
 
-
+function initTokenVerification(accountService: AccountService) {
+  return () => {
+    const userId = accountService.getUserId();
+    if (userId) {
+      accountService.startTokenVerification(userId);
+    }
+  };
+}
 
 
 @NgModule({
@@ -65,6 +73,12 @@ import {environment} from "../environments/environment";
         siteKey: environment.recaptcha.siteKey,
       } as RecaptchaSettings,
     },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initTokenVerification,
+      deps: [AccountService],
+      multi: true
+    }
   ],
   exports: [
     MenuComponent

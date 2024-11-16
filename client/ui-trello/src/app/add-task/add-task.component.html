@@ -49,7 +49,7 @@
       <p>Updated At: <span class="bold">{{ task.updatedAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
       <p>Blocked: <span class="bold">{{ task.blocked ? 'Yes' : 'No' }}</span></p>
 
-      <!-- Display Dependencies if any -->
+
       <div *ngIf="task.dependencies && task.dependencies.length > 0">
         <h5>Dependencies:</h5>
         <ul>
