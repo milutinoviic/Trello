@@ -1,6 +1,6 @@
 <app-menu></app-menu>
 
-<div class="btn-container">
+<div class="btn-container" *ngIf="manager?.role === 'manager'">
 <button class="btn" (click)="toggleForm()">
   {{ showForm ? 'Close' : 'Add new project' }}
 </button>
@@ -67,8 +67,25 @@
       <p class="card-text">Min people: {{ project.min_members }}</p>
       <p class="card-text">End Date: {{ project.end_date }}</p>
       <p class="card-text">Manager: {{ project.manager }}</p>
-      <button class="btn btn-success mb-3" (click)="manageMembersToProject(project.id)">Manage members</button>
+      <div class="btn-group">
+      <button class="btn-next btn-success mb-3" (click)="manageMembersToProject(project.id)">Project details</button>
+      <button class="btn-next btn-danger mb-3" (click)="showDeleteConfirmation(project.id)">Delete project</button>
+      </div>
     </div>
   </div>
 
 
+
+<!--ask user if sure to delete project-->
+<div *ngIf="visible" class="q-box">
+  <label class="q-text">Are you sure you want to delete project?</label>
+  <label class="red-text q-text">*This will delete all data from project.</label>
+  <div class="d-flex ms-auto button-container">
+    <button class="btn-next btn-outline-light me-2" (click)="cancel()">
+      Cancel
+    </button>
+    <button class="btn-next btn-outline-danger" (click)="deleteProject()">
+      Delete
+    </button>
+  </div>
+</div>

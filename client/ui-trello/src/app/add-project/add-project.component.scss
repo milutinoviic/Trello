@@ -38,9 +38,11 @@ label {
   display: block;
   margin-bottom: 8px;
   color: #272b4c;
+  background-color: none!important;
+
 }
 .red-text {
-  color: #F95738;
+  color: var(--red-secondary-color);
 }
 .main-content {
     margin: 10%;
@@ -92,6 +94,28 @@ label {
     background-color: var(--tercial-color);
     border: none;
 }
+
+
+.btn-next {
+    background-color: var(--primary-color);
+    color: white;
+    min-width: 50%;
+    width: 5%;
+    padding: 10px;
+    border: none;
+    border-radius: 5px;
+}
+.btn-next:hover {
+    background-color: var(--hover-background-color);
+    color: var(--primary-color);
+    border: 1px solid var(--primary-color);
+}
+.btn-next:focus {
+    color: whitesmoke;
+    box-shadow: 0 0 10px var(--tercial-color);
+    background-color: var(--tercial-color);
+    border: none;
+}
 .wider{
   display:flex;
   }
@@ -105,6 +129,7 @@ label {
   margin-right: 20%;
   margin-bottom: 5%;
   padding: 50px;
+  max-width: 1000px;
   border-radius: 5px;
 
   }
@@ -125,4 +150,103 @@ input.ng-invalid.ng-touched {
   margin-right: 30%;
   margin-top: 2%;
   background-color: var(--secondary-color);
+}
+
+.btn-group {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+// for project deletion confirmation
+.q-box {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -40%); /* Adjust to true center */
+  width: 50%;
+  justify-content: center;
+  align-items: center;
+  height: 20vh;
+  background-color: #333333;
+  border-radius: 5px;
+  z-index: 9999;
+  box-shadow: 0 0 10px #333333;
+  outline: none;
+  min-height: 150px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  max-height: 90vh;
+  height: auto;
+  overflow-y: auto;
+}
+
+
+.q-text {
+  margin-bottom: 16px;
+  font-size: 16px;
+  color: white;
+  background-color: transparent !important;
+}
+:host ::ng-deep .q-text {
+  background-color: transparent !important;
+}
+
+.button-container {
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background-color: transparent !important;
+
+}
+
+
+@media (max-width: 768px) {
+  .card {
+    margin: 0 10%;
+    padding: 15px;
+  }
+}
+
+@media (max-width: 600px) {
+  .button-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+  }
+
+  .q-box {
+    padding: 10px;
+    max-width: 95%;
+    top: 30%;
+  }
+  .btn-group{
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .btn-group button {
+      margin: 5px 0;
+      min-width: 100%;
+
+  }
+
+  .button-container button {
+    margin: 5px 0;
+    min-width: 100%;
+
+  }
+  .card {
+    margin: 5px 5%;
+    padding: 10px;
+    margin-bottom: 5%;
+  }
+  .card-container {
+      gap: 15px;
+  }
+  .btn{
+    gap: 2px;
+    }
+
 }

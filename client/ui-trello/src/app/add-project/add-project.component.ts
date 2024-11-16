@@ -39,9 +39,18 @@ export class AddProjectComponent implements OnInit {
   projects: any;
   manager: any;
   showForm: boolean = false;
+  visible: boolean = false;
+  selectedProjectId: string | null = null;
 
   toggleForm() {
     this.showForm = !this.showForm;
+  }
+  showDeleteConfirmation(id: string): void {
+    this.visible = !this.visible;
+    this.selectedProjectId = id;
+  }
+  cancel(){
+    this.visible = !this.visible;
   }
 
   constructor(
@@ -127,5 +136,12 @@ export class AddProjectComponent implements OnInit {
   manageMembersToProject(id: string) {
     this.router.navigate(['/project/manageMembers/', id]);
   }
+
+  deleteProject(){
+    console.log(`Deleting project with ID: ` + this.selectedProjectId);
+    this.visible = false;
+  }
+
+
 
 }
