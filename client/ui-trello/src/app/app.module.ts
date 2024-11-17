@@ -22,6 +22,7 @@ import { AccountService } from './services/account.service';
 import { MagicLinkComponent } from './magic-link/magic-link.component';
 import { MagicLinkRequestComponent } from './magic-link-request/magic-link-request.component';
 import { ForbiddenComponent } from './forbidden/forbidden.component';
+import { ProjectComponent } from './project/project.component';
 
 
 function initTokenVerification(accountService: AccountService) {
@@ -48,6 +49,7 @@ function initTokenVerification(accountService: AccountService) {
     MagicLinkRequestComponent,
     MagicLinkComponent,
     ForbiddenComponent,
+    ProjectComponent,
   ],
   imports: [
     BrowserModule,

@@ -1,68 +1,74 @@
 <app-menu></app-menu>
 
-  <div class="form"  [@flyInOut] *ngIf="manager?.role === 'manager'">
-    <form [formGroup]="newProjectForm"  (ngSubmit)="onSubmit()">
+<h1 style="text-align: center; color: #96a0e3">{{ project?.name | uppercase }}</h1>
+<p style="text-align: center;">Min Members: {{ project.minMembers }}</p>
+<p style="text-align: center;">Max Members: {{ project.maxMembers }}</p>
 
-      <div class="form-group">
-
-        <label>Project name:</label>
-        <input type="text"  id="project_name"  formControlName="project_name" class="form-control"
-               >
-        <div *ngIf="newProjectForm.get('project_name')?.hasError('required') && newProjectForm.get('project_name')?.touched">
-          <p class="error-message">Project name is required.</p>
-        </div>
-        <div *ngIf="newProjectForm.get('project_name')?.hasError('minlength') && newProjectForm.get('project_name')?.touched" class="error-message">
-          Project name must be at least 3 characters long.
-        </div>
-        <label>End date:</label>
-        <input type="date" id="end_date" formControlName="end_date" class="form-control" placeholder="yyyy-mm-dd"
-              >
-        <div *ngIf="newProjectForm.get('end_date')?.hasError('required') && newProjectForm.get('end_date')?.touched">
-          End date is required.
-        </div>
-        <div *ngIf="newProjectForm.get('end_date')?.hasError('futureDate') && newProjectForm.get('end_date')?.touched">
-          End date must be a future date.
-        </div>
-        <label>Min people on project:</label>
-        <input type="number"  id="min_members" formControlName="min_members"  min="1" class="form-control"
-              >
-        <div *ngIf="newProjectForm.get('min_members')?.hasError('required') && newProjectForm.get('min_members')?.touched">
-          Minimum members is required.
-        </div>
-        <label>Max people on project:</label>
-        <input type="number" id="max_members" formControlName="max_members"  min="1" max="100" class="form-control"
-               >
-        <div *ngIf="newProjectForm.get('max_members')?.hasError('required') && newProjectForm.get('max_members')?.touched">
-          Maximum members is required.
+<div class="container mt-4">
+  <div class="row">
+    <!-- Sekcija za članove projekta -->
+    <div class="col-md-6">
+      <div class="project-members border rounded p-3">
+        <h4 style="text-align: center; color: #1f203c">Project Members</h4>
+        <div *ngFor="let member of projectMembers" class="member-card">
+          <div class="member-details">
+            <p>{{ member.email }}</p>
+          </div>
+          <button class="btn btn-danger btn-sm remove-btn" (click)="removeMember(member.id)">Remove</button>
         </div>
       </div>
-
-      <hr class="devide-line">
-
-      <button type="submit" class="btn">Create project</button>
-
-    </form>
-
-  </div >
-
-  <br /><br /><br /><br />
-
-<div class="card" *ngIf="projects?.length === 0">
-  <p>No projects yet.</p>
-</div>
-
-  <div class="card" *ngFor="let project of projects">
-    <div class="card-header">
-      Project info:
     </div>
-    <div class="card-body">
-      <h4 class="card-title">Name: {{ project.name }}</h4>
-      <p class="card-text">Max people: {{ project.max_members }}</p>
-      <p class="card-text">Min people: {{ project.min_members }}</p>
-      <p class="card-text">End Date: {{ project.end_date }}</p>
-      <p class="card-text">Manager: {{ project.manager }}</p>
-      <button class="btn btn-success mb-3" (click)="manageMembersToProject(project.id)">Manage members</button>
+
+    <!-- Sekcija za zadatke projekta -->
+    <div class="col-md-6">
+      <div class="task-section border rounded p-3">
+        <h4 style="text-align: center; color: #1f203c">Project Tasks</h4>
+        <ul class="task-list">
+          <li *ngFor="let task of tasks" class="task-card">
+            <h5>{{ task.name }}</h5>
+            <p>{{ task.description }}</p>
+            <span>Status: {{ task.status }}</span><br />
+            <span>Created At: {{ task.createdAt | date }}</span><br />
+            <span>Updated At: {{ task.updatedAt | date }}</span>
+            <span>Blocked: {{ task.blocked ? 'Yes' : 'No' }}</span>
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
+
+  <!-- Sekcija za dodavanje zadatka -->
+  <div class="task-form mt-4">
+    <h4>Create New Task</h4>
+    <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="taskTitle">Task Title</label>
+        <input
+          id="taskTitle"
+          formControlName="taskTitle"
+          type="text"
+          placeholder="Enter task title"
+          class="form-control"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="taskDescription">Task Description</label>
+        <textarea
+          id="taskDescription"
+          formControlName="taskDescription"
+          placeholder="Enter task description"
+          class="form-control"
+          rows="4"
+        ></textarea>
+      </div>
+
+      <button type="submit" [disabled]="taskForm.invalid" class="btn btn-primary mt-3">
+        Create Task
+      </button>
+    </form>
+  </div>
+</div>
 
 
