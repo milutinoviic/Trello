@@ -133,7 +133,7 @@ export class ConfigService {
   }
 
   private _update_status_url = this._task_api_url + "/tasks"+ "/status";
-
+  private _check_task_url = this._task_api_url + "/tasks"+ "/check";
 
   get notifications_api_url(): string {
     return this._notifications_api_url;
@@ -145,6 +145,10 @@ export class ConfigService {
 
   get update_status_url(): string {
     return this._update_status_url;
+  }
+
+  get check_task_url(): string {
+    return this._check_task_url;
   }
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"task--service/model"
 	"task--service/repositories"
@@ -197,4 +198,33 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 
 	rw.WriteHeader(http.StatusOK)
 	th.logger.Println("Task status updated successfully")
+}
+
+func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *http.Request) {
+	task, ok := r.Context().Value(KeyTask{}).(*model.Task)
+	if !ok || task == nil {
+		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
+		th.logger.Println("Error retrieving task from context")
+		return
+	}
+
+	id, ok := r.Context().Value(KeyId{}).(string)
+	if !ok || id == "" {
+		http.Error(rw, "User ID is missing or invalid", http.StatusUnauthorized)
+		th.logger.Println("Error retrieving user ID from context")
+		return
+	}
+
+	itContains := slices.Contains(task.UserIDs, id)
+	rw.Header().Set("Content-Type", "text/plain")
+
+	if itContains {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte("true"))
+		th.logger.Println("User is part of the task")
+	} else {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte("false"))
+		th.logger.Println("User is not part of the task")
+	}
 }

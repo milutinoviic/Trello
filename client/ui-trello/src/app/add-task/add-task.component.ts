@@ -6,6 +6,7 @@ import {TaskService} from "../services/task.service";
 import {HttpClient} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
 import {AccountService} from "../services/account.service";
+import {firstValueFrom} from "rxjs";
 
 @Component({
   selector: 'app-add-task',
@@ -91,7 +92,7 @@ export class AddTaskComponent implements OnInit {
   }
 
 
-  changeTaskStatus(task: Task): void {
+  async changeTaskStatus(task: Task): Promise<void> {
     const dependencies = this.getTaskDependencies(task);
 
     const hasPendingDependencies = dependencies.some(dep => dep.status === 'Pending');
@@ -100,8 +101,9 @@ export class AddTaskComponent implements OnInit {
       this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
       return;
     }
-    if (!this.checkIfUserIsAssigned(task)) {
-      this.toastr.warning("Cannot change status: You are not assigned to this task.")
+    const isUserAssigned = await this.checkIfUserIsAssigned(task);
+    if (!isUserAssigned) {
+      this.toastr.warning("Cannot change status: You are not assigned to this task.");
       return;
     }
 
@@ -118,18 +120,16 @@ export class AddTaskComponent implements OnInit {
     });
   }
 
-  checkIfUserIsAssigned(task: Task): boolean {
-    const id = this.accountService.getUserId();
-    console.log("User id: ", id)
-    if (id) {
-      // **REMOVE COMMENTS WHEN ASSIGNING USERS TO TASK IS FINISHED!!!!**
-
-      // return task.user_ids.includes(id);
+  async checkIfUserIsAssigned(task: Task): Promise<boolean> {
+    try {
+      const value = await firstValueFrom(this.taskService.checkIfUserInTask(task));
+      // DELETE THE COMMENT WHEN ASSIGNING TASKS IS DONE
+      // return value;
       return true;
+    } catch (error) {
+      console.error('Error checking if user is assigned', error);
+      return false;
     }
-    return false;
-
-
   }
 
 }
