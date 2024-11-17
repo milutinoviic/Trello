@@ -23,6 +23,7 @@ import { MagicLinkComponent } from './magic-link/magic-link.component';
 import { MagicLinkRequestComponent } from './magic-link-request/magic-link-request.component';
 import { ForbiddenComponent } from './forbidden/forbidden.component';
 import { ProjectComponent } from './project/project.component';
+import {AddProjectComponent} from "./add-project/add-project.component";
 
 
 function initTokenVerification(accountService: AccountService) {
@@ -64,6 +65,7 @@ function initTokenVerification(accountService: AccountService) {
     DragDropModule,
     NgbModule,
     MenuComponent,
+    AddProjectComponent,
   ],
   providers: [
     {

@@ -1,0 +1,191 @@
+/* Stil za overlay koji prekriva celu stranicu */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5); /* Poluprozirna pozadina */
+  display: none; /* Početno sakrivanje modala */
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  transition: opacity 0.3s ease-in-out;
+}
+
+.modal.show {
+  display: block; /* Prikazivanje modala kada je 'show' klasa prisutna */
+  opacity: 1;
+}
+
+/* Stil za modalni dijalog */
+.modal-dialog {
+  width: 500px; /* Širina modala */
+  max-width: 90%; /* Maksimalna širina za responzivnost */
+}
+
+/* Stil za sadržaj unutar modala */
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+/* Stil za zaglavlje modala */
+.modal-header {
+  padding: 15px;
+  background-color: #f7f7f7;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* Dugme za zatvaranje modala */
+.btn-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* Stil za telo modala */
+.modal-body {
+  padding: 20px;
+}
+
+/* Stil za footer modala */
+.modal-footer {
+  padding: 15px;
+  background-color: #f7f7f7;
+  border-top: 1px solid #e0e0e0;
+  text-align: right;
+}
+
+/* Stil za dugme za zatvaranje */
+.btn-danger {
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 8px 15px;
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  background-color: #c82333;
+}
+
+
+/* Stilizuj dugme u app.component */
+button {
+  margin-left: 20px;  /* Dodaj razmak između menija i dugmeta */
+}
+
+/* Ako želiš da dugme bude poravnato na desno */
+.projekat-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+}
+
+button {
+  margin-left: auto; /* Ovim se dugme postavlja na desnu stranu */
+  margin-right: 20px;
+}
+
+/* Stilizuj dugme ako želiš da bude u istom stilu kao navbar dugme */
+.btn {
+  background-color: #0F8B8D;
+  color: white;
+  padding: 8px 20px;
+  border-radius: 5px;
+  border: none;
+  font-size: 16px;
+}
+
+.btn:hover {
+  background-color: white;
+  color: #0F8B8D;
+  border: 1px solid #0F8B8D;
+}
+
+.navbar-container {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Sredi navbar u sredinu */
+  position: relative; /* Omogućava pozicioniranje dropdown menija u odnosu na kontejner */
+  padding: 0 10px; /* Dodaje padding sa leve i desne strane */
+}
+
+.app-navbar {
+  flex: 1; /* Pomaže da navbar zauzme raspoloživi prostor */
+}
+
+.dropdown-container {
+  position: absolute;
+  right: 10px; /* Odmak od desne granice */
+  top: 50%; /* Vertikalno poravnanje u sredinu */
+  transform: translateY(-50%); /* Vertikalno centriranje u odnosu na sredinu */
+}
+
+.dropdown {
+  position: relative;
+  margin-right: 10px;
+}
+
+.dropdown-menu {
+  min-width: 10rem; /* Širina dropdown menija */
+  margin-top: 0.5rem; /* Razmak između dugmeta i menija */
+}
+
+/* Prilagodite stilove za mobilne uređaje */
+@media (max-width: 991px) {
+  .navbar-container {
+    flex-direction: column; /* Složi elemente u kolonu na manjim ekranima */
+  }
+
+  .dropdown-container {
+    position: static; /* Postavlja dropdown meni ispod navbar-a na manjim ekranima */
+    margin-top: 1rem; /* Razmak između navbar-a i dropdown menija */
+    right: 0; /* Uklanja odmak od desne strane na manjim ekranima */
+    transform: none; /* Uklanja vertikalno pomeranje na manjim ekranima */
+  }
+}
+
+/* Kontejner za projekte */
+.projects-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);  /* Kreira 4 kolone, svaka zauzima 1 frakcioni deo prostora */
+  gap: 20px;  /* Razmak između kartica */
+  margin-top: 20px;
+}
+
+/* Stil za kartice */
+.card {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Ako želiš da kartice budu iste visine, možeš dodati minimalnu visinu */
+.card-body {
+  min-height: 200px; /* Možeš podesiti minimalnu visinu kartice prema potrebama */
+}
+
+/* Ako je broj projekata manji od 4, ovo će pomoći da kartice budu centrirane */
+.projects-container {
+  justify-items: center;
+}
+
+/* Kada je ekran manji od 768px (mobilni uređaji), koristiće se samo 1 kolona */
+@media (max-width: 768px) {
+  .projects-container {
+    grid-template-columns: 1fr;  /* Jedna kolona na manjim ekranima */
+  }
+}
+

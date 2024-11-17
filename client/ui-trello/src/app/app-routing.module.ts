@@ -14,6 +14,7 @@ import {MagicLinkComponent} from "./magic-link/magic-link.component";
 import {roleGuard} from "./guards/role.guard";
 import {ForbiddenComponent} from "./forbidden/forbidden.component";
 import {loginGuard} from "./guards/login.guard";
+import {ProjectComponent} from "./project/project.component";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent, canActivate:[loginGuard]},
@@ -29,6 +30,7 @@ export const routes: Routes = [
   { path: 'magic', component: MagicLinkRequestComponent },
   { path: 'magic/:email', component: MagicLinkComponent },
   { path: 'forbidden', component: ForbiddenComponent },
+  { path: 'project', component: ProjectComponent },
 ];
 
 @NgModule({
