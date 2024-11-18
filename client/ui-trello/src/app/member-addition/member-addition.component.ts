@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import {Component, Input, OnInit} from '@angular/core';
 import {ProjectServiceService} from "../services/project-service.service";
 import {ActivatedRoute, Router} from "@angular/router";
 import {AccountService} from "../services/account.service";
@@ -30,7 +30,7 @@ export class MemberAdditionComponent implements OnInit {
   minMembers: number = 0;
   maxMembers: number = 0;
   filteredUsers: User[] = [];
-  projectId: string = '';
+  @Input() projectId: string = '';
   project: Project | null = null;
   managerId: string = "";
 

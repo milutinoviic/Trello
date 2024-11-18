@@ -2,6 +2,12 @@
   min-height: 200px;
   background-color: #a6bbec;
   border: 1px dashed #ccc;
+  margin-bottom: 20px; /* Razmak između sekcija */
+}
+
+.available-users {
+  background-color: #f7f7f7;
+  border: 1px dashed #ccc;
 }
 
 .remove-btn {

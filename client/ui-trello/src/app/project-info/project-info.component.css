@@ -80,3 +80,19 @@ button {
 button:hover {
   background-color: #0056b3;
 }
+
+.navbar-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+}
+
+.navbar-buttons button {
+  margin-right: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}

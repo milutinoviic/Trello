@@ -1,9 +1,17 @@
-<p>project-info works!</p>
+<div class="navbar-container">
+  <app-menu></app-menu> <!-- Pretpostavljamo da ovo prikazuje navigacioni meni -->
+
+  <div class="navbar-buttons">
+
+    <button class="btn btn-success mb-3" (click)="openAddTaskModal()">Add new task for this project</button>
 
 
+    <button class="btn btn-primary mb-3" (click)="openMemberAdditionModal(projectId)">Add Member</button>
 
 
-<button class="btn btn-success mb-3" (click)="openAddTaskModal()">Add new task for this project</button>
+    <button class="btn btn-secondary mb-3" (click)="goBackToProject()">Back to Project</button>
+  </div>
+</div>
 
 <div class="modal" tabindex="-1"
      [class.show]="showAddTask"
@@ -51,4 +59,23 @@
 <ng-template #noTasks>
   <p>No tasks available.</p>
 </ng-template>
+
+
+<div class="modal" tabindex="-1" [class.show]="showAddMemberModal" [style.display]="showAddMemberModal ? 'block' : 'none'">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Assign Member to Project</h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeMemberAdditionModal()"></button>
+      </div>
+      <div class="modal-body">
+        <!-- Here, we include the app-member-addition component and pass projectId -->
+        <app-member-addition [projectId]="projectId"></app-member-addition>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" (click)="closeMemberAdditionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 

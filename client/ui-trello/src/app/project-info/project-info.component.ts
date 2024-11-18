@@ -197,5 +197,21 @@ export class ProjectInfoComponent implements OnInit {
     this.selectedTask = null;
   }
 
+  showAddMemberModal = false;
+
+  openMemberAdditionModal(projectId: string) {
+    this.projectId = projectId;
+    this.showAddMemberModal = true;
+  }
+
+
+  closeMemberAdditionModal() {
+    this.showAddMemberModal = false;
+  }
+
+  goBackToProject() {
+    this.router.navigate(['/project']);
+  }
+
 
 }
