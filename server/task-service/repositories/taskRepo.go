@@ -145,6 +145,80 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 
 }
 
+func (tr *TaskRepository) GetByID(taskID string) (*model.Task, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tasksCollection := tr.getCollection()
+
+	// Convert string ID to ObjectID
+	taskObjID, err := primitive.ObjectIDFromHex(taskID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid taskID format: %v", err)
+	}
+
+	var task model.Task
+	err = tasksCollection.FindOne(ctx, bson.M{"_id": taskObjID}).Decode(&task)
+	if err != nil {
+		return nil, err
+	}
+
+	return &task, nil
+}
+
+func (tr *TaskRepository) Update(task *model.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": task.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"user_ids":   task.UserIDs,
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := tasksCollection.UpdateOne(ctx, filter, update)
+	return err
+}
+
+func (tr *TaskRepository) InsertTaskMemberActivity(change *model.TaskMemberActivity) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := tr.getChangeCollection().InsertOne(ctx, change)
+	return err
+}
+
+func (tr *TaskRepository) GetUnprocessedActivities() ([]model.TaskMemberActivity, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	cursor, err := tr.getChangeCollection().Find(ctx, bson.M{"processed": false})
+	if err != nil {
+		return nil, err
+	}
+
+	var changes []model.TaskMemberActivity
+	err = cursor.All(ctx, &changes)
+	return changes, err
+}
+
+func (tr *TaskRepository) MarkChangeAsProcessed(changeID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := tr.getChangeCollection().UpdateOne(ctx, bson.M{"_id": changeID}, bson.M{"$set": bson.M{"processed": true}})
+	return err
+}
+
+func (tr *TaskRepository) getChangeCollection() *mongo.Collection {
+	projectDatabase := tr.cli.Database("mongoTask")
+	changeCollection := projectDatabase.Collection("task_member_activity")
+	return changeCollection
+}
+
 func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -29,4 +29,10 @@ export class TaskService {
     return this.http.post<boolean>(this.config.check_task_url, task, { headers });
   }
 
+  checkIfUserIsManager(projectId: string): Observable<boolean> {
+    const headers = { 'Content-Type': 'application/json' };
+    const url = `${this.config.checkManagerUrl(projectId)}`;
+    return this.http.get<boolean>(url, { headers });
+  }
+
 }
