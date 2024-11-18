@@ -6,7 +6,6 @@ import { ToastrService } from 'ngx-toastr';
 import { Router } from '@angular/router';
 import { environment } from '../../environments/environment';
 
-
 @Component({
   selector: 'app-login',
   templateUrl: './login.component.html',
@@ -80,8 +79,6 @@ export class LoginComponent implements OnInit {
           const userId = result.id;
           this.accountService.startTokenVerification(userId);
           this.router.navigate(['/projects']);
-          localStorage.setItem("role", result.role);
-          this.router.navigate(['/project']);
         },
         error: (error) => {
           console.error('Login error:', error);

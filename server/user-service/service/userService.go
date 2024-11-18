@@ -54,25 +54,25 @@ func (s *UserService) GetAllMembers(ctx context.Context) ([]data.Account, error)
 	return accounts, nil
 }
 
-func (s UserService) Login(user *data.LoginCredentials) (id string, role string, token string, err error) {
-	role, err = s.user.GetUserRoleByEmail(user.Email)
+func (s UserService) Login(user *data.LoginCredentials) (id string, token string, err error) {
+	role, err := s.user.GetUserRoleByEmail(user.Email)
 	if err != nil {
-		return "", "", "", errors.New("role does not exist")
+		return "", "", errors.New("role does not exist")
 	}
 	get, err := s.user.GetUserIdByEmail(user.Email)
 	if err != nil {
-		return "", "", "", errors.New("error getting user")
+		return "", "", errors.New("error getting user")
 	}
 	token, err = utils.CreateToken(user.Email, role, get.Hex())
 	if err != nil {
-		return "", "", "", errors.New("error creating token")
+		return "", "", errors.New("error creating token")
 	}
 	err = s.cache.Login(user, token)
 	if err != nil {
-		return "", "", "", err
+		return "", "", err
 	}
 
-	return get.Hex(), role, token, nil
+	return get.Hex(), token, nil
 }
 
 func (s *UserService) Logout(id string) error {

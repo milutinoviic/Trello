@@ -1,4 +1,4 @@
-<!--<app-menu></app-menu>-->
+<app-menu></app-menu>
 
   <div class="form"  [@flyInOut] *ngIf="manager?.role === 'manager'">
     <form [formGroup]="newProjectForm"  (ngSubmit)="onSubmit()">
@@ -47,22 +47,22 @@
 
   <br /><br /><br /><br />
 
-<!--<div class="card" *ngIf="projects?.length === 0">-->
-<!--  <p>No projects yet.</p>-->
-<!--</div>-->
+<div class="card" *ngIf="projects?.length === 0">
+  <p>No projects yet.</p>
+</div>
 
-<!--  <div class="card" *ngFor="let project of projects">-->
-<!--    <div class="card-header">-->
-<!--      Project info:-->
-<!--    </div>-->
-<!--    <div class="card-body">-->
-<!--      <h4 class="card-title">Name: {{ project.name }}</h4>-->
-<!--      <p class="card-text">Max people: {{ project.max_members }}</p>-->
-<!--      <p class="card-text">Min people: {{ project.min_members }}</p>-->
-<!--      <p class="card-text">End Date: {{ project.end_date }}</p>-->
-<!--      <p class="card-text">Manager: {{ project.manager }}</p>-->
-<!--      <button class="btn btn-success mb-3" (click)="manageMembersToProject(project.id)">Manage members</button>-->
-<!--    </div>-->
-<!--  </div>-->
+  <div class="card" *ngFor="let project of projects">
+    <div class="card-header">
+      Project info:
+    </div>
+    <div class="card-body">
+      <h4 class="card-title">Name: {{ project.name }}</h4>
+      <p class="card-text">Max people: {{ project.max_members }}</p>
+      <p class="card-text">Min people: {{ project.min_members }}</p>
+      <p class="card-text">End Date: {{ project.end_date }}</p>
+      <p class="card-text">Manager: {{ project.manager }}</p>
+      <button class="btn btn-success mb-3" (click)="manageMembersToProject(project.id)">Manage members</button>
+    </div>
+  </div>
 
 

@@ -23,11 +23,6 @@ import { MagicLinkRequestComponent } from './magic-link-request/magic-link-reque
 import { RECAPTCHA_SETTINGS, RecaptchaFormsModule, RecaptchaModule, RecaptchaSettings } from 'ng-recaptcha';
 import {environment} from "../environments/environment";
 import {AccountService} from "./services/account.service";
-import { ForbiddenComponent } from './forbidden/forbidden.component';
-import { ProjectComponent } from './project/project.component';
-import {AddProjectComponent} from "./add-project/add-project.component";
-import { ProjectInfoComponent } from './project-info/project-info.component';
-
 
 function initTokenVerification(accountService: AccountService) {
   return () => {
@@ -53,9 +48,7 @@ function initTokenVerification(accountService: AccountService) {
     PasswordResetComponent,
     MagicLinkRequestComponent,
     MagicLinkComponent,
-    ForbiddenComponent,
-    ProjectComponent,
-    ProjectInfoComponent,
+
   ],
   imports: [
     BrowserModule,
@@ -72,7 +65,6 @@ function initTokenVerification(accountService: AccountService) {
     MenuComponent,
     RecaptchaModule,
     RecaptchaFormsModule,
-    AddProjectComponent,
   ],
   providers: [
     {
