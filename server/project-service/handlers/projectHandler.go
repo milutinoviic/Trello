@@ -320,6 +320,42 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 		return
 	}
 
+	project, err := p.repo.GetById(projectId)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	nc, err := Conn()
+	if err != nil {
+		log.Println("Error connecting to NATS:", err)
+		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
+		return
+	}
+	defer nc.Close()
+
+	subject := "project.removed"
+
+	message := struct {
+		UserID      string `json:"userId"`
+		ProjectName string `json:"projectName"`
+	}{
+		UserID:      userId,
+		ProjectName: project.Name,
+	}
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Error marshalling message:", err)
+		return
+	}
+
+	err = nc.Publish(subject, jsonMessage)
+	if err != nil {
+		log.Println("Error publishing message to NATS:", err)
+	}
+
+	p.logger.Println("a message has been sent")
 	rw.WriteHeader(http.StatusOK)
 }
 
