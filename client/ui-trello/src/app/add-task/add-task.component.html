@@ -2,7 +2,6 @@
   <div class="task-card">
     <h2>Create Task</h2>
     <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
-      <!-- Task Title -->
       <div class="form-group">
         <label for="taskTitle">Task Title</label>
         <input
@@ -15,7 +14,6 @@
         />
       </div>
 
-      <!-- Task Description -->
       <div class="form-group">
         <label for="taskDescription">Task Description</label>
         <textarea
@@ -27,7 +25,6 @@
         ></textarea>
       </div>
 
-      <!-- Submit Button -->
       <div class="form-group">
         <button type="submit" [disabled]="taskForm.invalid" class="btn btn-primary">
           Create Task
@@ -37,44 +34,45 @@
   </div>
 </div>
 
-
 <div *ngIf="tasks.length > 0; else noTasks" class="task">
   <h3>All Tasks</h3>
-  <ul>
-    <li *ngFor="let task of tasks">
-      <h4>{{ task.name }}</h4>
-      <p>{{ task.description }}</p>
-      <p>Status: {{ task.status }}</p>
-      <p>Created At: <span class="bold">{{ task.createdAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
-      <p>Updated At: <span class="bold">{{ task.updatedAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
-      <p>Blocked: <span class="bold">{{ task.blocked ? 'Yes' : 'No' }}</span></p>
+  <div>
+    <ul>
+      <li *ngFor="let task of tasks">
+        <div class="task-card">
+          <h4>{{ task.name }}</h4>
+          <p>{{ task.description }}</p>
+          <p>Status: {{ task.status }}</p>
+          <p>Created At: <span class="bold">{{ task.createdAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
+          <p>Updated At: <span class="bold">{{ task.updatedAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
+          <p>Blocked: <span class="bold">{{ task.blocked ? 'Yes' : 'No' }}</span></p>
 
+          <div *ngIf="task.dependencies && task.dependencies.length > 0">
+            <h5>Dependencies:</h5>
+            <ul>
+              <li *ngFor="let dep of getTaskDependencies(task)">
+                {{ dep.name }} - Status: {{ dep.status }}
+              </li>
+            </ul>
+          </div>
 
-      <div *ngIf="task.dependencies && task.dependencies.length > 0">
-        <h5>Dependencies:</h5>
-        <ul>
-          <li *ngFor="let dep of getTaskDependencies(task)">
-            {{ dep.name }} - Status: {{ dep.status }}
-          </li>
-        </ul>
-      </div>
-
-      <label for="taskStatus">Change Status:</label>
-      <select
-        id="taskStatus"
-        [(ngModel)]="task.status"
-        (change)="changeTaskStatus(task)"
-        class="form-control"
-      >
-        <option value="Pending">Pending</option>
-        <option value="In Progress">In Progress</option>
-        <option value="Finished">Finished</option>
-      </select>
-    </li>
-  </ul>
+          <label for="taskStatus">Change Status:</label>
+          <select
+            id="taskStatus"
+            [(ngModel)]="tempStatusMap[task.id]"
+            (change)="changeTaskStatus(task)"
+            class="form-control"
+          >
+            <option value="Pending">Pending</option>
+            <option value="In Progress">In Progress</option>
+            <option value="Finished">Finished</option>
+          </select>
+        </div>
+      </li>
+    </ul>
+  </div>
 </div>
 
 <ng-template #noTasks>
   <p>No tasks available.</p>
 </ng-template>
-

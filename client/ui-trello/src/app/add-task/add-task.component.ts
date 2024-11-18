@@ -1,7 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ActivatedRoute} from "@angular/router";
-import {Task} from "../models/task";
+import {Task, TaskStatus} from "../models/task";
 import {TaskService} from "../services/task.service";
 import {HttpClient} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
@@ -18,6 +18,8 @@ export class AddTaskComponent implements OnInit {
   taskForm!: FormGroup;
   projectId!: string;
   tasks: Task[] = [];
+  tempStatusMap: { [taskId: string]: TaskStatus } = {};
+
 
   constructor(
     private fb: FormBuilder,
@@ -47,6 +49,9 @@ export class AddTaskComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.tasks = response.reverse();
+          this.tasks.forEach(task => {
+            this.tempStatusMap[task.id] = task.status as TaskStatus;
+          });
           console.log('Data fetched successfully:', this.tasks);
         },
         error: (error) => {
@@ -99,13 +104,18 @@ export class AddTaskComponent implements OnInit {
 
     if (hasPendingDependencies) {
       this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
+      this.tempStatusMap[task.id] = task.status;
       return;
     }
     const isUserAssigned = await this.checkIfUserIsAssigned(task);
     if (!isUserAssigned) {
       this.toastr.warning("Cannot change status: You are not assigned to this task.");
+      this.tempStatusMap[task.id] = task.status;
       return;
     }
+
+    const updatedStatus = this.tempStatusMap[task.id];
+    task.status = updatedStatus;
 
     this.taskService.updateTaskStatus(task).subscribe({
       next: () => {
@@ -123,9 +133,7 @@ export class AddTaskComponent implements OnInit {
   async checkIfUserIsAssigned(task: Task): Promise<boolean> {
     try {
       const value = await firstValueFrom(this.taskService.checkIfUserInTask(task));
-      // DELETE THE COMMENT WHEN ASSIGNING TASKS IS DONE
-      // return value;
-      return true;
+      return value;
     } catch (error) {
       console.error('Error checking if user is assigned', error);
       return false;
