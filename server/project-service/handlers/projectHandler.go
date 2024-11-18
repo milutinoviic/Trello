@@ -353,3 +353,38 @@ func (uh *ProjectsHandler) MiddlewareCheckRoles(allowedRoles []string, next http
 		next.ServeHTTP(rw, h)
 	})
 }
+
+func (p *ProjectsHandler) IsUserInProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	projectID := vars["id"]
+	userID := vars["userId"]
+
+	isMember := p.isUserInProject(projectID, userID)
+
+	if isMember {
+		rw.WriteHeader(http.StatusOK)
+		json.NewEncoder(rw).Encode(map[string]bool{"is_member": true})
+	} else {
+		rw.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(rw).Encode(map[string]bool{"is_member": false})
+	}
+}
+
+func (p *ProjectsHandler) isUserInProject(projectID, userID string) bool {
+	project, err := p.repo.GetById(projectID)
+	if err != nil {
+		p.logger.Println("Error fetching project:", err)
+		return false
+	}
+
+	return contains(project.UserIDs, userID)
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}

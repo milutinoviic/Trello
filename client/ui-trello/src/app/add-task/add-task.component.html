@@ -48,6 +48,11 @@
       <p>Created At: <span class="bold">{{ task.createdAt | date }}</span></p>
       <p>Updated At:<span class="bold"> {{ task.updatedAt | date }}</span></p>
       <p>Blocked:<span class="bold"> {{ task.blocked ? 'Yes' : 'No' }}</span></p>
+      <div>
+        <input [(ngModel)]="userIdsMap[task.id]" placeholder="Enter user ID" />
+        <button (click)="addUserToTask(task)">Add User</button>
+        <button (click)="removeUserFromTask(task)">Remove User</button>
+      </div>
     </li>
   </ul>
 </div>

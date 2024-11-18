@@ -45,6 +45,7 @@ func main() {
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.HandleFunc("/", projectsHandler.GetAllProjects)
 	getRouter.Handle("/projects", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetAllProjectsByUser))))
+	getRouter.HandleFunc("/projects/{id}/users/{userId}/check", projectsHandler.IsUserInProject).Methods("GET")
 
 	postRouter := router.Methods(http.MethodPost).Subrouter()
 	postRouter.HandleFunc("/", projectsHandler.PostProject)
