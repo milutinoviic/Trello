@@ -1,10 +1,12 @@
-import { Component, OnInit } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from "@angular/forms";
-import { ActivatedRoute } from "@angular/router";
-import { Task } from "../models/task";
-import { TaskService } from "../services/task.service";
-import { HttpClient } from "@angular/common/http";
+import {Component, OnInit} from '@angular/core';
+import {FormBuilder, FormGroup, Validators} from "@angular/forms";
+import {ActivatedRoute} from "@angular/router";
+import {Task} from "../models/task";
+import {TaskService} from "../services/task.service";
+import {HttpClient} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
+import {AccountService} from "../services/account.service";
+import {firstValueFrom} from "rxjs";
 
 @Component({
   selector: 'app-add-task',
@@ -23,6 +25,7 @@ export class AddTaskComponent implements OnInit {
     private taskService: TaskService,
     private http: HttpClient,
     private toastr: ToastrService,
+    private accountService: AccountService,
   ) {}
 
   ngOnInit(): void {
@@ -89,13 +92,26 @@ export class AddTaskComponent implements OnInit {
   }
 
 
-  changeTaskStatus(task: Task): void {
-    console.log(task);
+  async changeTaskStatus(task: Task): Promise<void> {
+    const dependencies = this.getTaskDependencies(task);
+
+    const hasPendingDependencies = dependencies.some(dep => dep.status === 'Pending');
+
+    if (hasPendingDependencies) {
+      this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
+      return;
+    }
+    const isUserAssigned = await this.checkIfUserIsAssigned(task);
+    if (!isUserAssigned) {
+      this.toastr.warning("Cannot change status: You are not assigned to this task.");
+      return;
+    }
+
     this.taskService.updateTaskStatus(task).subscribe({
       next: () => {
         console.log('Task status updated to:', task.status);
         this.fetchTasks(this.projectId);
-        this.toastr.success("Task successfully updated");
+        this.toastr.success("Task status successfully updated");
       },
       error: (error) => {
         console.error('Error updating task status:', error);
@@ -103,4 +119,17 @@ export class AddTaskComponent implements OnInit {
       }
     });
   }
+
+  async checkIfUserIsAssigned(task: Task): Promise<boolean> {
+    try {
+      const value = await firstValueFrom(this.taskService.checkIfUserInTask(task));
+      // DELETE THE COMMENT WHEN ASSIGNING TASKS IS DONE
+      // return value;
+      return true;
+    } catch (error) {
+      console.error('Error checking if user is assigned', error);
+      return false;
+    }
+  }
+
 }

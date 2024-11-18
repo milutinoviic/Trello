@@ -1,4 +1,4 @@
-import {NgModule } from '@angular/core';
+import {APP_INITIALIZER, NgModule} from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 
 import { AppRoutingModule } from './app-routing.module';
@@ -24,6 +24,16 @@ import { RECAPTCHA_SETTINGS, RecaptchaFormsModule, RecaptchaModule, RecaptchaSet
 import {environment} from "../environments/environment";
 import { ForbiddenComponent } from './forbidden/forbidden.component';
 
+import {AccountService} from "./services/account.service";
+
+function initTokenVerification(accountService: AccountService) {
+  return () => {
+    const userId = accountService.getUserId();
+    if (userId) {
+      accountService.startTokenVerification(userId);
+    }
+  };
+}
 
 
 @NgModule({
@@ -65,6 +75,12 @@ import { ForbiddenComponent } from './forbidden/forbidden.component';
         siteKey: environment.recaptcha.siteKey,
       } as RecaptchaSettings,
     },
+    {
+      provide: APP_INITIALIZER,
+      useFactory: initTokenVerification,
+      deps: [AccountService],
+      multi: true
+    }
   ],
   exports: [
     MenuComponent

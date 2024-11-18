@@ -6,6 +6,9 @@ import {BehaviorSubject, interval, Observable, Subscription, switchMap} from 'rx
 import { AccountRequest } from '../models/account-request.model';
 import { LoginRequest } from '../models/login-request';
 import {Router} from "@angular/router";
+import { jwtDecode } from 'jwt-decode';
+
+
 
 @Injectable({
   providedIn: 'root'
@@ -25,10 +28,17 @@ export class AccountService {
 
   // Get the userId directly
   getUserId(): string | null {
+    if (this.userIdSource.value === null) {
+      this.userIdSource.next(this.getUserIdFromToken());
+      return this.getUserIdFromToken();
+    }
     return this.userIdSource.getValue();
   }
 
-
+  getTokenFromCookie(): string | null {
+    const matches = document.cookie.match(new RegExp('(^| )auth_token=([^;]+)'));
+    return matches ? matches[2] : null;
+  }
   register(accountRequest: AccountRequest): Observable<any> {
     return this.http.post(this.config.register_url, accountRequest);
   }
@@ -129,4 +139,22 @@ export class AccountService {
   verifyMagic(email: string): Observable<string> {
     return this.http.post<string>(this.config.verify_magic_url, {email})
   }
+
+  getUserIdFromToken(): string | null {
+    const token = this.getTokenFromCookie();
+    console.log(token);
+    if (token) {
+      try {
+        const decodedToken = jwtDecode<{ user_id: string }>(token);
+        console.log(decodedToken);
+        return decodedToken.user_id;
+      } catch (error) {
+        console.error('Error decoding JWT:', error);
+        return null;
+      }
+    }
+    return null;
+  }
+
+
 }
