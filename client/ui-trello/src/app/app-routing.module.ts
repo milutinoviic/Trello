@@ -11,20 +11,28 @@ import { PasswordRecoveryRequestComponent } from './password-recovery-request/pa
 import {PasswordResetComponent} from "./password-reset/password-reset.component";
 import {MagicLinkRequestComponent} from "./magic-link-request/magic-link-request.component";
 import {MagicLinkComponent} from "./magic-link/magic-link.component";
+import {roleGuard} from "./guards/role.guard";
+import {ForbiddenComponent} from "./forbidden/forbidden.component";
+import {loginGuard} from "./guards/login.guard";
+import {ProjectComponent} from "./project/project.component";
+import {ProjectInfoComponent} from "./project-info/project-info.component";
 
 export const routes: Routes = [
-  { path: 'register', component: RegistrationComponent },
+  { path: 'register', component: RegistrationComponent, canActivate:[loginGuard]},
   { path: '', redirectTo: '/register', pathMatch: 'full' },
-  { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent },
-  { path: 'projects', component: AddProjectComponent},
-  { path: 'login', component: LoginComponent },
-  { path: 'notifications', component: NotificationsComponent },
-  { path: 'changePassword', component: ChangePasswordComponent },
-  { path: 'projects/:projectId/addTask', component: AddTaskComponent},
-  { path:'recovery', component: PasswordRecoveryRequestComponent },
-  { path: 'password/recovery/:email', component: PasswordResetComponent },
-  { path: 'magic', component: MagicLinkRequestComponent },
-  { path: 'magic/:email', component: MagicLinkComponent },
+  { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent, data:{ expectedRoles:"manager"}, canActivate:[roleGuard] },
+  { path: 'projects', component: AddProjectComponent, data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard] },
+  { path: 'login', component: LoginComponent, canActivate:[loginGuard] },
+  { path: 'notifications', component: NotificationsComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'changePassword', component: ChangePasswordComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'projects/:projectId/addTask', component: AddTaskComponent,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path:'recovery', component: PasswordRecoveryRequestComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'password/recovery/:email', component: PasswordResetComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'magic', component: MagicLinkRequestComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'magic/:email', component: MagicLinkComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'forbidden', component: ForbiddenComponent },
+  { path: 'project', component: ProjectComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
+  { path: 'projectInfo/:projectId', component: ProjectInfoComponent ,data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard]},
 ];
 
 @NgModule({

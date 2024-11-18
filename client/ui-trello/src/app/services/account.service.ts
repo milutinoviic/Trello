@@ -15,8 +15,8 @@ import { jwtDecode } from 'jwt-decode';
 })
 export class AccountService {
   private userIdSource = new BehaviorSubject<string | null>(null);
+  private roleSource = new BehaviorSubject<string | null>(null);
   userId$ = this.userIdSource.asObservable();
-
   private tokenVerificationSub!: Subscription;
 
   constructor(private http: HttpClient, private config: ConfigService, private router: Router) {}
@@ -34,6 +34,7 @@ export class AccountService {
     }
     return this.userIdSource.getValue();
   }
+
 
   getTokenFromCookie(): string | null {
     const matches = document.cookie.match(new RegExp('(^| )auth_token=([^;]+)'));
@@ -63,8 +64,11 @@ export class AccountService {
 
   logout(): Observable<any> {
     this.stopTokenVerification();
+    localStorage.removeItem("role");
     return this.http.post(this.config.logout_url, null);
   }
+
+
 
   startTokenVerification(userId: string) {
     console.log("Token verification started for user:", userId);

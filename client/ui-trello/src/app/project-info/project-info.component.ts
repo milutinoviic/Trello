@@ -1,8 +1,13 @@
-import {Component, Input, OnInit} from '@angular/core';
+import {Component, OnInit} from '@angular/core';
+import {Project} from "../models/project.model";
 import {ProjectServiceService} from "../services/project-service.service";
 import {ActivatedRoute, Router} from "@angular/router";
 import {AccountService} from "../services/account.service";
-import {Project} from "../models/project.model";
+import {Task} from "../models/task";
+import {HttpClient} from "@angular/common/http";
+
+
+
 
 export interface UserResponse {
   id: string;
@@ -18,27 +23,32 @@ interface User {
   email: string;
 }
 
+
+
 @Component({
-  selector: 'app-member-addition',
-  templateUrl: './member-addition.component.html',
-  styleUrls: ['./member-addition.component.css']
+  selector: 'app-project-info',
+  templateUrl: './project-info.component.html',
+  styleUrl: './project-info.component.css'
 })
-export class MemberAdditionComponent implements OnInit {
+export class ProjectInfoComponent implements OnInit {
+
   allUsers: User[] = [];
   projectMembers: any[] = [];
   searchTerm: string = '';
   minMembers: number = 0;
   maxMembers: number = 0;
   filteredUsers: User[] = [];
-  @Input() projectId: string = '';
+  projectId: string = '';
   project: Project | null = null;
   managerId: string = "";
+  tasks: Task[] = [];
 
   constructor(
     private projectService: ProjectServiceService,
     private route: ActivatedRoute,
     private accountService: AccountService,
-    private router: Router
+    private router: Router,
+    private http: HttpClient,
   ) {}
 
   ngOnInit() {
@@ -47,6 +57,8 @@ export class MemberAdditionComponent implements OnInit {
 
     this.route.paramMap.subscribe(params => {
       this.projectId = params.get('projectId')!;
+
+      this.fetchTasks(this.projectId);
 
       this.accountService.getAllUsers().subscribe({
         next: (users: UserResponse[]) => {
@@ -149,5 +161,57 @@ export class MemberAdditionComponent implements OnInit {
   addNewProject() {
     this.router.navigate(['/projects']);
   }
-}
 
+
+  showAddTask: boolean = false;
+  openAddTaskModal() {
+    this.showAddTask = true;
+  }
+
+  closeAddTaskModal() {
+    this.showAddTask = false;
+  }
+
+
+  fetchTasks(projectId: string) {
+    this.http.get<Task[]>(`/api/task-server/tasks/${projectId}`)
+      .subscribe({
+        next: (response) => {
+          this.tasks = response.reverse();
+          console.log('Data fetched successfully:', this.tasks);
+        },
+        error: (error) => {
+          console.error('Error fetching data:', error);
+        }
+      });
+  }
+
+
+  selectedTask: any = null;
+
+  selectTask(task: any): void {
+    this.selectedTask = task;
+  }
+
+  closeTaskDetails(): void {
+    this.selectedTask = null;
+  }
+
+  showAddMemberModal = false;
+
+  openMemberAdditionModal(projectId: string) {
+    this.projectId = projectId;
+    this.showAddMemberModal = true;
+  }
+
+
+  closeMemberAdditionModal() {
+    this.showAddMemberModal = false;
+  }
+
+  goBackToProject() {
+    this.router.navigate(['/project']);
+  }
+
+
+}

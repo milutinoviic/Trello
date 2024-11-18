@@ -1,0 +1,98 @@
+.task-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.task-card {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  padding: 10px;
+  width: 200px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+  border-radius: 8px;
+  height: auto;
+  word-wrap: break-word;
+}
+
+.task-card:hover {
+  transform: scale(1.05);
+}
+
+.task-details-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.task-details {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 500px;
+  width: 100%;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between; /* Poravnava naziva taska i dugmeta Member */
+  align-items: center;
+  margin-bottom: 10px; /* Razmak između headera i ostatka sadržaja */
+}
+
+.task-header h4 {
+  margin: 0;
+}
+
+.btn-light {
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: 5px;
+  margin-left: 1cm;
+}
+
+.btn-light:hover {
+  background-color: #e2e6ea;
+}
+
+button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 5px;
+  margin-top: 10px;
+}
+
+button:hover {
+  background-color: #0056b3;
+}
+
+.navbar-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+}
+
+.navbar-buttons button {
+  margin-right: 10px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+}
