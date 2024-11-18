@@ -218,3 +218,33 @@ func (tr *TaskRepository) getChangeCollection() *mongo.Collection {
 	changeCollection := projectDatabase.Collection("task_member_activity")
 	return changeCollection
 }
+
+func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	objID, err := primitive.ObjectIDFromHex(task.ID.Hex())
+	if err != nil {
+		return fmt.Errorf("invalid task ID: %v", err)
+	}
+
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": objID}
+	update := bson.M{
+		"$set": bson.M{
+			"status":     task.Status,
+			"updated_at": time.Now(),
+		},
+	}
+
+	result, err := tasksCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return fmt.Errorf("failed to update task status: %v", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("no task found with the given ID")
+	}
+
+	return nil
+}

@@ -11,7 +11,7 @@ type TaskStatus string
 
 const (
 	Pending    TaskStatus = "Pending"
-	InProgress TaskStatus = "InProgress"
+	InProgress TaskStatus = "In Progress"
 	Completed  TaskStatus = "Completed"
 )
 

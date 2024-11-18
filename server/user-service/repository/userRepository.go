@@ -3,6 +3,7 @@ package repository
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
@@ -14,7 +15,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"main.go/data"
+	"main.go/utils"
+	"net/http"
 	"net/smtp"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -478,4 +482,81 @@ func ForbidPassword(password string) error {
 	}
 
 	return nil
+}
+
+func (ur *UserRepository) VerifyRecaptcha(token string) (bool, error) {
+	if token == "" {
+		fmt.Println("token is empty")
+		ur.logger.Println("Empty reCAPTCHA token")
+		return false, errors.New("empty reCAPTCHA token")
+	}
+
+	ur.logger.Println("This is token: ", token)
+
+	secret := os.Getenv("CAPTCHA")
+	if secret == "" {
+		ur.logger.Println("RECAPTCHA_SECRET_KEY is not set")
+	} else {
+		ur.logger.Println("RECAPTCHA_SECRET_KEY successfully loaded")
+	}
+
+	resp, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify",
+		url.Values{"secret": {secret}, "response": {token}})
+
+	if err != nil {
+		fmt.Println(err)
+		ur.logger.Println("Error calling reCAPTCHA API:", err)
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// Decode the response
+	var recaptchaResp utils.RecaptchaResponse
+	if err := json.NewDecoder(resp.Body).Decode(&recaptchaResp); err != nil {
+		fmt.Println(err)
+		ur.logger.Println("Error decoding reCAPTCHA response:", err)
+		return false, err
+	}
+
+	if !recaptchaResp.Success {
+		fmt.Println("recaptcha failed:", recaptchaResp.ErrorCodes)
+		ur.logger.Println("reCAPTCHA verification failed:", recaptchaResp.ErrorCodes)
+		return false, errors.New("reCAPTCHA verification failed")
+	}
+
+	return true, nil
+}
+
+func (ur *UserRepository) GetUsersByIds(ids []string) ([]data.Account, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	accountCollection := ur.getAccountCollection()
+
+	var objectIds []primitive.ObjectID
+	for _, id := range ids {
+		objectId, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			ur.logger.Println("Error parsing ObjectID:", err)
+			return nil, fmt.Errorf("invalid user ID format: %s", id)
+		}
+		objectIds = append(objectIds, objectId)
+	}
+
+	filter := bson.M{"_id": bson.M{"$in": objectIds}}
+
+	cursor, err := accountCollection.Find(ctx, filter)
+	if err != nil {
+		ur.logger.Println("Error finding accounts:", err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []data.Account
+	if err := cursor.All(ctx, &users); err != nil {
+		ur.logger.Println("Error decoding accounts:", err)
+		return nil, err
+	}
+
+	return users, nil
 }

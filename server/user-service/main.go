@@ -42,6 +42,7 @@ func main() {
 	r.Handle("/logout", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.Logout))))
 	r.Handle("/password/check", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.CheckPasswords))))
 	r.Handle("/password/change", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(uh.ChangePassword))))
+	r.Handle("/users/details", uh.MiddlewareExtractUserFromCookie(uh.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(uh.GetUsersByIds)))).Methods("POST")
 
 	r.Handle("/password/recovery", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleRecovery))).Methods(http.MethodPost)
 	r.Handle("/password/reset", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandlePasswordReset))).Methods(http.MethodPost)

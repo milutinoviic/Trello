@@ -145,3 +145,20 @@ func (us *UserService) ValidateToken(token string) (string, string, error) {
 
 	return userID, role, nil
 }
+
+func (us *UserService) VerifyRecaptcha(token string) (bool, error) {
+	success, err := us.user.VerifyRecaptcha(token)
+	if err != nil {
+		us.logger.Println("Error verifying recaptcha:", err)
+		return false, err
+	}
+	return success, nil
+}
+
+func (us *UserService) GetUsersByIds(userIds []string) ([]data.Account, error) {
+	users, err := us.user.GetUsersByIds(userIds)
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}

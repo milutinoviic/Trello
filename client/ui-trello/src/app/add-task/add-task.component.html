@@ -2,56 +2,60 @@
   <div class="task-card">
     <h2>Create Task</h2>
     <form [formGroup]="taskForm" (ngSubmit)="onSubmit()">
-      <!-- Task Title -->
       <div class="form-group">
         <label for="taskTitle">Task Title</label>
-        <input
-          id="taskTitle"
-          formControlName="taskTitle"
-          type="text"
-          placeholder="Enter task title"
-          class="form-control"
-          required
-        />
+        <input id="taskTitle" formControlName="taskTitle" type="text" placeholder="Enter task title" class="form-control" required />
       </div>
 
-      <!-- Task Description -->
       <div class="form-group">
         <label for="taskDescription">Task Description</label>
-        <textarea
-          id="taskDescription"
-          formControlName="taskDescription"
-          placeholder="Enter task description"
-          class="form-control"
-          rows="4"
-        ></textarea>
+        <textarea id="taskDescription" formControlName="taskDescription" placeholder="Enter task description" class="form-control" rows="4"></textarea>
       </div>
 
-      <!-- Submit Button -->
       <div class="form-group">
-        <button type="submit" [disabled]="taskForm.invalid" class="btn btn-primary">
-          Create Task
-        </button>
+        <button type="submit" [disabled]="taskForm.invalid" class="btn btn-primary">Create Task</button>
       </div>
     </form>
   </div>
 </div>
 
-
 <div *ngIf="tasks.length > 0; else noTasks" class="task">
   <h3>All Tasks</h3>
   <ul>
     <li *ngFor="let task of tasks">
-      <h4>{{ task.name }}</h4>
-      <p>{{ task.description }}</p>
-      <p>Status: {{ task.status }}</p>
-      <p>Created At: <span class="bold">{{ task.createdAt | date }}</span></p>
-      <p>Updated At:<span class="bold"> {{ task.updatedAt | date }}</span></p>
-      <p>Blocked:<span class="bold"> {{ task.blocked ? 'Yes' : 'No' }}</span></p>
-      <div>
-        <input [(ngModel)]="userIdsMap[task.id]" placeholder="Enter user ID" />
-        <button (click)="addUserToTask(task)">Add User</button>
-        <button (click)="removeUserFromTask(task)">Remove User</button>
+      <div class="task-card">
+        <h4>{{ task.name }}</h4>
+        <p>{{ task.description }}</p>
+        <p>Status: {{ task.status }}</p>
+        <p>Created At: <span class="bold">{{ task.createdAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
+        <p>Updated At: <span class="bold">{{ task.updatedAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
+        <p>Blocked: <span class="bold">{{ task.blocked ? 'Yes' : 'No' }}</span></p>
+
+        <div *ngIf="isManager">
+          <label for="userSearch">Search Users:</label>
+          <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(task.id)" class="form-control" placeholder="Search by email" />
+
+          <div *ngFor="let user of filteredUsers[task.id]">
+            <div>
+              <button (click)="addUserToTask(task, user)">Add {{ user.email }}</button>
+            </div>
+          </div>
+
+          <h5>Assigned Members:</h5>
+          <ul>
+            <li *ngFor="let member of taskMembers[task.id]">
+              {{ member.email }}
+              <button (click)="removeUserFromTask(task, member)">Remove</button>
+            </li>
+          </ul>
+        </div>
+
+        <label for="taskStatus">Change Status:</label>
+        <select id="taskStatus" [(ngModel)]="task.status" (change)="changeTaskStatus(task)" class="form-control">
+          <option value="Pending">Pending</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Finished">Finished</option>
+        </select>
       </div>
     </li>
   </ul>

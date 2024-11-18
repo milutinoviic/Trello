@@ -388,3 +388,40 @@ func contains(slice []string, item string) bool {
 	}
 	return false
 }
+
+func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.Request) {
+	role, ok := h.Context().Value(KeyRole{}).(string)
+	if !ok {
+		http.Error(rw, "Role not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	userId, ok := h.Context().Value(KeyProject{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(h)
+	projectId := vars["id"]
+
+	if role != "manager" {
+		rw.WriteHeader(http.StatusOK)
+		_, _ = rw.Write([]byte("false"))
+		return
+	}
+
+	isManager, err := p.repo.IsUserManagerOfProject(userId, projectId)
+	if err != nil {
+		http.Error(rw, "Error checking manager status", http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	if isManager {
+		_, _ = rw.Write([]byte("true"))
+	} else {
+		_, _ = rw.Write([]byte("false"))
+	}
+}

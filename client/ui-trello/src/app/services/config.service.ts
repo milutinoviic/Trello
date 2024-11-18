@@ -8,10 +8,11 @@ export class ConfigService {
     return this._verify_token_url;
   }
 
-  constructor() { }
+  constructor() {
+  }
 
   private _api_url = '/api/user-server';//before /api/user-server/  will be added "http://api_gateway:8084" defined in proxy.conf.json file
-                                               // when api-gateway recieves this path it will redirect to user-server
+  // when api-gateway recieves this path it will redirect to user-server
 
   private _project_api_url = '/api/project-server'; // same a below, it will be redirected to api-gateway, then to project-server
 
@@ -64,6 +65,7 @@ export class ConfigService {
   get password_check_url(): string {
     return this._password_check_url;
   }
+
   private _notifications_url = this._notifications_api_url + "/notifications"
 
   get logout_url(): string {
@@ -86,6 +88,10 @@ export class ConfigService {
     return `${this._project_api_url}/projects/${projectId}/addUsers`;
   }
 
+  checkManagerUrl(projectId: string): string {
+    return `${this._project_api_url}/projects/${projectId}/manager`;
+  }
+
   getProjectByIdUrl(projectId: string): string {
     return `${this._project_api_url}/${projectId}`;
   }
@@ -98,11 +104,11 @@ export class ConfigService {
     return this._register_url;
   }
 
-  get new_project_url(){
+  get new_project_url() {
     return this._new_project_url;
   }
 
-  get new_task_url(){
+  get new_task_url() {
     return this._task_api_url;
   }
 
@@ -129,4 +135,24 @@ export class ConfigService {
   get change_password_url(): string {
     return this._change_password_url;
   }
+
+  private _update_status_url = this._task_api_url + "/tasks"+ "/status";
+  private _check_task_url = this._task_api_url + "/tasks"+ "/check";
+
+  get notifications_api_url(): string {
+    return this._notifications_api_url;
+  }
+
+  get task_api_url(): string {
+    return this._task_api_url;
+  }
+
+  get update_status_url(): string {
+    return this._update_status_url;
+  }
+
+  get check_task_url(): string {
+    return this._check_task_url;
+  }
 }
+

@@ -24,12 +24,17 @@ type Account struct {
 }
 
 type LoginCredentials struct {
-	Email    string `bson:"email" json:"email"`
-	Password string `bson:"password" json:"password"`
+	Email          string `bson:"email" json:"email"`
+	Password       string `bson:"password" json:"password"`
+	RecaptchaToken string `bson:"recaptchaToken" json:"recaptchaToken"`
 }
 
 type ChangePasswordRequest struct {
 	Password string `bson:"password" json:"password"`
+}
+
+type UserIdsRequest struct {
+	UserIds []string `json:"userIds"`
 }
 
 type Accounts []*Account

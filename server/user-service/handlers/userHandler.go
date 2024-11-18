@@ -9,7 +9,6 @@ import (
 	"main.go/data"
 	"main.go/repository"
 	"main.go/service"
-
 	"net/http"
 )
 
@@ -209,6 +208,17 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		uh.logger.Println("Error decoding request:", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	boolean, err := uh.service.VerifyRecaptcha(request.RecaptchaToken)
+	if !boolean {
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusForbidden)
+			return
+		}
+		http.Error(rw, "Error validating reCAPTCHA", http.StatusForbidden)
+		return
+
 	}
 
 	id, token, err := uh.service.Login(request)
@@ -523,4 +533,39 @@ func (uh *UserHandler) MiddlewareCheckAuthenticated(next http.Handler) http.Hand
 
 		next.ServeHTTP(rw, r)
 	})
+}
+
+func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
+	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+
+	var request data.UserIdsRequest
+	err := json.NewDecoder(h.Body).Decode(&request)
+	if err != nil {
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		uh.logger.Println("Error decoding user IDs:", err)
+		return
+	}
+
+	userIds := request.UserIds
+
+	users, err := uh.service.GetUsersByIds(userIds)
+	if err != nil {
+		uh.logger.Println("Error retrieving users:", err)
+		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+
+	if users == nil || len(users) == 0 {
+		http.Error(rw, "No users found", http.StatusNotFound)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(rw).Encode(users)
+	if err != nil {
+		uh.logger.Println("Error writing response:", err)
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		return
+	}
 }
