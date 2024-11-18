@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, Input, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ActivatedRoute} from "@angular/router";
 import {Task} from "../models/task";
@@ -14,7 +14,7 @@ import {HttpClient} from "@angular/common/http";
 export class AddTaskComponent implements OnInit {
 
   taskForm!: FormGroup;
-  projectId!:string;
+  @Input() projectId!:string;
   tasks: Task[] = [];
 
   constructor(

@@ -15,8 +15,8 @@ import {Project} from "../models/project.model";
 export class ProjectComponent implements OnInit {
   showAddProject: boolean = false;
   newProjectForm!: FormGroup;
-  projects: any[] = [];  // Svi projekti
-  manager: any;  // Menadžer koji je odgovoran za projekte
+  projects: any[] = [];
+  manager: any;
 
   constructor(
     private formBuilder: FormBuilder,
@@ -81,7 +81,7 @@ export class ProjectComponent implements OnInit {
   }
 
   manageMembersToProject(id: string) {
-    this.router.navigate(['/project/manageMembers/', id]);
+    this.router.navigate(['/projectInfo/', id]);
   }
 
 }

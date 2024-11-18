@@ -38,20 +38,20 @@
 </div>
 
 
-<div *ngIf="tasks.length > 0; else noTasks" class="task">
-  <h3>All Tasks</h3>
-  <ul>
-    <li *ngFor="let task of tasks">
-      <h4>{{ task.name }}</h4>
-      <p>{{ task.description }}</p>
-      <p>Status: {{ task.status }}</p>
-      <p>Created At: <span class="bold">{{ task.createdAt | date }}</span></p>
-      <p>Updated At:<span class="bold"> {{ task.updatedAt | date }}</span></p>
-      <p>Blocked:<span class="bold"> {{ task.blocked ? 'Yes' : 'No' }}</span></p>
-    </li>
-  </ul>
-</div>
+<!--<div *ngIf="tasks.length > 0; else noTasks" class="task">-->
+<!--  <h3>All Tasks</h3>-->
+<!--  <ul>-->
+<!--    <li *ngFor="let task of tasks">-->
+<!--      <h4>{{ task.name }}</h4>-->
+<!--      <p>{{ task.description }}</p>-->
+<!--      <p>Status: {{ task.status }}</p>-->
+<!--      <p>Created At: <span class="bold">{{ task.createdAt | date }}</span></p>-->
+<!--      <p>Updated At:<span class="bold"> {{ task.updatedAt | date }}</span></p>-->
+<!--      <p>Blocked:<span class="bold"> {{ task.blocked ? 'Yes' : 'No' }}</span></p>-->
+<!--    </li>-->
+<!--  </ul>-->
+<!--</div>-->
 
-<ng-template #noTasks>
-  <p>No tasks available.</p>
-</ng-template>
+<!--<ng-template #noTasks>-->
+<!--  <p>No tasks available.</p>-->
+<!--</ng-template>-->

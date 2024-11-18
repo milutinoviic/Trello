@@ -50,7 +50,7 @@ export class LoginComponent implements OnInit {
 
           this.accountService.startTokenVerification(userId);
           localStorage.setItem("role", result.role);
-          this.router.navigate(['/projects']);
+          this.router.navigate(['/project']);
         },
         error: (error) => {
           console.error("Login error:", error);
