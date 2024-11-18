@@ -22,7 +22,7 @@ import { MagicLinkComponent } from './magic-link/magic-link.component';
 import { MagicLinkRequestComponent } from './magic-link-request/magic-link-request.component';
 import { RECAPTCHA_SETTINGS, RecaptchaFormsModule, RecaptchaModule, RecaptchaSettings } from 'ng-recaptcha';
 import {environment} from "../environments/environment";
-
+import { ForbiddenComponent } from './forbidden/forbidden.component';
 
 
 
@@ -40,7 +40,7 @@ import {environment} from "../environments/environment";
     PasswordResetComponent,
     MagicLinkRequestComponent,
     MagicLinkComponent,
-
+    ForbiddenComponent,
   ],
   imports: [
     BrowserModule,
