@@ -84,6 +84,7 @@ export class LoginComponent implements OnInit {
         },
         error: (error) => {
           console.error('Login error:', error);
+          localStorage.removeItem("role");
           this.isSubmitting = false;
           if (error.status === 403) {
             this.toastr.error('You are already logged in');
