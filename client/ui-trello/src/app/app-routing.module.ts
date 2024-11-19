@@ -18,7 +18,7 @@ import {loginGuard} from "./guards/login.guard";
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent, canActivate:[loginGuard]},
   { path: '', redirectTo: '/register', pathMatch: 'full' },
-  { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent, data:{ expectedRoles:"manager"}, canActivate:[roleGuard] },
+  { path: 'project/manageMembers/:projectId', component: MemberAdditionComponent, data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard] },
   { path: 'projects', component: AddProjectComponent, data:{ expectedRoles:"manager|member"}, canActivate:[roleGuard] },
   { path: 'login', component: LoginComponent, canActivate:[loginGuard] },
   { path: 'notifications', component: NotificationsComponent },

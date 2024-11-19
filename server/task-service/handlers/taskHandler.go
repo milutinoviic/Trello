@@ -261,8 +261,68 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	if action == "add" {
 		task.UserIDs = append(task.UserIDs, userID)
+		nc, err := Conn()
+		if err != nil {
+			log.Println("Error connecting to NATS:", err)
+			http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
+			return
+		}
+		defer nc.Close()
+
+		subject := "task.joined"
+
+		message := struct {
+			UserID   string `json:"userId"`
+			TaskName string `json:"taskName"`
+		}{
+			UserID:   userID,
+			TaskName: task.Name,
+		}
+
+		jsonMessage, err := json.Marshal(message)
+		if err != nil {
+			log.Println("Error marshalling message:", err)
+			return
+		}
+
+		err = nc.Publish(subject, jsonMessage)
+		if err != nil {
+			log.Println("Error publishing message to NATS:", err)
+		}
+
+		t.logger.Println("a message has been sent")
 	} else if action == "remove" {
 		task.UserIDs = remove(task.UserIDs, userID)
+		nc, err := Conn()
+		if err != nil {
+			log.Println("Error connecting to NATS:", err)
+			http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
+			return
+		}
+		defer nc.Close()
+
+		subject := "task.removed"
+
+		message := struct {
+			UserID   string `json:"userId"`
+			TaskName string `json:"taskName"`
+		}{
+			UserID:   userID,
+			TaskName: task.Name,
+		}
+
+		jsonMessage, err := json.Marshal(message)
+		if err != nil {
+			log.Println("Error marshalling message:", err)
+			return
+		}
+
+		err = nc.Publish(subject, jsonMessage)
+		if err != nil {
+			log.Println("Error publishing message to NATS:", err)
+		}
+
+		t.logger.Println("a message has been sent")
 	}
 
 	err = t.repo.Update(task)
@@ -276,6 +336,15 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	rw.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(rw, "Task member change logged and task updated successfully")
+}
+
+func Conn() (*nats.Conn, error) {
+	conn, err := nats.Connect("nats://nats:4222")
+	if err != nil {
+		log.Fatal(err)
+		return nil, err
+	}
+	return conn, nil
 }
 
 func (t *TasksHandler) ProcessTaskMemberActivity() {

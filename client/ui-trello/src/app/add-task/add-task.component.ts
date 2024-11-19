@@ -217,13 +217,24 @@ export class AddTaskComponent implements OnInit {
   }
 
   removeUserFromTask(task: Task, user: User): void {
-    const index = this.taskMembers[task.id].findIndex(member => member.id === user.id);
+    const assignedMembers = this.taskMembers[task.id] || [];
+
+    if (task.status === 'In Progress' && assignedMembers.length === 1) {
+      this.toastr.warning("Cannot remove the last assigned person from an in-progress task.");
+      return;
+    }
+
+    const index = assignedMembers.findIndex(member => member.id === user.id);
     if (index !== -1) {
-      this.taskMembers[task.id].splice(index, 1);
+      assignedMembers.splice(index, 1);
+      this.taskMembers[task.id] = assignedMembers;
+
       this.updateTaskMember(task.id, 'remove', user.id);
-      this.filterUsers(task.id)
+
+      this.filterUsers(task.id);
     }
   }
+
 
 
   updateTaskMember(taskId: string, action: 'add' | 'remove', userId: string): void {

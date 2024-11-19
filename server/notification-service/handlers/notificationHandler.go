@@ -310,6 +310,43 @@ func (n *NotificationHandler) NotificationListener() {
 		log.Println("Error subscribing to NATS subject:", err)
 	}
 
+	taskJoined := "task.joined"
+	_, err = nc.Subscribe(taskJoined, func(msg *nats.Msg) {
+		fmt.Printf("User received notification: %s\n", string(msg.Data))
+
+		var data struct {
+			UserID   string `json:"userId"`
+			TaskName string `json:"taskName"`
+		}
+
+		err := json.Unmarshal(msg.Data, &data)
+		if err != nil {
+			log.Println("Error unmarshalling message:", err)
+			return
+		}
+
+		fmt.Printf("User ID: %s, Task Name: %s\n", data.UserID, data.TaskName)
+
+		message := fmt.Sprintf("You have been added to the %s task", data.TaskName)
+
+		notification := model.Notification{
+			UserID:    data.UserID,
+			Message:   message,
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		}
+
+		err = n.repo.Create(&notification)
+		if err != nil {
+			n.logger.Print("Error inserting notification:", err)
+			return
+		}
+	})
+
+	if err != nil {
+		log.Println("Error subscribing to NATS subject:", err)
+	}
+
 	subjectRemoved := "project.removed"
 	_, err = nc.Subscribe(subjectRemoved, func(msg *nats.Msg) {
 		fmt.Printf("User received removal notification: %s\n", string(msg.Data))
@@ -328,6 +365,43 @@ func (n *NotificationHandler) NotificationListener() {
 		fmt.Printf("User ID: %s, Project Name: %s\n", data.UserID, data.ProjectName)
 
 		message := fmt.Sprintf("You have been removed from the %s project", data.ProjectName)
+
+		notification := model.Notification{
+			UserID:    data.UserID,
+			Message:   message,
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		}
+
+		err = n.repo.Create(&notification)
+		if err != nil {
+			n.logger.Print("Error inserting notification:", err)
+			return
+		}
+	})
+
+	if err != nil {
+		log.Println("Error subscribing to NATS subject:", err)
+	}
+
+	taskRemoved := "task.removed"
+	_, err = nc.Subscribe(taskRemoved, func(msg *nats.Msg) {
+		fmt.Printf("User received removal notification: %s\n", string(msg.Data))
+
+		var data struct {
+			UserID   string `json:"userId"`
+			TaskName string `json:"taskName"`
+		}
+
+		err := json.Unmarshal(msg.Data, &data)
+		if err != nil {
+			log.Println("Error unmarshalling message:", err)
+			return
+		}
+
+		fmt.Printf("User ID: %s, Task Name: %s\n", data.UserID, data.TaskName)
+
+		message := fmt.Sprintf("You have been removed from the %s task", data.TaskName)
 
 		notification := model.Notification{
 			UserID:    data.UserID,

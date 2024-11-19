@@ -31,27 +31,30 @@
         <p>Updated At: <span class="bold">{{ task.updatedAt | date: 'dd.MM.yyyy, HH:mm:ss' }}</span></p>
         <p>Blocked: <span class="bold">{{ task.blocked ? 'Yes' : 'No' }}</span></p>
 
-        <div *ngIf="isManager">
+        <div *ngIf="isManager" class="user-management">
           <label for="userSearch">Search Users:</label>
           <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(task.id)" class="form-control" placeholder="Search by email" />
 
-          <div *ngFor="let user of filteredUsers[task.id]">
-            <div>
-              <button (click)="addUserToTask(task, user)">Add {{ user.email }}</button>
+          <div class="filtered-users">
+            <div *ngFor="let user of filteredUsers[task.id]">
+              <span>{{ user.email }}</span>
+              <button (click)="addUserToTask(task, user)">Add</button>
             </div>
           </div>
 
           <h5>Assigned Members:</h5>
           <ul>
             <li *ngFor="let member of taskMembers[task.id]">
-              {{ member.email }}
+              <span>{{ member.email }}</span>
               <button (click)="removeUserFromTask(task, member)">Remove</button>
             </li>
           </ul>
         </div>
 
+
         <label for="taskStatus">Change Status:</label>
-        <select id="taskStatus" [(ngModel)]="task.status" (change)="changeTaskStatus(task)" class="form-control">
+        <select id="taskStatus" [(ngModel)]="tempStatusMap[task.id]"
+                (change)="changeTaskStatus(task)" class="form-control">
           <option value="Pending">Pending</option>
           <option value="In Progress">In Progress</option>
           <option value="Finished">Finished</option>
