@@ -166,3 +166,11 @@ func (us *UserService) VerifyRecaptcha(token string) (bool, error) {
 	}
 	return success, nil
 }
+
+func (us *UserService) GetUsersByIds(userIds []string) ([]data.Account, error) {
+	users, err := us.user.GetUsersByIds(userIds)
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}

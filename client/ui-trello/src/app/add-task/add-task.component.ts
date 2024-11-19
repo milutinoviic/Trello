@@ -7,6 +7,13 @@ import {HttpClient} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
 import {AccountService} from "../services/account.service";
 import {firstValueFrom} from "rxjs";
+import {Project} from "../models/project.model";
+import {UserResponse} from "../member-addition/member-addition.component";
+import {ProjectServiceService} from "../services/project-service.service";
+interface User {
+  id: string;
+  email: string;
+}
 
 @Component({
   selector: 'app-add-task',
@@ -19,6 +26,11 @@ export class AddTaskComponent implements OnInit {
   projectId!: string;
   tasks: Task[] = [];
   tempStatusMap: { [taskId: string]: TaskStatus } = {};
+  isManager: boolean = false;
+  allUsers: User[] = [];
+  filteredUsers: { [taskId: string]: User[] } = {};
+  searchTerm: string = '';
+  taskMembers: { [taskId: string]: User[] } = {};
 
 
   constructor(
@@ -28,19 +40,55 @@ export class AddTaskComponent implements OnInit {
     private http: HttpClient,
     private toastr: ToastrService,
     private accountService: AccountService,
-  ) {}
+    private projectService: ProjectServiceService
+  ) {
+  }
 
   ngOnInit(): void {
     this.route.params.subscribe(params => {
       this.projectId = params['projectId'];
     });
 
-    this.fetchTasks(this.projectId);
-
+    this.isUserManager().then(isManager => {
+      this.isManager = isManager;
+    });
     this.taskForm = this.fb.group({
       taskTitle: ['', Validators.required],
       taskDescription: ['', Validators.required]
     });
+
+    this.projectService.getProjectById(this.projectId).subscribe({
+      next: (project: Project) => {
+        console.log('Project:', project);
+        const userIds = project.user_ids || [];
+        fetch('/api/user-server/users/details', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ userIds: userIds })
+        })
+          .then(response => response.json())
+          .then(data => {
+            this.allUsers = data;
+            this.fetchTasks(this.projectId);
+          })
+          .catch(error => {
+            console.error('Error:', error);
+          });
+      },
+      error: (err) => {
+        console.error('Error retrieving project:', err);
+      }
+    });
+  }
+
+  filterUsers(taskId: string) {
+    this.filteredUsers[taskId] = this.allUsers
+      .filter(user => user.email.toLowerCase().includes(this.searchTerm.toLowerCase()))
+      .filter(user => {
+        return !this.taskMembers[taskId]?.some(member => member.id === user.id);
+      });
   }
 
   fetchTasks(projectId: string) {
@@ -51,6 +99,11 @@ export class AddTaskComponent implements OnInit {
           this.tasks = response.reverse();
           this.tasks.forEach(task => {
             this.tempStatusMap[task.id] = task.status as TaskStatus;
+            this.taskMembers[task.id] = task.user_ids.map(userId =>
+              this.allUsers.find(user => user.id === userId)
+            ).filter(user => user !== undefined) as User[];
+          this.filteredUsers[task.id] = this.allUsers.filter(user =>
+            !this.taskMembers[task.id].some(member => member.id === user.id))
           });
           console.log('Data fetched successfully:', this.tasks);
         },
@@ -92,6 +145,7 @@ export class AddTaskComponent implements OnInit {
     }
   }
 
+
   getTaskDependencies(task: Task): Task[] {
     return this.tasks.filter(t => task.dependencies.includes(t.id));
   }
@@ -113,6 +167,7 @@ export class AddTaskComponent implements OnInit {
       this.tempStatusMap[task.id] = task.status;
       return;
     }
+
 
     const updatedStatus = this.tempStatusMap[task.id];
     task.status = updatedStatus;
@@ -140,4 +195,47 @@ export class AddTaskComponent implements OnInit {
     }
   }
 
+  async isUserManager(): Promise<boolean> {
+    try {
+      const response = await firstValueFrom(this.taskService.checkIfUserIsManager(this.projectId));
+      return response;
+    } catch (error) {
+      console.error("Error checking if user is manager", error);
+      return false;
+    }
+  }
+
+  addUserToTask(task: Task, user: User): void {
+    if (!this.taskMembers[task.id]) {
+      this.taskMembers[task.id] = [];
+    }
+    this.taskMembers[task.id].push(user);
+
+    this.updateTaskMember(task.id, 'add', user.id);
+    this.filterUsers(task.id)
+
+  }
+
+  removeUserFromTask(task: Task, user: User): void {
+    const index = this.taskMembers[task.id].findIndex(member => member.id === user.id);
+    if (index !== -1) {
+      this.taskMembers[task.id].splice(index, 1);
+      this.updateTaskMember(task.id, 'remove', user.id);
+      this.filterUsers(task.id)
+    }
+  }
+
+
+  updateTaskMember(taskId: string, action: 'add' | 'remove', userId: string): void {
+    const url = `/api/task-server/tasks/${taskId}/members/${action}/${userId}`;
+
+    this.http.post(url, {}).subscribe({
+      next: () => {
+        console.log(`User ${action}ed successfully`);
+      },
+      error: (error) => {
+        console.error('Error updating task member:', error);
+      }
+    });
+  }
 }

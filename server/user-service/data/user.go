@@ -33,6 +33,10 @@ type ChangePasswordRequest struct {
 	Password string `bson:"password" json:"password"`
 }
 
+type UserIdsRequest struct {
+	UserIds []string `json:"userIds"`
+}
+
 type Accounts []*Account
 
 type AccountRepository interface {

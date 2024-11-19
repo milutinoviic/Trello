@@ -552,3 +552,37 @@ func (ur *UserRepository) VerifyRecaptcha(token string) (bool, error) {
 
 	return true, nil
 }
+
+func (ur *UserRepository) GetUsersByIds(ids []string) ([]data.Account, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	accountCollection := ur.getAccountCollection()
+
+	var objectIds []primitive.ObjectID
+	for _, id := range ids {
+		objectId, err := primitive.ObjectIDFromHex(id)
+		if err != nil {
+			ur.logger.Println("Error parsing ObjectID:", err)
+			return nil, fmt.Errorf("invalid user ID format: %s", id)
+		}
+		objectIds = append(objectIds, objectId)
+	}
+
+	filter := bson.M{"_id": bson.M{"$in": objectIds}}
+
+	cursor, err := accountCollection.Find(ctx, filter)
+	if err != nil {
+		ur.logger.Println("Error finding accounts:", err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var users []data.Account
+	if err := cursor.All(ctx, &users); err != nil {
+		ur.logger.Println("Error decoding accounts:", err)
+		return nil, err
+	}
+
+	return users, nil
+}

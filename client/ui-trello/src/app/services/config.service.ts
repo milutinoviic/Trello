@@ -88,6 +88,10 @@ export class ConfigService {
     return `${this._project_api_url}/projects/${projectId}/addUsers`;
   }
 
+  checkManagerUrl(projectId: string): string {
+    return `${this._project_api_url}/projects/${projectId}/manager`;
+  }
+
   getProjectByIdUrl(projectId: string): string {
     return `${this._project_api_url}/${projectId}`;
   }

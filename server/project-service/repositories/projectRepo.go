@@ -205,7 +205,6 @@ func (pr *ProjectRepo) RemoveUserFromProject(projectId string, userId string) er
 
 	collection := pr.getCollection()
 
-	// Convert projectId to ObjectID
 	projectObjID, err := primitive.ObjectIDFromHex(projectId)
 	if err != nil {
 		return fmt.Errorf("invalid project ID: %v", err)
@@ -216,7 +215,6 @@ func (pr *ProjectRepo) RemoveUserFromProject(projectId string, userId string) er
 		return fmt.Errorf("invalid user ID: %v", err)
 	}
 
-	// Update the project to remove the user ID
 	_, err = collection.UpdateOne(
 		ctx,
 		bson.M{"_id": projectObjID},
@@ -249,4 +247,31 @@ func (pr *ProjectRepo) DeleteProject(projectId string) error {
 	}
 
 	return nil
+}
+
+func (pr *ProjectRepo) IsUserManagerOfProject(userId string, projectId string) (bool, error) {
+	pr.logger.Println("Hit the repo method")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	patientsCollection := pr.getCollection()
+
+	var project model.Project
+	objID, _ := primitive.ObjectIDFromHex(projectId)
+	err := patientsCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&project)
+	if err != nil {
+		pr.logger.Println(err)
+	}
+
+	userObjID, err := primitive.ObjectIDFromHex(userId)
+	if err != nil {
+		return false, fmt.Errorf("invalid user ID: %v", err)
+	}
+
+	managerObjID, err := primitive.ObjectIDFromHex(project.Manager)
+	if err != nil {
+		return false, fmt.Errorf("invalid manager ID in project: %v", err)
+	}
+
+	return managerObjID == userObjID, nil
 }

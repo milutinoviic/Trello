@@ -12,6 +12,7 @@ import (
 	"strings"
 	"task--service/model"
 	"task--service/repositories"
+	"time"
 )
 
 type TasksHandler struct {
@@ -199,6 +200,162 @@ func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string,
 	}
 
 	return result.UserID, result.Role, nil
+}
+
+func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	taskID := vars["taskId"]
+	action := vars["action"] // Can be "add" or "remove"
+	userID := vars["userId"]
+
+	if action != "add" && action != "remove" {
+		http.Error(rw, "Invalid action", http.StatusBadRequest)
+		return
+	}
+
+	task, err := t.repo.GetByID(taskID)
+	if err != nil {
+		http.Error(rw, "Task not found", http.StatusNotFound)
+		t.logger.Println("Error fetching task:", err)
+		return
+	}
+
+	if action == "add" {
+		if !t.isUserInProject(task.ProjectID, userID) {
+			http.Error(rw, "User not part of the project", http.StatusForbidden)
+			return
+		}
+
+		if contains(task.UserIDs, userID) {
+			http.Error(rw, "User is already a member of this task", http.StatusConflict)
+			return
+		}
+	}
+
+	if action == "remove" {
+		if task.Status == model.Completed {
+			http.Error(rw, "Cannot remove member from a completed task", http.StatusForbidden)
+			return
+		}
+
+		if !contains(task.UserIDs, userID) {
+			http.Error(rw, "User is not a member of this task", http.StatusBadRequest)
+			return
+		}
+	}
+
+	activity := model.TaskMemberActivity{
+		TaskID:    taskID,
+		UserID:    userID,
+		Action:    action,
+		Timestamp: time.Now(),
+		Processed: false,
+	}
+
+	err = t.repo.InsertTaskMemberActivity(&activity)
+	if err != nil {
+		http.Error(rw, "Failed to log task member change", http.StatusInternalServerError)
+		t.logger.Println("Error inserting task member change:", err)
+		return
+	}
+
+	if action == "add" {
+		task.UserIDs = append(task.UserIDs, userID)
+	} else if action == "remove" {
+		task.UserIDs = remove(task.UserIDs, userID)
+	}
+
+	err = t.repo.Update(task)
+	if err != nil {
+		http.Error(rw, "Failed to update task", http.StatusInternalServerError)
+		t.logger.Println("Error updating task:", err)
+		return
+	}
+
+	t.ProcessTaskMemberActivity()
+
+	rw.WriteHeader(http.StatusCreated)
+	fmt.Fprintf(rw, "Task member change logged and task updated successfully")
+}
+
+func (t *TasksHandler) ProcessTaskMemberActivity() {
+	activities, err := t.repo.GetUnprocessedActivities()
+	if err != nil {
+		t.logger.Println("Error fetching unprocessed changes:", err)
+		return
+	}
+
+	for _, activity := range activities {
+		task, err := t.repo.GetByID(activity.TaskID)
+		if err != nil {
+			t.logger.Println("Error fetching task for change:", err)
+			continue
+		}
+
+		switch activity.Action {
+		case "add":
+			if !contains(task.UserIDs, activity.UserID) {
+				task.UserIDs = append(task.UserIDs, activity.UserID)
+			}
+		case "remove":
+			if contains(task.UserIDs, activity.UserID) {
+				task.UserIDs = remove(task.UserIDs, activity.UserID)
+			}
+		}
+
+		err = t.repo.Update(task)
+		if err != nil {
+			t.logger.Println("Error updating task:", err)
+			continue
+		}
+
+		err = t.repo.MarkChangeAsProcessed(activity.ID)
+		if err != nil {
+			t.logger.Println("Error marking change as processed:", err)
+			continue
+		}
+	}
+}
+
+func contains(slice []string, item string) bool {
+	for _, v := range slice {
+		if v == item {
+			return true
+		}
+	}
+	return false
+}
+
+func remove(slice []string, item string) []string {
+	result := []string{}
+	for _, v := range slice {
+		if v != item {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
+	projectServiceURL := "http://project-server:8080/projects/" + projectID + "/users/" + userID + "/check"
+
+	resp, err := http.Get(projectServiceURL)
+	if err != nil {
+		t.logger.Println("Error checking user in project:", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return true
+	}
+
+	if resp.StatusCode == http.StatusNotFound {
+		return false
+	}
+
+	t.logger.Println("Unexpected status code:", resp.StatusCode)
+	return false
 }
 
 func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {
