@@ -62,6 +62,7 @@ export class AddProjectComponent implements OnInit {
     private router: Router,
     private accService: AccountService,
     private deleteService: DeleteService,
+    private toastr: ToastrService,
   ) { }
 
   ngOnInit(): void {
@@ -144,12 +145,14 @@ export class AddProjectComponent implements OnInit {
     if(this.selectedProjectId != null){
       this.deleteService.deleteProject(this.selectedProjectId).subscribe({
         next: () => {
-          alert("Succesfully deleted project.");
+          this.toastr.success("Succesfully deleted project.");
           console.log("Succesfully deleted project: " + this.selectedProjectId);
           this.visible = false;
+          this.fetchData();
+
         },
         error: (error) => {
-          alert("Error deleted project.");
+          this.toastr.error("Error deleted project: " + error.error);
           console.log("Error deleting project: ", error.error);
 
         }

@@ -158,8 +158,6 @@ func (tr *TaskRepository) DeleteTask(taskId primitive.ObjectID) error {
 
 func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 
-	//TODO: before deleting all tasks implement archive functionality, in case if 'rollback' is necessary
-
 	tasks, err := t.GetAllByProjectId(projectID)
 	if err != nil {
 		t.logger.Printf("Failed to fetch tasks for project %s: %v", projectID, err)
@@ -173,8 +171,6 @@ func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 			return fmt.Errorf("failed to delete task with ID %s: %w", task.ID.Hex(), err)
 		}
 	}
-
-	t.logger.Printf("Successfully deleted tasks")
 
 	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
 	return nil
