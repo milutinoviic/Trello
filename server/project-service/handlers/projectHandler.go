@@ -428,7 +428,37 @@ func (p *ProjectsHandler) SubscribeToEvent() {
 }
 
 func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
-	err := p.repo.DeleteProject(projectID)
+	project, _ := p.repo.GetById(projectID)
+	nc, err := Conn()
+	if err != nil {
+		p.logger.Println("Error connecting to NATS:", err)
+		return
+	}
+	defer nc.Close()
+
+	subject := "project.deleted"
+
+	message := struct {
+		UserIDs     []string `json:"userIds"`
+		ProjectName string   `json:"projectName"`
+	}{
+		UserIDs:     project.UserIDs,
+		ProjectName: project.Name,
+	}
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Error marshalling message:", err)
+		//continue
+	}
+
+	err = nc.Publish(subject, jsonMessage)
+	if err != nil {
+		log.Println("Error publishing message to NATS:", err)
+	}
+	p.logger.Println("a message has been sent")
+
+	err = p.repo.DeleteProject(projectID)
 	if err != nil {
 		p.logger.Printf("Failed to delete project %s: %v", projectID, err)
 		return

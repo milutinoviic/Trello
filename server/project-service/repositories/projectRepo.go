@@ -88,7 +88,7 @@ func (pr *ProjectRepo) GetAllByManager(managerEmail string) (model.Projects, err
 	projectsCollection := pr.getCollection()
 
 	var projects model.Projects
-	filter := bson.M{"manager": managerEmail}
+	filter := bson.M{"manager": managerEmail, "pending_deletion": false}
 	projectsCursor, err := projectsCollection.Find(ctx, filter)
 	if err != nil {
 		pr.logger.Println(err)
@@ -135,7 +135,7 @@ func (pr *ProjectRepo) GetById(id string) (*model.Project, error) {
 
 	var patient model.Project
 	objID, _ := primitive.ObjectIDFromHex(id)
-	err := patientsCollection.FindOne(ctx, bson.M{"_id": objID, "pending_deletion": false}).Decode(&patient)
+	err := patientsCollection.FindOne(ctx, bson.M{"_id": objID}).Decode(&patient)
 	if err != nil {
 		pr.logger.Println(err)
 		return nil, err
