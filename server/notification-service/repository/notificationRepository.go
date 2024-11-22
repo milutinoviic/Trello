@@ -1,8 +1,11 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"github.com/gocql/gocql"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"log"
 	"notification-service/model"
 	"os"
@@ -13,9 +16,10 @@ import (
 type NotificationRepo struct {
 	session *gocql.Session
 	logger  *log.Logger
+	tracer  trace.Tracer
 }
 
-func New(logger *log.Logger) (*NotificationRepo, error) {
+func New(logger *log.Logger, tracer trace.Tracer) (*NotificationRepo, error) {
 	dbHost := os.Getenv("CASSANDRA_HOST")
 	if dbHost == "" {
 		logger.Println("Cassandra host is not set")
@@ -61,6 +65,7 @@ func New(logger *log.Logger) (*NotificationRepo, error) {
 	return &NotificationRepo{
 		session: session,
 		logger:  logger,
+		tracer:  tracer,
 	}, nil
 }
 
@@ -69,6 +74,8 @@ func (repo *NotificationRepo) CloseSession() {
 }
 
 func (repo *NotificationRepo) CreateTables() {
+	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.CreateTables")
+	defer span.End()
 	err := repo.session.Query(`CREATE TABLE IF NOT EXISTS notifications (
 		user_id TEXT,
 		created_at TIMESTAMP,
@@ -78,19 +85,28 @@ func (repo *NotificationRepo) CreateTables() {
 		PRIMARY KEY (user_id, created_at, id)
 	) WITH CLUSTERING ORDER BY (created_at DESC);`).Exec()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		repo.logger.Println("Error creating notifications table with clustering:", err)
 		return
 	}
 
 	err = repo.session.Query(`CREATE INDEX IF NOT EXISTS user_id_idx ON notifications (user_id)`).Exec()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		repo.logger.Println("Error creating index on user_id:", err)
 	}
+	span.SetStatus(codes.Ok, "Successful function!")
 }
 
 func (repo *NotificationRepo) Create(notification *model.Notification) error {
+	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.Create")
+	defer span.End()
 	location, err := time.LoadLocation("Europe/Budapest")
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Println("Error loading time zone:", err)
 		return err
 	}
@@ -104,13 +120,18 @@ func (repo *NotificationRepo) Create(notification *model.Notification) error {
 		notification.ID, notification.UserID, notification.Message, notification.CreatedAt, notification.Status).Exec()
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		repo.logger.Println("Error inserting notification:", err)
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successful function!")
 	return nil
 }
 
 func (repo *NotificationRepo) GetByID(id gocql.UUID) (*model.Notification, error) {
+	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.GetByID")
+	defer span.End()
 	var notification model.Notification
 	err := repo.session.Query(`
 		SELECT id, user_id, message, created_at, status
@@ -118,6 +139,8 @@ func (repo *NotificationRepo) GetByID(id gocql.UUID) (*model.Notification, error
 		&notification.ID, &notification.UserID, &notification.Message, &notification.CreatedAt, &notification.Status)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		if err == gocql.ErrNotFound {
 			return nil, fmt.Errorf("notification with ID %v not found", id)
 		}
@@ -126,16 +149,20 @@ func (repo *NotificationRepo) GetByID(id gocql.UUID) (*model.Notification, error
 	}
 	location, err := time.LoadLocation("Europe/Budapest")
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Println("Error loading time zone:", err)
 		return nil, err
 	}
 
 	notification.CreatedAt = notification.CreatedAt.In(location)
-
+	span.SetStatus(codes.Ok, "Successful function!")
 	return &notification, nil
 }
 
 func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification, error) {
+	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.GetByUserID")
+	defer span.End()
 	var notifications []*model.Notification
 
 	iter := repo.session.Query(`
@@ -153,14 +180,19 @@ func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification,
 	}
 
 	if err := iter.Close(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		repo.logger.Println("Error closing iterator:", err)
 		return nil, err
 	}
+	span.SetStatus(codes.Ok, "Successful function!")
 
 	return notifications, nil
 }
 
 func (repo *NotificationRepo) UpdateStatus(createdAt time.Time, userID string, id gocql.UUID, status model.NotificationStatus) error {
+	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.UpdateStatus")
+	defer span.End()
 	err := repo.session.Query(`
         UPDATE notifications 
         SET status = ? 
@@ -168,18 +200,26 @@ func (repo *NotificationRepo) UpdateStatus(createdAt time.Time, userID string, i
 		status, userID, createdAt, id).Exec()
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		repo.logger.Println("Error updating notification status:", err)
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successful function!")
 	return nil
 }
 
 func (repo *NotificationRepo) Delete(id gocql.UUID) error {
+	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.Delete")
+	defer span.End()
 	err := repo.session.Query(`
 		DELETE FROM notifications WHERE id = ?`, id).Exec()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		repo.logger.Println("Error deleting notification:", err)
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successful function!")
 	return nil
 }

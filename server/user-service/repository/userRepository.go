@@ -12,6 +12,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 	"log"
 	"main.go/data"
@@ -27,9 +30,10 @@ import (
 type UserRepository struct {
 	cli    *mongo.Client
 	logger *log.Logger
+	tracer trace.Tracer
 }
 
-func New(ctx context.Context, logger *log.Logger) (*UserRepository, error) {
+func New(ctx context.Context, logger *log.Logger, tracer trace.Tracer) (*UserRepository, error) {
 	dburi := os.Getenv("MONGO_DB_URI")
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dburi))
@@ -44,41 +48,57 @@ func New(ctx context.Context, logger *log.Logger) (*UserRepository, error) {
 	return &UserRepository{
 		cli:    client,
 		logger: logger,
+		tracer: tracer,
 	}, nil
 }
 
 func (ur *UserRepository) Disconnect(ctx context.Context) error {
+	_, span := ur.tracer.Start(ctx, "UserRepository.Disconnect")
+	defer span.End()
 	err := ur.cli.Disconnect(ctx)
 	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successfully disconnected")
 	return nil
 }
 
 func (ur *UserRepository) Registration(request *data.AccountRequest) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	baseCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
+	baseCtx, span := ur.tracer.Start(baseCtx, "UserRepository.Registration", trace.WithAttributes(
+		attribute.String("email", request.Email),
+		attribute.String("role", request.Role),
+	))
+	defer span.End()
+
+	if err := ur.cli.Ping(baseCtx, readpref.Primary()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Database not available")
 		return fmt.Errorf("database not available: %w", err)
 	}
 
-	accountCollection := ur.getAccountCollection()
+	checkCtx, checkSpan := ur.tracer.Start(baseCtx, "UserRepository.Registration.CheckEmailExists")
 	var existingAccount data.Account
-	err := accountCollection.FindOne(ctx, bson.M{"email": request.Email}).Decode(&existingAccount)
+	err := ur.getAccountCollection().FindOne(checkCtx, bson.M{"email": request.Email}).Decode(&existingAccount)
+	checkSpan.End()
+
 	if err == nil {
-		ur.logger.Println("Email already exists")
+		span.SetStatus(codes.Error, "Email already exists")
+		ur.logger.Println("TraceID:", span.SpanContext().TraceID().String(), "Email already exists")
 		return data.ErrEmailAlreadyExists()
 	}
 
-	uuidPassword := uuid.New().String()
-
-	hashedPassword, err := hashPassword(uuidPassword)
+	hashedPassword, err := hashPassword(uuid.New().String())
 	if err != nil {
-		ur.logger.Println("Error hashing password:", err)
-		return err
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to hash password")
+		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
+	insertCtx, insertSpan := ur.tracer.Start(baseCtx, "UserRepository.Registration.InsertAccount")
 	account := &data.Account{
 		Email:     request.Email,
 		FirstName: request.FirstName,
@@ -86,18 +106,27 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 		Password:  hashedPassword,
 		Role:      request.Role,
 	}
+	_, err = ur.getAccountCollection().InsertOne(insertCtx, account)
+	insertSpan.End()
 
-	_, err = accountCollection.InsertOne(ctx, account)
 	if err != nil {
-		ur.logger.Println("Error inserting account:", err)
-		return err
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to insert account")
+		return fmt.Errorf("failed to insert account: %w", err)
 	}
-	err = sendEmail(account, uuidPassword)
+
+	_, emailSpan := ur.tracer.Start(baseCtx, "UserRepository.Registration.SendEmail")
+	err = sendEmail(account, uuid.New().String())
+	emailSpan.End()
+
 	if err != nil {
-		ur.logger.Println("Error sending email:", err)
-		return err
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to send email")
+		return fmt.Errorf("failed to send email: %w", err)
 	}
-	ur.logger.Println("Account created")
+
+	span.SetStatus(codes.Ok, "Account successfully created")
+	ur.logger.Println("Account created successfully")
 	return nil
 }
 
@@ -188,20 +217,30 @@ func (uh *UserRepository) GetAllManagers() (data.Accounts, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	ctx, span := uh.tracer.Start(ctx, "UserRepository.GetAllManagers")
+	defer span.End()
+
 	managersCollection := uh.getAccountCollection()
 
 	var managers data.Accounts
 	filter := bson.M{"role": "manager"}
-	managersCursor, err := managersCollection.Find(ctx, filter)
+	findCtx, findSpan := uh.tracer.Start(ctx, "UserRepository.GetAllManagers.Find")
+	managersCursor, err := managersCollection.Find(findCtx, filter)
+	findSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println(err)
 		return nil, err
 	}
 	if err = managersCursor.All(ctx, &managers); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println(err)
 		return nil, err
 	}
 
+	span.SetStatus(codes.Ok, "Successfully found all managers")
 	return managers, nil
 }
 
@@ -209,17 +248,24 @@ func (uh *UserRepository) GetOne(userId string) (*data.Account, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	ctx, span := uh.tracer.Start(ctx, "UserRepository.GetOne")
+	defer span.End()
+
 	managersCollection := uh.getAccountCollection()
 
 	objectId, err := primitive.ObjectIDFromHex(userId)
 
 	var manager data.Account
-	err = managersCollection.FindOne(ctx, bson.M{"_id": objectId}).Decode(&manager)
+	findOneCtx, findOneSpan := uh.tracer.Start(ctx, "UserRepository.GetOne.FindOne")
+	err = managersCollection.FindOne(findOneCtx, bson.M{"_id": objectId}).Decode(&manager)
+	findOneSpan.End()
 	if err != nil {
-		uh.logger.Println("Error finding managerrr:", objectId)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		uh.logger.Println("Error finding manager:", objectId)
 		return nil, err
 	}
-
+	span.SetStatus(codes.Ok, "Successfully found manager")
 	return &manager, nil
 }
 
@@ -227,7 +273,12 @@ func (ur *UserRepository) GetAllMembers(ctx context.Context) ([]data.Account, er
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.GetAllMembers")
+	defer span.End()
+
 	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Database not available")
 		return nil, fmt.Errorf("database not available: %w", err)
 	}
@@ -235,8 +286,12 @@ func (ur *UserRepository) GetAllMembers(ctx context.Context) ([]data.Account, er
 	accountCollection := ur.getAccountCollection()
 	filter := bson.M{"role": "member"}
 
-	cursor, err := accountCollection.Find(ctx, filter)
+	findCtx, findSpan := ur.tracer.Start(ctx, "UserRepository.GetAllMembers.Find")
+	cursor, err := accountCollection.Find(findCtx, filter)
+	findSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding accounts:", err)
 		return nil, err
 	}
@@ -244,109 +299,153 @@ func (ur *UserRepository) GetAllMembers(ctx context.Context) ([]data.Account, er
 
 	var accounts []data.Account
 	if err := cursor.All(ctx, &accounts); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error decoding accounts:", err)
 		return nil, err
 	}
-
+	span.SetStatus(codes.Ok, "Successfully found members")
 	return accounts, nil
 }
 
 func (ur *UserRepository) GetUserIdByEmail(email string) (primitive.ObjectID, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.GetUserIdByEmail")
+	defer span.End()
 
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 
-	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneCtx, findOneSpan := ur.tracer.Start(ctx, "UserRepository.GetUserIdByEmail.FindOne")
+	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return primitive.NilObjectID, err
 	}
-
+	span.SetStatus(codes.Ok, "Successfully found account")
 	return existingAccount.ID, nil
 }
 
 func (ur *UserRepository) GetUserRoleByEmail(email string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.GetUserRoleByEmail")
+	defer span.End()
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 
-	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneCtx, findOneSpan := ur.tracer.Start(ctx, "UserRepository.GetUserRoleByEmail.FindOne")
+	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return "", err
 	}
-
+	span.SetStatus(codes.Ok, "Successfully found role")
 	return existingAccount.Role, nil
 }
 
 func (ur *UserRepository) GetUserByEmail(email string) (data.Account, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.GetUserByEmail")
+	defer span.End()
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
-	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneCtx, findOneSpan := ur.tracer.Start(ctx, "UserRepository.GetUserByEmail.FindOne")
+	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return data.Account{}, err
 	}
+	span.SetStatus(codes.Ok, "Successfully found user")
 	return existingAccount, nil
 }
 
 func (ur *UserRepository) GetUserById(id string) (data.Account, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.GetUserById")
+	defer span.End()
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 	objectId, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error parsing object id:", err)
 		return data.Account{}, err
 	}
-	err = accountCollection.FindOne(ctx, bson.M{"_id": objectId}).Decode(&existingAccount)
+	findOneCtx, findOneSpan := ur.tracer.Start(ctx, "UserRepository.GetUserById.FindOne")
+	err = accountCollection.FindOne(findOneCtx, bson.M{"_id": objectId}).Decode(&existingAccount)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return data.Account{}, err
 	}
+	span.SetStatus(codes.Ok, "Successfully found user")
 	return existingAccount, nil
 }
 
 func (ur *UserRepository) CheckIfPasswordIsSame(id string, password string) bool {
+	_, span := ur.tracer.Start(context.Background(), "UserRepository.CheckIfPasswordIsSame")
+	defer span.End()
 	acc, err := ur.GetUserById(id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return false
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(acc.Password), []byte(password))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error comparing password:", err)
 		return false
 	}
+	span.SetStatus(codes.Ok, "Successfully compared the passwords")
 	return true
 }
 func (ur *UserRepository) ChangePassword(id string, password string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.ChangePassword")
+	defer span.End()
 
 	accountCollection := ur.getAccountCollection()
 
 	err := ForbidPassword(password)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error forbiding password:", err)
 		return err
 	}
 
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error hashing password:", err)
 		return err
 	}
 
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error parsing object id:", err)
 		return errors.New("invalid user ID format")
 	}
@@ -355,13 +454,17 @@ func (ur *UserRepository) ChangePassword(id string, password string) error {
 	update := bson.M{
 		"$set": bson.M{"password": hashedPassword},
 	}
-
-	_, err = accountCollection.UpdateOne(ctx, filter, update)
+	updateOneCtx, updateOneSpan := ur.tracer.Start(ctx, "UserRepository.ChangePassword.UpdateOne")
+	_, err = accountCollection.UpdateOne(updateOneCtx, filter, update)
+	updateOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error updating account:", err)
 		return err
 	}
 
+	span.SetStatus(codes.Ok, "Successfully changed password")
 	return nil
 }
 
@@ -404,45 +507,66 @@ func SendRecoveryEmail(userEmail string) error {
 func (ur *UserRepository) HandleRecoveryRequest(email string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.HandleRecoveryRequest")
+	defer span.End()
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 
-	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneCtx, findOneSpan := ur.tracer.Start(ctx, "UserRepository.HandleRecoveryRequest.FindOne")
+	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return err
 	}
 	if len(existingAccount.Email) == 0 {
+		span.RecordError(data.ErrEmailDoesntExist())
+		span.SetStatus(codes.Error, data.ErrEmailDoesntExist().Error())
 		ur.logger.Println("Error finding account:", data.ErrEmailDoesntExist())
 		return data.ErrEmailDoesntExist()
 	}
 	err = SendRecoveryEmail(email)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error sending recovery email:", err)
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successfully handled the request")
 	return nil
 }
 
 func (ur *UserRepository) ResetPassword(email string, password string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.ResetPassword")
+	defer span.End()
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 
-	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneCtx, findOneSpan := ur.tracer.Start(ctx, "UserRepository.ResetPassword.FindOne")
+	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return err
 	}
 	err = ForbidPassword(password)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Password forbidden:", err)
 		return err
 	}
 
 	hashedPassword, err := hashPassword(password)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error hashing password:", err)
 		return err
 	}
@@ -453,11 +577,16 @@ func (ur *UserRepository) ResetPassword(email string, password string) error {
 			"password": hashedPassword,
 		},
 	}
-	_, err = accountCollection.UpdateOne(ctx, filter, update)
+	updateOneCtx, updateOneSpan := ur.tracer.Start(ctx, "UserRepository.ResetPassword.UpdateOne")
+	_, err = accountCollection.UpdateOne(updateOneCtx, filter, update)
+	updateOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error updating account:", err)
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successfully changed password")
 	return nil
 
 }
@@ -485,8 +614,12 @@ func ForbidPassword(password string) error {
 }
 
 func (us *UserRepository) Delete(userID string) error {
+	_, span := us.tracer.Start(context.Background(), "UserRepository.Delete")
+	defer span.End()
 	objectID, err := primitive.ObjectIDFromHex(userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		us.logger.Printf("Invalid userID format: %v", err)
 		return err
 	}
@@ -495,23 +628,34 @@ func (us *UserRepository) Delete(userID string) error {
 	defer cancel()
 
 	filter := bson.M{"_id": objectID}
-	result, err := us.getAccountCollection().DeleteOne(ctx, filter)
+	deleteOneCtx, deleteOneSpan := us.tracer.Start(ctx, "UserRepository.Delete.DeleteOne")
+	result, err := us.getAccountCollection().DeleteOne(deleteOneCtx, filter)
+	deleteOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		us.logger.Printf("Error deleting user: %v", err)
 		return err
 	}
 
 	if result.DeletedCount == 0 {
+		span.RecordError(mongo.ErrNoDocuments)
+		span.SetStatus(codes.Error, mongo.ErrNoDocuments.Error())
 		us.logger.Printf("No user found with ID %s", userID)
 		return mongo.ErrNoDocuments
 	}
 
+	span.SetStatus(codes.Ok, "Successfully deleted user")
 	us.logger.Printf("User with ID %s successfully deleted", userID)
 	return nil
 }
 
 func (ur *UserRepository) VerifyRecaptcha(token string) (bool, error) {
+	_, span := ur.tracer.Start(context.Background(), "UserRepository.VerifyRecaptcha")
+	defer span.End()
 	if token == "" {
+		span.RecordError(errors.New("token is empty"))
+		span.SetStatus(codes.Error, "Token is empty")
 		fmt.Println("token is empty")
 		ur.logger.Println("Empty reCAPTCHA token")
 		return false, errors.New("empty reCAPTCHA token")
@@ -530,6 +674,8 @@ func (ur *UserRepository) VerifyRecaptcha(token string) (bool, error) {
 		url.Values{"secret": {secret}, "response": {token}})
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		fmt.Println(err)
 		ur.logger.Println("Error calling reCAPTCHA API:", err)
 		return false, err
@@ -539,23 +685,30 @@ func (ur *UserRepository) VerifyRecaptcha(token string) (bool, error) {
 	// Decode the response
 	var recaptchaResp utils.RecaptchaResponse
 	if err := json.NewDecoder(resp.Body).Decode(&recaptchaResp); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		fmt.Println(err)
 		ur.logger.Println("Error decoding reCAPTCHA response:", err)
 		return false, err
 	}
 
 	if !recaptchaResp.Success {
+		span.RecordError(errors.New("reCAPTCHA response error"))
+		span.SetStatus(codes.Error, "reCAPTCHA response error")
 		fmt.Println("recaptcha failed:", recaptchaResp.ErrorCodes)
 		ur.logger.Println("reCAPTCHA verification failed:", recaptchaResp.ErrorCodes)
 		return false, errors.New("reCAPTCHA verification failed")
 	}
 
+	span.SetStatus(codes.Ok, "Successfully verified reCAPTCHA token")
 	return true, nil
 }
 
 func (ur *UserRepository) GetUsersByIds(ids []string) ([]data.Account, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := ur.tracer.Start(ctx, "UserRepository.GetUsersByIds")
+	defer span.End()
 
 	accountCollection := ur.getAccountCollection()
 
@@ -563,6 +716,8 @@ func (ur *UserRepository) GetUsersByIds(ids []string) ([]data.Account, error) {
 	for _, id := range ids {
 		objectId, err := primitive.ObjectIDFromHex(id)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			ur.logger.Println("Error parsing ObjectID:", err)
 			return nil, fmt.Errorf("invalid user ID format: %s", id)
 		}
@@ -570,9 +725,12 @@ func (ur *UserRepository) GetUsersByIds(ids []string) ([]data.Account, error) {
 	}
 
 	filter := bson.M{"_id": bson.M{"$in": objectIds}}
-
-	cursor, err := accountCollection.Find(ctx, filter)
+	findCtx, findSpan := ur.tracer.Start(ctx, "UserRepository.GetUsersByIds.Find")
+	cursor, err := accountCollection.Find(findCtx, filter)
+	findSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding accounts:", err)
 		return nil, err
 	}
@@ -580,9 +738,12 @@ func (ur *UserRepository) GetUsersByIds(ids []string) ([]data.Account, error) {
 
 	var users []data.Account
 	if err := cursor.All(ctx, &users); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error decoding accounts:", err)
 		return nil, err
 	}
 
+	span.SetStatus(codes.Ok, "Successfully retrieved users")
 	return users, nil
 }

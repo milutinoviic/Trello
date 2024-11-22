@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"io"
 	"log"
 	"main.go/data"
@@ -20,6 +22,7 @@ type KeyRole struct{}
 type UserHandler struct {
 	logger  *log.Logger
 	service *service.UserService
+	tracer  trace.Tracer
 }
 type Task struct {
 	Status  TaskStatus `bson:"status" json:"status"`
@@ -27,15 +30,19 @@ type Task struct {
 }
 type TaskStatus string
 
-func NewUserHandler(logger *log.Logger, service *service.UserService) *UserHandler {
-	return &UserHandler{logger, service}
+func NewUserHandler(logger *log.Logger, service *service.UserService, trace trace.Tracer) *UserHandler {
+	return &UserHandler{logger, service, trace}
 }
 
 func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.Registration")
+	defer span.End()
 
 	request, err := decodeBody(h.Body)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Printf("Error decoding request body: %v", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
@@ -45,6 +52,8 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 
 	err = uh.service.Registration(request)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Registration error:", err)
 		if errors.Is(err, data.ErrEmailAlreadyExists()) {
 			http.Error(rw, `{"message": "Email already exists"}`, http.StatusConflict)
@@ -59,14 +68,21 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 	response := map[string]string{"message": "Registration successful"}
 	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "Registration handled successfully")
 }
 
 func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetManagers")
+	defer span.End()
 	managers, err := uh.service.GetAll()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Print("Database exception: ", err)
 	}
 
@@ -76,10 +92,13 @@ func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
 
 	err = managers.ToJSON(rw)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		uh.logger.Fatal("Unable to convert to json :", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "Retrieving managers handled successfully")
 }
 
 func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
@@ -113,35 +132,52 @@ func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 }
 
 func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetManager")
+	defer span.End()
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
 	if !ok {
+		span.RecordError(errors.New("user id not found"))
+		span.SetStatus(codes.Error, errors.New("user id not found").Error())
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		uh.logger.Println("User ID not found in context")
 		return
 	}
+	_, findOneSpan := uh.tracer.Start(context.Background(), "UserHandler.GetManager.FindOne")
 	manager, err := uh.service.GetOne(userID)
+	findOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Print("Database exception: ", err)
 		uh.logger.Print("Id: ", userID)
 	}
 
 	if manager == nil {
+		span.RecordError(errors.New("manager not found"))
+		span.SetStatus(codes.Error, errors.New("manager not found").Error())
 		http.Error(rw, "Manager not found", http.StatusNotFound)
 		return
 	}
 
 	err = manager.ToJSON(rw)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		uh.logger.Fatal("Unable to convert to json :", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "Manager retrieval handled successfully")
 }
 
 func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.DeleteUser")
+	defer span.End()
 	userID, _ := h.Context().Value(KeyAccount{}).(string)
 	manager, err := uh.service.GetOne(userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Print("Database exception: ", err)
 		uh.logger.Print("Id: ", userID)
 		http.Error(rw, "Error fetching manager details", http.StatusInternalServerError)
@@ -151,6 +187,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 	projectServiceURL := "http://project-server:8080/projects"
 	req, err := http.NewRequest("GET", projectServiceURL, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Failed to create request to project-service:", err)
 		http.Error(rw, "Error communicating with project service", http.StatusInternalServerError)
 		return
@@ -159,6 +197,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 	if err == nil {
 		req.AddCookie(authTokenCookie)
 	} else {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("No auth token cookie found:", err)
 		http.Error(rw, "Authorization token required", http.StatusUnauthorized)
 		return
@@ -166,6 +206,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Failed to reach project-service:", err)
 		http.Error(rw, "Error reaching project service", http.StatusInternalServerError)
 		return
@@ -174,13 +216,19 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 
 	var projects []service.Project
 	if resp.StatusCode == http.StatusNotFound {
+		span.RecordError(errors.New("not found"))
+		span.SetStatus(codes.Error, errors.New("not found").Error())
 		uh.logger.Println("No active projects found, proceeding with deletion.")
 	} else if resp.StatusCode != http.StatusOK {
+		span.RecordError(errors.New("error checking manager projects"))
+		span.SetStatus(codes.Error, errors.New("error checking manager projects").Error())
 		uh.logger.Printf("Unexpected response from project-service: %s", resp.Status)
 		http.Error(rw, "Error checking manager projects", http.StatusInternalServerError)
 		return
 	} else { // if found projects, check if project has all completed tasks
 		if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			uh.logger.Println("Failed to decode project-service response:", err)
 			http.Error(rw, "Error parsing project service response", http.StatusInternalServerError)
 			return
@@ -189,6 +237,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 			for _, project := range projects {
 				for _, user := range project.UserIDs {
 					if user == userID {
+						span.RecordError(errors.New("Member has active projects, deletion blocked"))
+						span.SetStatus(codes.Error, errors.New("Member has active projects, deletion blocked").Error())
 						http.Error(rw, "Member has active projects, deletion blocked", http.StatusConflict)
 						return
 					}
@@ -197,6 +247,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 
 		}
 		if uh.checkTasks(projects, userID, manager.Role, authTokenCookie) {
+			span.RecordError(errors.New("User has active projects, deletion blocked"))
+			span.SetStatus(codes.Error, errors.New("User has active projects, deletion blocked").Error())
 			http.Error(rw, "User has active projects, deletion blocked", http.StatusConflict)
 			return
 		}
@@ -204,6 +256,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 
 	err = uh.service.Delete(userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Failed to delete manager:", err)
 		http.Error(rw, "Error deleting user", http.StatusInternalServerError)
 		return
@@ -211,15 +265,20 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 
 	rw.WriteHeader(http.StatusOK)
 	rw.Write([]byte("User deleted successfully"))
+	span.SetStatus(codes.Ok, "User deleted successfully")
 
 }
 
 func (uh *UserHandler) checkTasks(projects []service.Project, userID, role string, authTokenCookie *http.Cookie) bool {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.checkTasks")
+	defer span.End()
 	client := &http.Client{}
 	for _, project := range projects {
 		taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID)
 		taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			uh.logger.Println("Failed to create request to task-service:", err)
 			continue
 		}
@@ -228,18 +287,24 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 
 		taskResp, err := client.Do(taskReq)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			uh.logger.Println("Failed to reach task-service:", err)
 			continue
 		}
 		defer taskResp.Body.Close()
 
 		if taskResp.StatusCode != http.StatusOK {
+			span.RecordError(errors.New("Unexpected response from task-service"))
+			span.SetStatus(codes.Error, errors.New("Unexpected response from task-service").Error())
 			uh.logger.Printf("Unexpected response from task-service for project %s: %s", project.ID, taskResp.Status)
 			continue
 		}
 
 		var tasks []Task
 		if err := json.NewDecoder(taskResp.Body).Decode(&tasks); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			uh.logger.Println("Failed to decode task-service response:", err)
 			continue
 		}
@@ -256,6 +321,7 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 				if task.Status == "Pending" || task.Status == "InProgress" {
 					for _, id := range task.UserIDs {
 						if id == userID {
+							span.SetStatus(codes.Ok, "Checking task handled correctly.")
 							return true
 						}
 					}
@@ -264,6 +330,7 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 		}
 
 	}
+	span.SetStatus(codes.Ok, "Checking task handled correctly.")
 	return false
 }
 
@@ -290,10 +357,14 @@ func decodeLoginBody(r io.Reader) (*data.LoginCredentials, error) {
 }
 
 func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetAllMembers")
+	defer span.End()
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
 
 	accounts, err := uh.service.GetAllMembers(h.Context())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error retrieving members:", err)
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -303,21 +374,30 @@ func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(rw).Encode(accounts)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "Successfully retrieved members")
 }
 
 func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.VerifyTokenExistence")
+	defer span.End()
 	userID := h.Header.Get("X-User-ID")
 	if userID == "" {
+		span.RecordError(errors.New("user id is missing"))
+		span.SetStatus(codes.Error, "user id is missing")
 		http.Error(rw, "User ID missing", http.StatusBadRequest)
 		return
 	}
-	repo, _ := repository.New(context.Background(), uh.logger)
+	repo, _ := repository.New(context.Background(), uh.logger, uh.tracer)
 
-	cache, err := repository.NewCache(uh.logger, repo)
+	cache, err := repository.NewCache(uh.logger, repo, uh.tracer)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error initializing cache:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
@@ -325,6 +405,8 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 
 	exists, err := cache.VerifyToken(userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error verifying token:", err)
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -335,11 +417,16 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 	} else {
 		rw.Write([]byte("false"))
 	}
+	span.SetStatus(codes.Ok, "Verification handled successfully")
 }
 
 func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.Login")
+	defer span.End()
 	request, err := decodeLoginBody(h.Body)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error decoding request:", err)
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
@@ -348,6 +435,8 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	boolean, err := uh.service.VerifyRecaptcha(request.RecaptchaToken)
 	if !boolean {
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			http.Error(rw, err.Error(), http.StatusForbidden)
 			return
 		}
@@ -358,6 +447,8 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 
 	id, role, token, err := uh.service.Login(request)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error logging in:", err)
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
@@ -381,6 +472,8 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	}
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error encoding response:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
@@ -388,13 +481,20 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 
 	_, err = rw.Write(jsonResponse)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 	}
+	span.SetStatus(codes.Ok, "Successfully logged in")
 }
 
 func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.Logout")
+	defer span.End()
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
 	if !ok {
+		span.RecordError(errors.New("user id not found"))
+		span.SetStatus(codes.Error, "user id not found")
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		uh.logger.Println("User ID not found in context")
 		return
@@ -402,6 +502,8 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 
 	err := uh.service.Logout(userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error logging out:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
@@ -423,6 +525,8 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 	response := map[string]string{"message": "Logged out successfully"}
 	jsonResponse, err := json.Marshal(response)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error encoding response:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
@@ -430,14 +534,21 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 
 	_, err = rw.Write(jsonResponse)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 	}
+	span.SetStatus(codes.Ok, "Successfully logged out")
 }
 
 func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.CheckPasswords")
+	defer span.End()
 	var req data.ChangePasswordRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -445,6 +556,8 @@ func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
 
 	userID, ok := r.Context().Value(KeyAccount{}).(string)
 	if !ok {
+		span.RecordError(errors.New("user id not found"))
+		span.SetStatus(codes.Error, "user id not found")
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		uh.logger.Println("User ID not found in context")
 		return
@@ -463,15 +576,22 @@ func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
 
 	_, writeErr := rw.Write([]byte(responseString))
 	if writeErr != nil {
+		span.RecordError(writeErr)
+		span.SetStatus(codes.Error, writeErr.Error())
 		http.Error(rw, "Failed to write response", http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, "Successfully checked passwords")
 }
 
 func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.ChangePassword")
+	defer span.End()
 	var req data.ChangePasswordRequest
 	err := json.NewDecoder(h.Body).Decode(&req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -479,6 +599,8 @@ func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
 	if !ok {
+		span.RecordError(errors.New("user id not found"))
+		span.SetStatus(codes.Error, "user id not found")
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		uh.logger.Println("User ID not found in context")
 		return
@@ -486,20 +608,27 @@ func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 
 	err = uh.service.ChangePassword(userID, req.Password)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to change password", http.StatusInternalServerError)
 		return
 	}
 
 	rw.WriteHeader(http.StatusOK)
+	span.SetStatus(codes.Ok, "Successfully changed password")
 }
 
 func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleRecovery")
+	defer span.End()
 	var req struct {
 		Email string `json:"email"`
 	}
 
 	err := json.NewDecoder(h.Body).Decode(&req)
 	if err != nil || req.Email == "" {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body or missing email", http.StatusBadRequest)
 		return
 	}
@@ -507,62 +636,85 @@ func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
 
 	err = uh.service.RecoveryRequest(req.Email)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	rw.WriteHeader(http.StatusOK)
+	span.SetStatus(codes.Ok, "Successfully handled recovery request")
 }
 
 func (uh *UserHandler) HandlePasswordReset(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandlePasswordReset")
+	defer span.End()
 	var req struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 	err := json.NewDecoder(h.Body).Decode(&req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 	defer h.Body.Close()
 	err = uh.service.ResettingPassword(req.Email, req.Password)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	rw.WriteHeader(http.StatusOK)
+	span.SetStatus(codes.Ok, "Successfully handled password reset request")
 }
 
 func (uh *UserHandler) HandleMagic(rw http.ResponseWriter, r *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleMagic")
+	defer span.End()
 	var req struct {
 		Email string `json:"email"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 	err = uh.service.MagicLink(req.Email)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	rw.WriteHeader(http.StatusOK)
+	span.SetStatus(codes.Ok, "Successfully handled magic request")
 }
 
 func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleMagicVerification")
+	defer span.End()
 	var req struct {
 		Email string `json:"email"`
 	}
 	err := json.NewDecoder(r.Body).Decode(&req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 	defer r.Body.Close()
 	id, token, err := uh.service.VerifyMagic(req.Email)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -581,26 +733,35 @@ func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.R
 
 	jsonResponse, err := json.Marshal(id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error encoding response:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
 	}
 	_, err = rw.Write(jsonResponse)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, "Successfully logged in")
 
 }
 
 func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.ValidateToken")
+	defer span.End()
 	uh.logger.Println("The path is hit")
 	var req struct {
 		Token string `json:"token"`
 	}
 	err := json.NewDecoder(h.Body).Decode(&req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error decoding request body:", err)
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		return
@@ -611,6 +772,8 @@ func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
 	uh.logger.Println("User ID is:", userID, "Role is:", role)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Token validation failed:", err)
 		http.Error(rw, `{"message": "Invalid token"}`, http.StatusUnauthorized)
 		return
@@ -624,9 +787,12 @@ func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
 	}
+	span.SetStatus(codes.Ok, "Successfully validated token")
 }
 
 func (uh *UserHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Handler) http.Handler {
@@ -674,11 +840,15 @@ func (uh *UserHandler) MiddlewareCheckAuthenticated(next http.Handler) http.Hand
 }
 
 func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetUsersByIds")
+	defer span.End()
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
 
 	var request data.UserIdsRequest
 	err := json.NewDecoder(h.Body).Decode(&request)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
 		uh.logger.Println("Error decoding user IDs:", err)
 		return
@@ -688,12 +858,16 @@ func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
 
 	users, err := uh.service.GetUsersByIds(userIds)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error retrieving users:", err)
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
 
 	if users == nil || len(users) == 0 {
+		span.RecordError(errors.New("User not found"))
+		span.SetStatus(codes.Error, "User not found")
 		http.Error(rw, "No users found", http.StatusNotFound)
 		return
 	}
@@ -702,8 +876,11 @@ func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
 	rw.WriteHeader(http.StatusOK)
 	err = json.NewEncoder(rw).Encode(users)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, " users found")
 }

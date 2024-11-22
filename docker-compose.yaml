@@ -13,11 +13,14 @@ services:
       - PORT=${PORT}
       - MONGO_DB_URI=${MONGO_DB_URI_PROJECT}
       - NATS_URL=nats://nats:4222
+      - JAEGER_ADDRESS=${JAEGER_ADDRESS}
     depends_on:
       mongo-project:
         condition: service_healthy
       nats:
         condition: service_started
+    networks:
+      - network
 
   # NoSQL: MongoDB
   mongo-project:
@@ -36,6 +39,8 @@ services:
       retries: 10
     volumes:
       - mongo_project_store:/data/db
+    networks:
+      - network
 
   angular-app:
     build:
@@ -56,6 +61,8 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
     mem_limit: 2g
+    networks:
+      - network
 
   mongo-express-project:
     image: mongo-express
@@ -73,6 +80,8 @@ services:
       - "8081:8081"
     volumes:
       - mong_project_express_data:/data/db
+    networks:
+      - network
 
 
 
@@ -89,11 +98,14 @@ services:
       - PORT=8080
       - MONGO_DB_URI=mongodb://root:pass@mongo-task:27017
       - NATS_URL=nats://nats:4222
+      - JAEGER_ADDRESS=${JAEGER_ADDRESS}
     depends_on:
       mongo-task:
         condition: service_healthy
       nats:
         condition: service_started
+    networks:
+      - network
 
   mongo-task:
     image: mongo
@@ -111,6 +123,8 @@ services:
       retries: 10
     volumes:
       - mongo_task_store:/data/db
+    networks:
+      - network
 
 
   mongo-express-task:
@@ -129,6 +143,8 @@ services:
       - "8088:8081"
     volumes:
       - mongo_task_express_data:/data/db
+    networks:
+      - network
 
 
 
@@ -153,11 +169,14 @@ services:
       - REDIS_PORT=${REDIS_PORT}
       - CAPTCHA=${CAPTCHA}
       - REDIS_HOST=${REDIS_HOST}
+      - JAEGER_ADDRESS=${JAEGER_ADDRESS}
     depends_on:
       mongo-user:
         condition: service_healthy
     volumes:
       - ./server/user-service/10k-worst-passwords.txt:/app/10k-worst-passwords.txt
+    networks:
+      - network
 
 
   mongo-user:
@@ -176,6 +195,8 @@ services:
       retries: 10
     volumes:
       - mongo_user_store:/data/db
+    networks:
+      - network
 
   mongo-express-user:
     image: mongo-express
@@ -193,6 +214,8 @@ services:
       - "8083:8081"
     volumes:
       - mong_user_express_data:/data/db
+    networks:
+      - network
 
   api_gateway:
     build:
@@ -209,6 +232,8 @@ services:
       - task-server
       - notification-server
     entrypoint: [ "/bin/bash", "-c", "while ! curl -s user-server:8080; do sleep 1; done; nginx -g 'daemon off;'" ]
+    networks:
+      - network
 
   redis:
     image: redis:alpine
@@ -217,6 +242,8 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+    networks:
+      - network
 
   notification-server:
     build:
@@ -232,11 +259,14 @@ services:
       - CASSANDRA_HOST=${CASSANDRA_HOST}
       - CASSANDRA_PORT=${CASSANDRA_PORT}
       - CASSANDRA_KEYSPACE=${CASSANDRA_KEYSPACE}
+      - JAEGER_ADDRESS=${JAEGER_ADDRESS}
     depends_on:
       cassandra:
         condition: service_healthy
       nats:
         condition: service_started
+    networks:
+      - network
 
   cassandra:
     image: cassandra:4.0
@@ -257,6 +287,8 @@ services:
       timeout: 15s
     volumes:
       - cassandra_data:/var/lib/cassandra
+    networks:
+      - network
 
   nats:
     image: 'nats:latest'
@@ -264,7 +296,22 @@ services:
       - "4222"
     ports:
       - "4222:4222"
+    networks:
+      - network
 
+  tracing:
+    image: jaegertracing/all-in-one:latest
+    container_name: jaeger
+    ports:
+      - "${UDP_PORT}:${UDP_PORT}/udp"
+      - "${JAEGER_UI_PORT}:${JAEGER_UI_PORT}"
+      - "${JAEGER_THRIFT_PORT}:${JAEGER_THRIFT_PORT}"
+      - "${OTLP}:${OTLP}"
+    environment:
+      - COLLECTOR_ZIPKIN_HTTP_PORT=${COLLECTOR_ZIPKIN_HTTP_PORT}
+      - JAEGER_ADDRESS=${JAEGER_ADDRESS}
+    networks:
+      - network
 
 volumes:
   mongo_project_store:
@@ -275,3 +322,8 @@ volumes:
   redis_data:
   cassandra_data:
   mongo_task_express_data:
+
+    
+networks:
+  network:
+    driver: bridge
