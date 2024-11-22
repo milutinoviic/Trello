@@ -5,14 +5,22 @@ services:
       context: ./server/project-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "project-server"
-    hostname: "project-server"
+    container_name: ${PROJECT_SERVICE_HOST}
+    hostname: ${PROJECT_SERVICE_HOST}
     ports:
       - 8080:8080
     environment:
       - PORT=${PORT}
       - MONGO_DB_URI=${MONGO_DB_URI_PROJECT}
       - NATS_URL=nats://nats:4222
+      - USER_SERVICE_HOST=${USER_SERVICE_HOST}
+      - USER_SERVICE_PORT=${PORT}
+      - TASK_SERVICE_HOST=${TASK_SERVICE_HOST}
+      - TASK_SERVICE_PORT=${PORT}
+
+
+
+
     depends_on:
       mongo-project:
         condition: service_healthy
@@ -81,14 +89,19 @@ services:
       context: ./server/task-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "task-server"
-    hostname: "task-server"
+    container_name: ${TASK_SERVICE_HOST}
+    hostname: ${TASK_SERVICE_HOST}
     ports:
       - 8089:8080
     environment:
-      - PORT=8080
-      - MONGO_DB_URI=mongodb://root:pass@mongo-task:27017
-      - NATS_URL=nats://nats:4222
+#      - PORT=8080
+#      - MONGO_DB_URI=mongodb://root:pass@mongo-task:27017
+#      - NATS_URL=nats://nats:4222
+        - PORT=${PORT}
+        - MONGO_DB_URI=${MONGO_DB_URI_TASK}
+        - NATS_URL=nats://nats:4222
+        - USER_SERVICE_HOST=${USER_SERVICE_HOST}
+        - USER_SERVICE_PORT=${PORT}
     depends_on:
       mongo-task:
         condition: service_healthy
@@ -137,15 +150,15 @@ services:
       context: ./server/user-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "user-server"
-    hostname: "user-server"
+    container_name: ${USER_SERVICE_HOST}
+    hostname: ${USER_SERVICE_HOST}
     env_file:
       - .env
     ports:
       - 8090:8080
     environment:
       - PORT=${PORT}
-      - MONGO_DB_URI=${MONGO_DB_URI} #mongodb://root:pass@mongo-user:27017
+      - MONGO_DB_URI=${MONGO_DB_URI_USER} #mongodb://root:pass@mongo-user:27017
       - SMTP_EMAIL=${SMTP_EMAIL}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_HOST=${SMTP_HOST}

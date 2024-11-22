@@ -55,7 +55,7 @@ export class MemberAdditionComponent implements OnInit {
             email: user.email
           }));
 
-          this.projectService.getProjectById(this.projectId).subscribe({
+          this.projectService.getProjectDetailsById(this.projectId).subscribe({
             next: (project: Project) => {
               console.log('Project:', project);
 
