@@ -100,6 +100,10 @@ export class ConfigService {
     return `${this._project_api_url}/projectDetails/${projectId}`;
   }
 
+  changeTaskStatus(): string {
+    return `${this.task_api_url}/tasks/status`;
+  }
+
 
   get users_url() {
     return this._users_url;

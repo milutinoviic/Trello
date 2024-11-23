@@ -1,0 +1,81 @@
+<div class="navbar-container">
+  <app-menu></app-menu>
+
+  <div class="navbar-buttons">
+
+    <button class="btn btn-primary mb-3" (click)="openMemberAdditionModal(projectId)">Add Member to Project</button>
+  </div>
+</div>
+
+
+<br>
+<br>
+<br>
+
+<div class="board">
+  <div class="column">
+    <h2>Pending</h2>
+    <div *ngFor="let task of pendingTasks" class="task" (click)="openTask(task)">
+      <h3>{{ task.name }}</h3>
+    </div>
+  </div>
+  <div class="column">
+    <h2>In Progress</h2>
+    <div *ngFor="let task of inProgressTasks" class="task" (click)="openTask(task)">
+      <h3>{{ task.name }}</h3>
+    </div>
+  </div>
+  <div class="column">
+    <h2>Completed</h2>
+    <div *ngFor="let task of completedTasks" class="task" (click)="openTask(task)">
+      <h3>{{ task.name }}</h3>
+    </div>
+  </div>
+</div>
+
+
+<div *ngIf="selectedTask" class="modal" (click)="closeTask()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+
+
+    <div class="status-buttons">
+      <button class="btn-status" (click)="changeStatus('Pending')">Pending</button>
+      <button class="btn-status" (click)="changeStatus('In Progress')">In Progress</button>
+      <button class="btn-status" (click)="changeStatus('Completed')">Completed</button>
+    </div>
+
+
+    <h2>{{ selectedTask.name }}</h2>
+    <p><strong>Description:</strong> {{ selectedTask.description }}</p>
+    <p><strong>Status:</strong> {{ selectedTask.status }}</p>
+    <p><strong>Created At:</strong> {{ selectedTask.createdAt | date }}</p>
+    <p><strong>Updated At:</strong> {{ selectedTask.updatedAt | date }}</p>
+    <p><strong>Users:</strong></p>
+    <ul>
+      <li *ngFor="let user of selectedTask.users">
+        <p>{{ user.first_name}}</p>
+      </li>
+    </ul>
+    <button (click)="closeTask()">Close</button>
+  </div>
+</div>
+
+
+<div class="modal" tabindex="-1" [class.show]="showAddMemberModal" [style.display]="showAddMemberModal ? 'block' : 'none'">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Assign Member to Project</h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeMemberAdditionModal()"></button>
+      </div>
+      <div class="modal-body">
+
+        <app-member-addition [projectId]="projectId ?? ''"></app-member-addition>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" (click)="closeMemberAdditionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>

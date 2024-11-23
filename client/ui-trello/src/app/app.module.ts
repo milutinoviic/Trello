@@ -25,6 +25,7 @@ import {environment} from "../environments/environment";
 import { ForbiddenComponent } from './forbidden/forbidden.component';
 
 import {AccountService} from "./services/account.service";
+import { ProjectComponent } from './project/project.component';
 
 function initTokenVerification(accountService: AccountService) {
   return () => {
@@ -51,6 +52,7 @@ function initTokenVerification(accountService: AccountService) {
     MagicLinkRequestComponent,
     MagicLinkComponent,
     ForbiddenComponent,
+    ProjectComponent,
   ],
   imports: [
     BrowserModule,
