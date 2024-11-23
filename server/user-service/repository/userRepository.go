@@ -90,8 +90,8 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 		ur.logger.Println("TraceID:", span.SpanContext().TraceID().String(), "Email already exists")
 		return data.ErrEmailAlreadyExists()
 	}
-
-	hashedPassword, err := hashPassword(uuid.New().String())
+	uuidPassword := uuid.New().String()
+	hashedPassword, err := hashPassword(uuidPassword)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Failed to hash password")
@@ -116,7 +116,7 @@ func (ur *UserRepository) Registration(request *data.AccountRequest) error {
 	}
 
 	_, emailSpan := ur.tracer.Start(baseCtx, "UserRepository.Registration.SendEmail")
-	err = sendEmail(account, uuid.New().String())
+	err = sendEmail(account, uuidPassword)
 	emailSpan.End()
 
 	if err != nil {
