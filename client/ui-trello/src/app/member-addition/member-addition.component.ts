@@ -96,14 +96,14 @@ export class MemberAdditionComponent implements OnInit {
     if (!this.isFull() && !this.projectMembers.some(member => member.id === user.id)) {
       this.projectMembers.push(user);
 
-      const memberIds = this.projectMembers.map(member => member.id);
+      const memberId = user.id;
 
-      this.projectService.addMembersToProject(this.projectId, memberIds).subscribe({
+      this.projectService.addMembersToProject(this.projectId, [memberId]).subscribe({
         next: () => {
-          console.log('Members added successfully:', memberIds);
+          console.log('Member added successfully:', memberId);
         },
         error: (err) => {
-          console.error('Error adding members:', err);
+          console.error('Error adding member:', err);
         }
       });
 

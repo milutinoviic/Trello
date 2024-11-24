@@ -270,17 +270,8 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	nc, err := Conn()
-	if err != nil {
-		log.Println("Error connecting to NATS:", err)
-		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
-		return
-	}
-	defer nc.Close()
-
 	for _, uid := range userIds {
 		subject := "project.joined"
-
 		message := struct {
 			UserID      string `json:"userId"`
 			ProjectName string `json:"projectName"`
@@ -289,19 +280,12 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 			ProjectName: project.Name,
 		}
 
-		jsonMessage, err := json.Marshal(message)
-		if err != nil {
-			log.Println("Error marshalling message:", err)
-			continue
-		}
-
-		err = nc.Publish(subject, jsonMessage)
-		if err != nil {
-			log.Println("Error publishing message to NATS:", err)
+		if err := p.sendNotification(subject, message); err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+			return
 		}
 	}
 	p.logger.Println("a message has been sent")
-
 	rw.WriteHeader(http.StatusNoContent)
 }
 
@@ -337,16 +321,7 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 		return
 	}
 
-	nc, err := Conn()
-	if err != nil {
-		log.Println("Error connecting to NATS:", err)
-		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
-		return
-	}
-	defer nc.Close()
-
 	subject := "project.removed"
-
 	message := struct {
 		UserID      string `json:"userId"`
 		ProjectName string `json:"projectName"`
@@ -355,18 +330,12 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 		ProjectName: project.Name,
 	}
 
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		log.Println("Error marshalling message:", err)
+	if err := p.sendNotification(subject, message); err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
-	err = nc.Publish(subject, jsonMessage)
-	if err != nil {
-		log.Println("Error publishing message to NATS:", err)
-	}
-
 	p.logger.Println("a message has been sent")
+
 	rw.WriteHeader(http.StatusOK)
 }
 
@@ -429,36 +398,25 @@ func (p *ProjectsHandler) SubscribeToEvent() {
 
 func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
 	project, _ := p.repo.GetById(projectID)
-	nc, err := Conn()
-	if err != nil {
-		p.logger.Println("Error connecting to NATS:", err)
-		return
-	}
-	defer nc.Close()
+	subject := "project.removed"
+	for _, userID := range project.UserIDs {
+		message := struct {
+			UserID      string `json:"userId"`
+			ProjectName string `json:"projectName"`
+		}{
+			UserID:      userID,
+			ProjectName: project.Name,
+		}
 
-	subject := "project.deleted"
-
-	message := struct {
-		UserIDs     []string `json:"userIds"`
-		ProjectName string   `json:"projectName"`
-	}{
-		UserIDs:     project.UserIDs,
-		ProjectName: project.Name,
-	}
-
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		log.Println("Error marshalling message:", err)
-		//continue
+		if err := p.sendNotification(subject, message); err != nil {
+			p.logger.Println(err.Error())
+			return
+		}
 	}
 
-	err = nc.Publish(subject, jsonMessage)
-	if err != nil {
-		log.Println("Error publishing message to NATS:", err)
-	}
 	p.logger.Println("a message has been sent")
 
-	err = p.repo.DeleteProject(projectID)
+	err := p.repo.DeleteProject(projectID)
 	if err != nil {
 		p.logger.Printf("Failed to delete project %s: %v", projectID, err)
 		return
@@ -618,4 +576,28 @@ func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.R
 	} else {
 		_, _ = rw.Write([]byte("false"))
 	}
+}
+
+func (p *ProjectsHandler) sendNotification(subject string, message interface{}) error {
+	nc, err := Conn()
+	if err != nil {
+		log.Println("Error connecting to NATS:", err)
+		return fmt.Errorf("failed to connect to message broker: %w", err)
+	}
+	defer nc.Close()
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Error marshalling message:", err)
+		return fmt.Errorf("error marshalling message: %w", err)
+	}
+
+	err = nc.Publish(subject, jsonMessage)
+	if err != nil {
+		log.Println("Error publishing message to NATS:", err)
+		return fmt.Errorf("error publishing message to NATS: %w", err)
+	}
+
+	p.logger.Println("Notification sent:", subject)
+	return nil
 }
