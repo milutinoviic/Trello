@@ -38,7 +38,7 @@ export class ProjectComponent implements OnInit {
       if (projectId) {
         this.projectId = projectId;
         this.loadProjectDetails(projectId);
-        this.checkIfUserInTask();
+
       } else {
 
         this.projectId = '';
@@ -80,6 +80,7 @@ export class ProjectComponent implements OnInit {
     this.selectedTask = task;
 
     console.log(this.selectedTask.users);
+    this.checkIfUserInTask();
 
   }
 
