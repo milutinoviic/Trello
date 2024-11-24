@@ -3,7 +3,7 @@
 
   <div class="navbar-buttons">
 
-    <button class="btn btn-primary mb-3" (click)="openMemberAdditionModal(projectId)">Add Member to Project</button>
+    <button class="btn btn-primary mb-3" *ngIf="isManager()" (click)="openMemberAdditionModal(projectId)">Add Member to Project</button>
   </div>
 </div>
 
@@ -38,7 +38,7 @@
   <div class="modal-content" (click)="$event.stopPropagation()">
 
 
-    <div class="status-buttons">
+    <div class="status-buttons" *ngIf="isUserInTask || isManager()">
       <button class="btn-status" (click)="changeStatus('Pending')">Pending</button>
       <button class="btn-status" (click)="changeStatus('In Progress')">In Progress</button>
       <button class="btn-status" (click)="changeStatus('Completed')">Completed</button>

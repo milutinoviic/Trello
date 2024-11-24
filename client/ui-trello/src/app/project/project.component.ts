@@ -3,7 +3,8 @@ import {ProjectDetails} from "../models/projectDetails";
 import {ProjectServiceService} from "../services/project-service.service";
 import {ActivatedRoute} from "@angular/router";
 import {TaskDetails} from "../models/taskDetails";
-import {TaskStatus} from "../models/task";
+import {Task, TaskStatus} from "../models/task";
+import {TaskService} from "../services/task.service";
 
 @Component({
   selector: 'app-project',
@@ -21,8 +22,10 @@ export class ProjectComponent implements OnInit {
 
   selectedTask: TaskDetails | null = null;
 
+  isUserInTask: boolean = false;
 
-  constructor(private projectService: ProjectServiceService, private route: ActivatedRoute) {}
+
+  constructor(private projectService: ProjectServiceService, private route: ActivatedRoute,private taskService: TaskService) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -33,12 +36,18 @@ export class ProjectComponent implements OnInit {
       if (projectId) {
         this.projectId = projectId;
         this.loadProjectDetails(projectId);
+        this.checkIfUserInTask();
       } else {
 
         this.projectId = '';
         console.error('Project ID nije prisutan u URL-u!');
       }
     });
+  }
+
+  isManager(): boolean {
+    const role = localStorage.getItem('role');
+    return role === 'manager';
   }
 
 
@@ -124,6 +133,42 @@ export class ProjectComponent implements OnInit {
       this.organizeTasksByStatus(this.project.tasks);
     }
   }
+
+  checkIfUserInTask(): void {
+    if (this.selectedTask) {
+      const task: Task = {
+        id: this.selectedTask.id,
+        projectId: this.selectedTask.projectId,
+        name: this.selectedTask.name,
+        description: this.selectedTask.description,
+        status: this.selectedTask.status,
+        createdAt: this.selectedTask.createdAt,
+        updatedAt: this.selectedTask.updatedAt,
+        user_ids: this.selectedTask.userIds,
+        dependencies: this.selectedTask.dependencies,
+        blocked: this.selectedTask.blocked
+      };
+
+      // Poziv servisa sa konvertovanim objektom
+      this.taskService.checkIfUserInTask(task).subscribe(
+        (response: boolean) => {
+          this.isUserInTask = response;
+          console.log("----------------------------------------------------------------");
+          console.log("aAAAAAAAAAAAAAAAAAAAAAA KKKKKKK CCCC BBBBB 12343245654654");
+          console.log(this.isUserInTask);
+          console.log("RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+          console.log('User is in task:', response);
+        },
+        (error) => {
+          console.error('Error checking user in task:', error);
+        }
+      );
+    } else {
+      console.warn('No task selected for user check.');
+      this.isUserInTask = false;
+    }
+  }
+
 
 
 
