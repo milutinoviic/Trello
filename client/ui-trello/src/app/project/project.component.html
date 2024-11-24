@@ -4,6 +4,11 @@
   <div class="navbar-buttons">
 
     <button class="btn btn-primary mb-3" *ngIf="isManager()" (click)="openMemberAdditionModal(projectId)">Add Member to Project</button>
+    <button
+      class="btn btn-primary mb-3"
+      *ngIf="isManager()" (click)="openAddTaskModal(projectId)">Add Task to Project</button>
+
+
   </div>
 </div>
 
@@ -11,6 +16,8 @@
 <br>
 <br>
 <br>
+
+
 
 <div class="board">
   <div class="column">
@@ -79,3 +86,24 @@
     </div>
   </div>
 </div>
+
+
+<div class="modal" tabindex="-1" [class.show]="showAddTaskModal" [style.display]="showAddTaskModal ? 'block' : 'none'">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Task to Project</h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeTaskAdditionModal()"></button>
+      </div>
+      <div class="modal-body">
+
+        <app-add-task [projectId]="projectId ?? ''"></app-add-task>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" (click)="closeTaskAdditionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+

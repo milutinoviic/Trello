@@ -24,6 +24,8 @@ export class ProjectComponent implements OnInit {
 
   isUserInTask: boolean = false;
 
+  showAddTaskModal: boolean = false;
+
 
   constructor(private projectService: ProjectServiceService, private route: ActivatedRoute,private taskService: TaskService) {}
 
@@ -168,6 +170,27 @@ export class ProjectComponent implements OnInit {
       this.isUserInTask = false;
     }
   }
+
+
+  openAddTaskModal (projectId: string | null): void{
+    if (projectId) {
+      this.projectId = projectId;
+      this.showAddTaskModal = true;
+    } else {
+      console.error('Project ID is null');
+    }
+
+  }
+
+
+
+
+  closeTaskAdditionModal(): void {
+    this.showAddTaskModal = false;
+  }
+
+
+
 
 
 
