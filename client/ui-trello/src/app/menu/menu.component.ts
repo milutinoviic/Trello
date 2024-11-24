@@ -1,9 +1,12 @@
-import { Component } from '@angular/core';
+import {Component, OnInit} from '@angular/core';
 import {AccountService} from "../services/account.service";
 import {ToastrService} from "ngx-toastr";
 import {Router} from "@angular/router";
 import {DeleteService} from "../services/delete.service";
 import { CommonModule } from '@angular/common';
+import {error} from "@angular/compiler-cli/src/transformers/util";
+import {HttpClient} from "@angular/common/http";
+import {NotificationService} from "../services/notification-service.service";
 
 @Component({
   selector: 'app-menu',
@@ -12,14 +15,16 @@ import { CommonModule } from '@angular/common';
   styleUrl: './menu.component.css',
   imports: [CommonModule]
 })
-export class MenuComponent {
+export class MenuComponent implements OnInit {
 
-  constructor(private accountService: AccountService, private toastrService: ToastrService, private router: Router, private deleteService: DeleteService,) {
+  constructor(private accountService: AccountService, private toastrService: ToastrService, private router: Router, private deleteService: DeleteService, private notificationService: NotificationService) {
 
   }
   visible: boolean = false;
   userId: string | null = ""
   message: string = "Are you sure you want to delete your account?"
+  unreadNotifications = 0;
+
 
   logout() {
     this.accountService.logout().subscribe({
@@ -72,5 +77,21 @@ export class MenuComponent {
   notifications(){
     this.router.navigate(['/notifications']);
 
+  }
+
+  fetchUnreadNotificationCount(): void {
+    this.notificationService.getUnreadCount().subscribe({
+      next: (response: { unreadCount: number }) => {
+        this.unreadNotifications = response.unreadCount;
+        console.log('Unread notifications count:', this.unreadNotifications);
+      },
+      error: (err) => {
+        console.log('Error fetching notifications:', err);
+      }
+    });
+  }
+
+  ngOnInit(): void {
+    this.fetchUnreadNotificationCount();
   }
 }

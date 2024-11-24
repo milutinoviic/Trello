@@ -446,8 +446,48 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 		return
 	}
 
+	err = th.publishStatusUpdate(task)
+	if err != nil {
+		th.logger.Println("Error publishing status update:", err)
+		http.Error(rw, "Failed to notify task members", http.StatusInternalServerError)
+		return
+	}
+
 	rw.WriteHeader(http.StatusOK)
 	th.logger.Println("Task status updated successfully")
+}
+
+func (t *TasksHandler) publishStatusUpdate(task *model.Task) error {
+	nc, err := Conn()
+	if err != nil {
+		return fmt.Errorf("failed to connect to NATS: %w", err)
+	}
+	defer nc.Close()
+
+	message := struct {
+		TaskName   string   `json:"taskName"`
+		TaskStatus string   `json:"taskStatus"`
+		MemberIds  []string `json:"memberIds"`
+	}{
+		TaskName:   task.Name,
+		TaskStatus: string(task.Status),
+		MemberIds:  task.UserIDs,
+	}
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	subject := "task.status.update"
+	err = nc.Publish(subject, jsonMessage)
+	if err != nil {
+		return fmt.Errorf("failed to publish message to NATS: %w", err)
+	}
+
+	t.logger.Println("Task status update message sent to NATS")
+
+	return nil
 }
 
 func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *http.Request) {

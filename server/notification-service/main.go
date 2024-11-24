@@ -43,6 +43,7 @@ func main() {
 	}()
 	r := mux.NewRouter()
 
+	r.Handle("/notifications/unread-count", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.GetUnreadNotificationCount)))).Methods("GET")
 	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.CreateNotification)))).Methods("POST")
 	r.Handle("/notifications/{id}", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(notificationHandler.GetNotificationByID)))).Methods("GET")
 	r.Handle("/notifications", notificationHandler.MiddlewareExtractUserFromCookie(notificationHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc((notificationHandler.GetNotificationsByUserID)))))

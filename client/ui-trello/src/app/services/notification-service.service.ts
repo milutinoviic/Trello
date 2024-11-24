@@ -34,4 +34,8 @@ export class NotificationService {
     return this.http.get<Notification[]>(this.config.notifications_url );
 
   }
+
+  getUnreadCount(): Observable<{ unreadCount: number }> {
+    return this.http.get<{ unreadCount: number }>(this.config.notifications_url + '/unread-count');
+  }
 }

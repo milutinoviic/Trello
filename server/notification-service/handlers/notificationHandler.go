@@ -266,162 +266,149 @@ func (uh *NotificationHandler) MiddlewareCheckRoles(allowedRoles []string, next 
 }
 
 func (n *NotificationHandler) NotificationListener() {
-	n.logger.Println("method started")
+	n.logger.Println("Notification listener started")
 	nc, err := Conn()
 	if err != nil {
 		log.Fatal("Error connecting to NATS:", err)
 	}
 	defer nc.Close()
 
-	subjectJoined := "project.joined"
-	_, err = nc.Subscribe(subjectJoined, func(msg *nats.Msg) {
-		fmt.Printf("User received notification: %s\n", string(msg.Data))
-
-		var data struct {
-			UserID      string `json:"userId"`
-			ProjectName string `json:"projectName"`
-		}
-
-		err := json.Unmarshal(msg.Data, &data)
+	subscribe := func(subject string, handler nats.MsgHandler) {
+		_, err := nc.Subscribe(subject, handler)
 		if err != nil {
-			log.Println("Error unmarshalling message:", err)
-			return
+			n.logger.Printf("Error subscribing to NATS subject %s: %v", subject, err)
 		}
-
-		fmt.Printf("User ID: %s, Project Name: %s\n", data.UserID, data.ProjectName)
-
-		message := fmt.Sprintf("You have been added to the %s project", data.ProjectName)
-
-		notification := model.Notification{
-			UserID:    data.UserID,
-			Message:   message,
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		}
-
-		err = n.repo.Create(&notification)
-		if err != nil {
-			n.logger.Print("Error inserting notification:", err)
-			return
-		}
-	})
-
-	if err != nil {
-		log.Println("Error subscribing to NATS subject:", err)
 	}
 
-	taskJoined := "task.joined"
-	_, err = nc.Subscribe(taskJoined, func(msg *nats.Msg) {
-		fmt.Printf("User received notification: %s\n", string(msg.Data))
-
-		var data struct {
-			UserID   string `json:"userId"`
-			TaskName string `json:"taskName"`
-		}
-
-		err := json.Unmarshal(msg.Data, &data)
-		if err != nil {
-			log.Println("Error unmarshalling message:", err)
-			return
-		}
-
-		fmt.Printf("User ID: %s, Task Name: %s\n", data.UserID, data.TaskName)
-
-		message := fmt.Sprintf("You have been added to the %s task", data.TaskName)
-
-		notification := model.Notification{
-			UserID:    data.UserID,
-			Message:   message,
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		}
-
-		err = n.repo.Create(&notification)
-		if err != nil {
-			n.logger.Print("Error inserting notification:", err)
-			return
-		}
-	})
-
-	if err != nil {
-		log.Println("Error subscribing to NATS subject:", err)
-	}
-
-	subjectRemoved := "project.removed"
-	_, err = nc.Subscribe(subjectRemoved, func(msg *nats.Msg) {
-		fmt.Printf("User received removal notification: %s\n", string(msg.Data))
-
-		var data struct {
-			UserID      string `json:"userId"`
-			ProjectName string `json:"projectName"`
-		}
-
-		err := json.Unmarshal(msg.Data, &data)
-		if err != nil {
-			log.Println("Error unmarshalling message:", err)
-			return
-		}
-
-		fmt.Printf("User ID: %s, Project Name: %s\n", data.UserID, data.ProjectName)
-
-		message := fmt.Sprintf("You have been removed from the %s project", data.ProjectName)
-
-		notification := model.Notification{
-			UserID:    data.UserID,
-			Message:   message,
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		}
-
-		err = n.repo.Create(&notification)
-		if err != nil {
-			n.logger.Print("Error inserting notification:", err)
-			return
-		}
-	})
-
-	if err != nil {
-		log.Println("Error subscribing to NATS subject:", err)
-	}
-
-	taskRemoved := "task.removed"
-	_, err = nc.Subscribe(taskRemoved, func(msg *nats.Msg) {
-		fmt.Printf("User received removal notification: %s\n", string(msg.Data))
-
-		var data struct {
-			UserID   string `json:"userId"`
-			TaskName string `json:"taskName"`
-		}
-
-		err := json.Unmarshal(msg.Data, &data)
-		if err != nil {
-			log.Println("Error unmarshalling message:", err)
-			return
-		}
-
-		fmt.Printf("User ID: %s, Task Name: %s\n", data.UserID, data.TaskName)
-
-		message := fmt.Sprintf("You have been removed from the %s task", data.TaskName)
-
-		notification := model.Notification{
-			UserID:    data.UserID,
-			Message:   message,
-			CreatedAt: time.Now(),
-			Status:    model.Unread,
-		}
-
-		err = n.repo.Create(&notification)
-		if err != nil {
-			n.logger.Print("Error inserting notification:", err)
-			return
-		}
-	})
-
-	if err != nil {
-		log.Println("Error subscribing to NATS subject:", err)
-	}
+	subscribe("project.joined", n.handleProjectJoined)
+	subscribe("task.joined", n.handleTaskJoined)
+	subscribe("project.removed", n.handleProjectRemoved)
+	subscribe("task.removed", n.handleTaskRemoved)
+	subscribe("task.status.update", n.handleTaskStatusUpdate)
 
 	select {}
+}
+
+func (n *NotificationHandler) handleProjectJoined(msg *nats.Msg) {
+	var data struct {
+		UserID      string `json:"userId"`
+		ProjectName string `json:"projectName"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		n.logger.Println("Error unmarshalling project.joined message:", err)
+		return
+	}
+
+	message := fmt.Sprintf("You have been added to the %s project", data.ProjectName)
+	notification := model.Notification{
+		UserID:    data.UserID,
+		Message:   message,
+		CreatedAt: time.Now(),
+		Status:    model.Unread,
+	}
+	if err := n.repo.Create(&notification); err != nil {
+		n.logger.Println("Error inserting notification:", err)
+	}
+}
+
+func (n *NotificationHandler) handleTaskJoined(msg *nats.Msg) {
+	var data struct {
+		UserID   string `json:"userId"`
+		TaskName string `json:"taskName"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		n.logger.Println("Error unmarshalling task.joined message:", err)
+		return
+	}
+
+	message := fmt.Sprintf("You have been added to the %s task", data.TaskName)
+	notification := model.Notification{
+		UserID:    data.UserID,
+		Message:   message,
+		CreatedAt: time.Now(),
+		Status:    model.Unread,
+	}
+	if err := n.repo.Create(&notification); err != nil {
+		n.logger.Println("Error inserting notification:", err)
+	}
+}
+
+func (n *NotificationHandler) handleProjectRemoved(msg *nats.Msg) {
+	var data struct {
+		UserID      string `json:"userId"`
+		ProjectName string `json:"projectName"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		n.logger.Println("Error unmarshalling project.removed message:", err)
+		return
+	}
+
+	message := fmt.Sprintf("You have been removed from the %s project", data.ProjectName)
+	notification := model.Notification{
+		UserID:    data.UserID,
+		Message:   message,
+		CreatedAt: time.Now(),
+		Status:    model.Unread,
+	}
+	if err := n.repo.Create(&notification); err != nil {
+		n.logger.Println("Error inserting notification:", err)
+	}
+}
+
+func (n *NotificationHandler) handleTaskRemoved(msg *nats.Msg) {
+	var data struct {
+		UserID   string `json:"userId"`
+		TaskName string `json:"taskName"`
+	}
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		n.logger.Println("Error unmarshalling task.removed message:", err)
+		return
+	}
+
+	message := fmt.Sprintf("You have been removed from the %s task", data.TaskName)
+	notification := model.Notification{
+		UserID:    data.UserID,
+		Message:   message,
+		CreatedAt: time.Now(),
+		Status:    model.Unread,
+	}
+	if err := n.repo.Create(&notification); err != nil {
+		n.logger.Println("Error inserting notification:", err)
+	}
+}
+
+func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
+	fmt.Printf("User received status update notification: %s\n", string(msg.Data))
+
+	var update struct {
+		TaskName   string   `json:"taskName"`
+		TaskStatus string   `json:"taskStatus"`
+		MemberIds  []string `json:"memberIds"`
+	}
+
+	if err := json.Unmarshal(msg.Data, &update); err != nil {
+		n.logger.Printf("Error unmarshalling task status update message: %v", err)
+		return
+	}
+	fmt.Printf("Received status update for Task %s: %s\n", update.TaskName, update.TaskStatus)
+
+	message := fmt.Sprintf("The status of the %s task has been changed to %s", update.TaskName, update.TaskStatus)
+
+	for _, memberID := range update.MemberIds {
+		notification := model.Notification{
+			UserID:    memberID,
+			Message:   message,
+			CreatedAt: time.Now(),
+			Status:    model.Unread,
+		}
+
+		if err := n.repo.Create(&notification); err != nil {
+			n.logger.Printf("Error inserting notification for user %s: %v", memberID, err)
+			continue
+		}
+
+		n.logger.Printf("Notification sent to user %s\n", memberID)
+	}
 }
 
 func Conn() (*nats.Conn, error) {
@@ -431,4 +418,37 @@ func Conn() (*nats.Conn, error) {
 		return nil, err
 	}
 	return conn, nil
+}
+
+func (n *NotificationHandler) GetUnreadNotificationCount(rw http.ResponseWriter, h *http.Request) {
+	n.logger.Println("method hit")
+	userID, ok := h.Context().Value(KeyProduct{}).(string)
+	if !ok {
+		http.Error(rw, "User ID not found", http.StatusUnauthorized)
+		n.logger.Println("User ID not found in context")
+		return
+	}
+
+	notifications, err := n.repo.GetByUserID(userID)
+	if err != nil {
+		http.Error(rw, "Error fetching notifications", http.StatusInternalServerError)
+		n.logger.Println("Error fetching notifications:", err)
+		return
+	}
+
+	unreadCount := 0
+	for _, notification := range notifications {
+		if notification.Status == model.Unread {
+			unreadCount++
+		}
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(rw).Encode(struct {
+		UnreadCount int `json:"unreadCount"`
+	}{UnreadCount: unreadCount})
+	if err != nil {
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		n.logger.Fatal("Unable to encode response:", err)
+	}
 }
