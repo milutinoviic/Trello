@@ -16,10 +16,18 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"project-service/client"
 	"project-service/handlers"
 	"project-service/repositories"
 	"time"
 )
+
+func initUserClient() client.UserClient {
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+}
+func initTaskClient() client.TaskClient {
+	return client.NewTaskClient(os.Getenv("TASK_SERVICE_HOST"), os.Getenv("TASK_SERVICE_PORT"))
+}
 
 func main() {
 	fmt.Print("Hello from project-service")
@@ -84,6 +92,9 @@ func main() {
 
 	getByIdRouter := router.Methods(http.MethodGet).Subrouter()
 	getByIdRouter.Handle("/{id}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetProjectById))))
+
+	getDetailsByIdRouter := router.Methods(http.MethodGet).Subrouter()
+	getDetailsByIdRouter.Handle("/projectDetails/{id}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetProjectDetailsById))))
 
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
 	deleteRouter.Handle("/projects/{id}/users/{userId}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(projectsHandler.RemoveUserFromProject))))

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
+	"project-service/client"
 	"project-service/model"
 	"project-service/repositories"
 	"strconv"
@@ -21,10 +22,12 @@ type KeyProject struct{}
 type KeyRole struct{}
 
 type ProjectsHandler struct {
-	logger   *log.Logger
-	repo     *repositories.ProjectRepo
-	natsConn *nats.Conn
-	tracer   trace.Tracer
+	logger     *log.Logger
+	repo       *repositories.ProjectRepo
+	natsConn   *nats.Conn
+	tracer     trace.Tracer
+	userClient client.UserClient
+	taskClient client.TaskClient
 }
 
 type Task struct {
@@ -91,8 +94,8 @@ func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, stri
 	return result.UserID, result.Role, nil
 }
 
-func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo, natsConn *nats.Conn, tracer trace.Tracer) *ProjectsHandler {
-	return &ProjectsHandler{l, r, natsConn, tracer}
+func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo, natsConn *nats.Conn, tracer trace.Tracer, userClient client.UserClient, taskClient client.TaskClient) *ProjectsHandler {
+	return &ProjectsHandler{logger: l, repo: r, natsConn: natsConn, tracer: tracer, userClient: userClient, taskClient: taskClient}
 }
 
 func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request) {
@@ -668,4 +671,68 @@ func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.R
 		_, _ = rw.Write([]byte("false"))
 	}
 	span.SetStatus(codes.Ok, "Successful function")
+}
+
+func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.Request) {
+	// Step 1: Extract the auth_token cookie from the incoming request
+	cookie, err := h.Cookie("auth_token")
+	if err != nil {
+		http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
+		p.logger.Println("No token in cookie:", err)
+		return
+	}
+
+	// Step 2: Get the project ID from the URL
+	vars := mux.Vars(h)
+	id := vars["id"]
+
+	// Step 3: Fetch the project from the database
+	project, err := p.repo.GetById(id)
+	if err != nil {
+		p.logger.Print("Database exception: ", err)
+		http.Error(rw, "Error fetching project details", http.StatusInternalServerError)
+		return
+	}
+
+	// If project is not found, return an error
+	if project == nil {
+		http.Error(rw, "Project with given id not found", http.StatusNotFound)
+		p.logger.Printf("Project with id: '%s' not found", id)
+		return
+	}
+
+	// Step 4: Fetch the user details associated with the project
+	usersDetails, err := p.userClient.GetByIdsWithCookies(project.UserIDs, cookie)
+	if err != nil {
+		http.Error(rw, "Error fetching user details", http.StatusInternalServerError)
+		return
+	}
+
+	// Step 5: Fetch the tasks associated with the project
+	tasksDetails, err := p.taskClient.GetTasksByProjectId(id, cookie)
+	if err != nil {
+		http.Error(rw, "Error fetching task details", http.StatusInternalServerError)
+		return
+	}
+
+	// Step 6: Construct the response with project details, user details, and tasks
+	projectDetails := client.ProjectDetails{
+		ID:         project.ID,
+		Name:       project.Name,
+		EndDate:    project.EndDate,
+		MinMembers: project.MinMembers,
+		MaxMembers: project.MaxMembers,
+		Users:      usersDetails,
+		Tasks:      tasksDetails, // Add the task details to the response
+		UserIDs:    project.UserIDs,
+		Manager:    project.Manager,
+	}
+
+	// Step 7: Send the project details with users and tasks as a response
+	err = projectDetails.ToJSON(rw)
+	if err != nil {
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		p.logger.Fatal("Unable to convert to json:", err)
+		return
+	}
 }

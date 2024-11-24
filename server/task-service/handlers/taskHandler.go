@@ -13,24 +13,26 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"task--service/client"
 	"task--service/model"
 	"task--service/repositories"
 	"time"
 )
 
 type TasksHandler struct {
-	logger   *log.Logger
-	repo     *repositories.TaskRepository
-	natsConn *nats.Conn
-	tracer   trace.Tracer
+	logger     *log.Logger
+	repo       *repositories.TaskRepository
+	natsConn   *nats.Conn
+	tracer     trace.Tracer
+	userClient client.UserClient
 }
 
 type KeyTask struct{}
 type KeyId struct{}
 type KeyRole struct{}
 
-func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, tracer trace.Tracer) *TasksHandler {
-	return &TasksHandler{l, r, natsConn, tracer}
+func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, tracer trace.Tracer, userClient client.UserClient) *TasksHandler {
+	return &TasksHandler{l, r, natsConn, tracer, userClient}
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
@@ -91,6 +93,66 @@ func (t *TasksHandler) GetAllTasksByProjectId(rw http.ResponseWriter, h *http.Re
 		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
 	}
 	span.SetStatus(codes.Ok, "Successfully retrieved all tasks")
+
+}
+
+func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *http.Request) {
+	// Step 1: Get the project ID from the URL
+	vars := mux.Vars(h)
+	projectID := vars["projectId"]
+
+	cookie, err := h.Cookie("auth_token")
+	if err != nil {
+		http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
+		t.logger.Println("No token in cookie:", err)
+		return
+	}
+
+	// Step 2: Fetch tasks for the given project
+	tasks, err := t.repo.GetAllByProjectId(projectID)
+	if err != nil {
+		t.logger.Print("Database exception: ", err)
+		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
+		return
+	}
+
+	// Step 3: Prepare a slice to store tasks with user details
+	var tasksWithUserDetails []client.TaskDetails
+
+	// Step 4: Fetch user details for each task
+	for _, task := range tasks {
+		// Fetch user details for the task based on UserIDs
+		usersDetails, err := t.userClient.GetByIdsWithCookies(task.UserIDs, cookie)
+		if err != nil {
+			t.logger.Printf("Error fetching user details for task ID '%s': %v", task.ID, err)
+			http.Error(rw, "Error fetching user details for tasks", http.StatusInternalServerError)
+			return
+		}
+
+		// Step 5: Map task to TaskDetails and include user details
+		taskDetails := client.TaskDetails{
+			ID:           task.ID,
+			ProjectID:    task.ProjectID,
+			Name:         task.Name,
+			Description:  task.Description,
+			Status:       task.Status,
+			CreatedAt:    task.CreatedAt,
+			UpdatedAt:    task.UpdatedAt,
+			UserIDs:      task.UserIDs,
+			Users:        usersDetails, // Add the user details
+			Dependencies: task.Dependencies,
+			Blocked:      task.Blocked,
+		}
+
+		// Add the task with user details to the result slice
+		tasksWithUserDetails = append(tasksWithUserDetails, taskDetails)
+	}
+
+	// Step 6: Return the tasks with user details in the response
+	if err := json.NewEncoder(rw).Encode(tasksWithUserDetails); err != nil {
+		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+		t.logger.Printf("Error encoding response: %v", err)
+	}
 }
 
 func (t *TasksHandler) HandleProjectDeleted(projectID string) {

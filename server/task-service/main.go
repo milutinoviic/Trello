@@ -16,10 +16,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"task--service/client"
 	"task--service/handlers"
 	"task--service/repositories"
 	"time"
 )
+
+func initUserClient() client.UserClient {
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+}
 
 func main() {
 
@@ -66,8 +71,9 @@ func main() {
 	defer store.Disconnect(timeoutContext)
 
 	store.Ping()
+	userClient := initUserClient()
+	taskHandler := handlers.NewTasksHandler(logger, store, nc, tracer, userClient)
 
-	taskHandler := handlers.NewTasksHandler(logger, store, nc, tracer)
 	// subscribe to "ProjectDeleted" events to delete tasks that belong to project
 	sub, err := nc.Subscribe("ProjectDeleted", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
@@ -91,6 +97,7 @@ func main() {
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetAllTask))))
 	getRouter.Handle("/tasks/{projectId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(taskHandler.GetAllTasksByProjectId))))
+	getRouter.Handle("/tasksDetails/{projectId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(taskHandler.GetAllTasksDetailsByProjectId))))
 
 	postPutRouter := router.Methods(http.MethodPost, http.MethodPut).Subrouter()
 	postPutRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(taskHandler.PostTask))))
