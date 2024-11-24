@@ -5,6 +5,12 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
 	"net/http"
 	handler "notification-service/handlers"
@@ -23,14 +29,28 @@ func main() {
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	repo, err := repository.New(logger)
+	cfg := os.Getenv("JAEGER_ADDRESS")
+	exp, err := newExporter(cfg)
+	if err != nil {
+		log.Fatalf("Jaeger exporter initialization failed: %v", err)
+	} else {
+		log.Println("Jaeger initialization succeeded")
+	}
+	log.Printf("Using JAEGER_ADDRESS: %s", cfg)
+	tp := newTraceProvider(exp)
+	defer func() { _ = tp.Shutdown(timeoutContext) }()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	tracer := tp.Tracer("notification-service")
+
+	repo, err := repository.New(logger, tracer)
 	if err != nil {
 		logger.Fatal("Error initializing repository:", err)
 	}
 
 	repo.CreateTables()
 
-	notificationHandler := handler.NewNotificationHandler(logger, repo)
+	notificationHandler := handler.NewNotificationHandler(logger, repo, tracer)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -96,4 +116,34 @@ func loadConfig() map[string]string {
 	config["address"] = fmt.Sprintf(":%s", port)
 
 	return config
+}
+
+func newExporter(address string) (*jaeger.Exporter, error) {
+	if address == "" {
+		return nil, fmt.Errorf("jaeger collector endpoint address is empty")
+	}
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(address)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+	}
+	return exp, nil
+}
+
+func newTraceProvider(exp sdktrace.SpanExporter) *sdktrace.TracerProvider {
+	r, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("notification-service"),
+		),
+	)
+	if err != nil {
+		log.Fatalf("failed to create resource: %v", err)
+	}
+
+	return sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(r),
+	)
 }

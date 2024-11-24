@@ -3,9 +3,12 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
 	"slices"
@@ -19,62 +22,85 @@ type TasksHandler struct {
 	logger   *log.Logger
 	repo     *repositories.TaskRepository
 	natsConn *nats.Conn
+	tracer   trace.Tracer
 }
 
 type KeyTask struct{}
 type KeyId struct{}
 type KeyRole struct{}
 
-func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn) *TasksHandler {
-	return &TasksHandler{l, r, natsConn}
+func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, tracer trace.Tracer) *TasksHandler {
+	return &TasksHandler{l, r, natsConn, tracer}
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.PostTask")
+	defer span.End()
 	task := h.Context().Value(KeyTask{}).(*model.Task)
 	err := t.repo.Insert(task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Unable to create task", http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, "Successfully created task")
 	rw.WriteHeader(http.StatusCreated)
 }
 
 func (t *TasksHandler) GetAllTask(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.GetAllTask")
+	defer span.End()
 	projects, err := t.repo.GetAllTask()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Print("Database exception: ", err)
 	}
 
 	err = projects.ToJSON(rw)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		t.logger.Fatal("Unable to convert to json :", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "Successfully retrieved all tasks")
 }
 
 func (t *TasksHandler) GetAllTasksByProjectId(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.GetAllTasksByProjectId")
+	defer span.End()
 	vars := mux.Vars(h)
 	projectID := vars["projectId"]
 
 	tasks, err := t.repo.GetAllByProjectId(projectID)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Print("Database exception: ", err)
 		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
 		return
 	}
 
 	if err := json.NewEncoder(rw).Encode(tasks); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
 	}
-
+	span.SetStatus(codes.Ok, "Successfully retrieved all tasks")
 }
 
 func (t *TasksHandler) HandleProjectDeleted(projectID string) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.HandleProjectDeleted")
+	defer span.End()
 
 	err := t.repo.DeleteAllTasksByProjectId(projectID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Printf("Failed to delete tasks for project %s: %v", projectID, err)
 
 		_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID))
@@ -88,6 +114,7 @@ func (t *TasksHandler) HandleProjectDeleted(projectID string) {
 
 	//_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID)) // uncomment this, and comment out the code above to test 'rollback' function
 
+	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
 }
 
 func (t *TasksHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
@@ -168,10 +195,14 @@ func (p *TasksHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 }
 
 func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string, error) {
+	_, span := p.tracer.Start(context.Background(), "TaskHandler.verifyTokenWithUserService")
+	defer span.End()
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -179,11 +210,15 @@ func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string,
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		span.RecordError(errors.New(resp.Status))
+		span.SetStatus(codes.Error, errors.New(resp.Status).Error())
 		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
 	}
 
@@ -194,25 +229,34 @@ func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string,
 
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", "", err
 	}
 
+	span.SetStatus(codes.Ok, "Successfully validated token")
 	return result.UserID, result.Role, nil
 }
 
 func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.LogTaskMemberChange")
+	defer span.End()
 	vars := mux.Vars(h)
 	taskID := vars["taskId"]
 	action := vars["action"] // Can be "add" or "remove"
 	userID := vars["userId"]
 
 	if action != "add" && action != "remove" {
+		span.RecordError(errors.New("Invalid action"))
+		span.SetStatus(codes.Error, "Invalid action")
 		http.Error(rw, "Invalid action", http.StatusBadRequest)
 		return
 	}
 
 	task, err := t.repo.GetByID(taskID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Task not found", http.StatusNotFound)
 		t.logger.Println("Error fetching task:", err)
 		return
@@ -220,11 +264,15 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	if action == "add" {
 		if !t.isUserInProject(task.ProjectID, userID) {
+			span.RecordError(errors.New("Invalid userId"))
+			span.SetStatus(codes.Error, "Invalid userId")
 			http.Error(rw, "User not part of the project", http.StatusForbidden)
 			return
 		}
 
 		if contains(task.UserIDs, userID) {
+			span.RecordError(errors.New("user is already a member of this task"))
+			span.SetStatus(codes.Error, "User is already a member of this task")
 			http.Error(rw, "User is already a member of this task", http.StatusConflict)
 			return
 		}
@@ -232,11 +280,15 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	if action == "remove" {
 		if task.Status == model.Completed {
+			span.RecordError(errors.New("cannot remove task"))
+			span.SetStatus(codes.Error, "cannot remove task")
 			http.Error(rw, "Cannot remove member from a completed task", http.StatusForbidden)
 			return
 		}
 
 		if !contains(task.UserIDs, userID) {
+			span.RecordError(errors.New("Invalid userId"))
+			span.SetStatus(codes.Error, "Invalid userId")
 			http.Error(rw, "User is not a member of this task", http.StatusBadRequest)
 			return
 		}
@@ -252,6 +304,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	err = t.repo.InsertTaskMemberActivity(&activity)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to log task member change", http.StatusInternalServerError)
 		t.logger.Println("Error inserting task member change:", err)
 		return
@@ -261,6 +315,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 		task.UserIDs = append(task.UserIDs, userID)
 		nc, err := Conn()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error connecting to NATS:", err)
 			http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
 			return
@@ -279,12 +335,16 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 		jsonMessage, err := json.Marshal(message)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error marshalling message:", err)
 			return
 		}
 
 		err = nc.Publish(subject, jsonMessage)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error publishing message to NATS:", err)
 		}
 
@@ -293,6 +353,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 		task.UserIDs = remove(task.UserIDs, userID)
 		nc, err := Conn()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error connecting to NATS:", err)
 			http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
 			return
@@ -311,12 +373,16 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 		jsonMessage, err := json.Marshal(message)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error marshalling message:", err)
 			return
 		}
 
 		err = nc.Publish(subject, jsonMessage)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error publishing message to NATS:", err)
 		}
 
@@ -325,6 +391,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	err = t.repo.Update(task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to update task", http.StatusInternalServerError)
 		t.logger.Println("Error updating task:", err)
 		return
@@ -334,6 +402,7 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	rw.WriteHeader(http.StatusCreated)
 	fmt.Fprintf(rw, "Task member change logged and task updated successfully")
+	span.SetStatus(codes.Ok, "Successfully updated task")
 }
 
 func Conn() (*nats.Conn, error) {
@@ -346,8 +415,12 @@ func Conn() (*nats.Conn, error) {
 }
 
 func (t *TasksHandler) ProcessTaskMemberActivity() {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.ProcessTaskMemberActivity")
+	defer span.End()
 	activities, err := t.repo.GetUnprocessedActivities()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Println("Error fetching unprocessed changes:", err)
 		return
 	}
@@ -355,6 +428,8 @@ func (t *TasksHandler) ProcessTaskMemberActivity() {
 	for _, activity := range activities {
 		task, err := t.repo.GetByID(activity.TaskID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Println("Error fetching task for change:", err)
 			continue
 		}
@@ -372,16 +447,21 @@ func (t *TasksHandler) ProcessTaskMemberActivity() {
 
 		err = t.repo.Update(task)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Println("Error updating task:", err)
 			continue
 		}
 
 		err = t.repo.MarkChangeAsProcessed(activity.ID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Println("Error marking change as processed:", err)
 			continue
 		}
 	}
+	span.SetStatus(codes.Ok, "Successfully updated task")
 }
 
 func contains(slice []string, item string) bool {
@@ -404,10 +484,14 @@ func remove(slice []string, item string) []string {
 }
 
 func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.isUserInProject")
+	defer span.End()
 	projectServiceURL := "http://project-server:8080/projects/" + projectID + "/users/" + userID + "/check"
 
 	resp, err := http.Get(projectServiceURL)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Println("Error checking user in project:", err)
 		return false
 	}
@@ -422,14 +506,19 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 	}
 
 	t.logger.Println("Unexpected status code:", resp.StatusCode)
+	span.SetStatus(codes.Ok, "Function is working")
 	return false
 }
 
 func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {
+	_, span := th.tracer.Start(context.Background(), "TaskHandler.HandleStatusUpdate")
+	defer span.End()
 	th.logger.Println("Received request to update task status")
 
 	task, ok := req.Context().Value(KeyTask{}).(*model.Task)
 	if !ok || task == nil {
+		span.RecordError(errors.New("cannot get task from context"))
+		span.SetStatus(codes.Error, "cannot get task from context")
 		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
 		th.logger.Println("Error retrieving task from context")
 		return
@@ -439,6 +528,8 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 
 	err := th.repo.UpdateStatus(task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		th.logger.Println("Failed to update task status:", err)
 		http.Error(rw, "Failed to update status", http.StatusInternalServerError)
 		return
@@ -453,6 +544,7 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 
 	rw.WriteHeader(http.StatusOK)
 	th.logger.Println("Task status updated successfully")
+	span.SetStatus(codes.Ok, "Successfully updated task")
 }
 
 func (t *TasksHandler) publishStatusUpdate(task *model.Task) error {
@@ -489,8 +581,12 @@ func (t *TasksHandler) publishStatusUpdate(task *model.Task) error {
 }
 
 func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *http.Request) {
+	_, span := th.tracer.Start(context.Background(), "TaskHandler.HandleCheckingIfUserIsInTask")
+	defer span.End()
 	task, ok := r.Context().Value(KeyTask{}).(*model.Task)
 	if !ok || task == nil {
+		span.RecordError(errors.New("task data is missing or invalid"))
+		span.SetStatus(codes.Error, "task data is missing or invalid")
 		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
 		th.logger.Println("Error retrieving task from context")
 		return
@@ -498,6 +594,8 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 
 	id, ok := r.Context().Value(KeyId{}).(string)
 	if !ok || id == "" {
+		span.RecordError(errors.New("User ID is missing or invalid"))
+		span.SetStatus(codes.Error, "User ID is missing or invalid")
 		http.Error(rw, "User ID is missing or invalid", http.StatusUnauthorized)
 		th.logger.Println("Error retrieving user ID from context")
 		return
@@ -515,4 +613,5 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 		rw.Write([]byte("false"))
 		th.logger.Println("User is not part of the task")
 	}
+	span.SetStatus(codes.Ok, "Successfully checked user")
 }
