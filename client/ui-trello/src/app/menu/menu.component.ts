@@ -49,17 +49,21 @@ export class MenuComponent implements OnInit {
               this.router.navigate(['/login']);
             },
             error: () => {
+              this.toastrService.error("Account deleted, but logout failed.");
               console.log("Account deleted, but logout failed.");
 
             }
           });
           this.router.navigate(['/login']);
-          alert("Successfully deleted profile.");
+          // alert("Successfully deleted profile.");
+          this.toastrService.success("Successfully deleted profile.");
+
         },
         error: (error) => {
           console.log("Deleting account failed.");
           console.log("Response Body:", error.error);
-          alert(error.error)
+          // alert(error.error)
+          this.toastrService.error('Deleting account failed' + error.error);
         }
       })
 

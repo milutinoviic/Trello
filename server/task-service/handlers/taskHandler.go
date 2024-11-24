@@ -77,19 +77,17 @@ func (t *TasksHandler) HandleProjectDeleted(projectID string) {
 	if err != nil {
 		t.logger.Printf("Failed to delete tasks for project %s: %v", projectID, err)
 
-		// Publish a "CompensateProjectDeletion" event via NATS
-		//event := map[string]string{"projectId": projectID}
-		//eventData, err := json.Marshal(event) // Convert event to JSON format
-		//if err != nil {
-		//	t.logger.Printf("Failed to marshal compensate event: %v", err)
-		//	return
-		//}
-		//
-		//err = t.natsConn.Publish("CompensateProjectDeletion", eventData)
-		//if err != nil {
-		//	t.logger.Printf("Failed to publish compensate event: %v", err)
-		//}
+		_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID))
 	}
+	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+
+	err = t.natsConn.Publish("TasksDeleted", []byte(projectID))
+	if err != nil {
+		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+	}
+
+	//_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID)) // uncomment this, and comment out the code above to test 'rollback' function
+
 }
 
 func (t *TasksHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {

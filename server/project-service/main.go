@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/mux"
-	"github.com/nats-io/nats.go"
 	"github.com/rs/cors"
 	"log"
 	"net/http"
@@ -17,16 +16,6 @@ import (
 
 func main() {
 	fmt.Print("Hello from project-service")
-
-	natsURL := os.Getenv("NATS_URL")
-	if natsURL == "" {
-		natsURL = "nats://nats:4222"
-	}
-	nc, err := nats.Connect(natsURL)
-	if err != nil {
-		log.Fatalf("Error connecting to NATS: %v", err)
-	}
-	defer nc.Close()
 
 	port := os.Getenv("PORT")
 	if len(port) == 0 {
@@ -47,7 +36,12 @@ func main() {
 
 	store.Ping()
 
-	projectsHandler := handlers.NewProjectsHandler(logger, store, nc)
+	projectsHandler := handlers.NewProjectsHandler(logger, store)
+	projectsHandler.SubscribeToEvent()
+
+	if err != nil {
+		logger.Printf("Failed to subscribe to TasksDeleted event: %v", err)
+	}
 
 	router := mux.NewRouter()
 
@@ -92,6 +86,7 @@ func main() {
 	logger.Println("Server listening on port", port)
 	go func() {
 		err := server.ListenAndServe()
+		//err := http.ListenAndServeTLS(":443", "/etc/nginx/ssl/trello.crt", "/etc/nginx/ssl/trello.key", nil)
 		if err != nil {
 			logger.Fatal(err)
 		}

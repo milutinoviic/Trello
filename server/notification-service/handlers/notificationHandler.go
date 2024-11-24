@@ -286,6 +286,42 @@ func (n *NotificationHandler) NotificationListener() {
 	subscribe("task.removed", n.handleTaskRemoved)
 	subscribe("task.status.update", n.handleTaskStatusUpdate)
 
+	projectDeleted := "project.deleted"
+	_, err = nc.Subscribe(projectDeleted, func(msg *nats.Msg) {
+		fmt.Printf("User received notification: %s\n", string(msg.Data))
+
+		var data struct {
+			UserIDs     []string `json:"userIds"`
+			ProjectName string   `json:"projectName"`
+		}
+
+		err := json.Unmarshal(msg.Data, &data)
+		if err != nil {
+			log.Println("Error unmarshalling message:", err)
+			return
+		}
+
+		fmt.Printf("User ID: %s, Project Name: %s\n", data.UserIDs, data.ProjectName)
+
+		message := fmt.Sprintf("The project: %s , you where working on, was deleted", data.ProjectName)
+
+		for _, userID := range data.UserIDs {
+			notification := model.Notification{
+				UserID:    userID,
+				Message:   message,
+				CreatedAt: time.Now(),
+				Status:    model.Unread,
+			}
+			err = n.repo.Create(&notification)
+			if err != nil {
+				n.logger.Print("Error inserting notification:", err)
+				return
+			}
+
+		}
+
+	})
+
 	select {}
 }
 

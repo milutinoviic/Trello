@@ -7,13 +7,14 @@ import (
 )
 
 type Project struct {
-	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	Name       string             `bson:"name" json:"name"`
-	EndDate    string             `bson:"end_date" json:"end_date"`
-	MinMembers string             `bson:"min_members" json:"min_members"`
-	MaxMembers string             `bson:"max_members" json:"max_members"`
-	UserIDs    []string           `bson:"user_ids" json:"user_ids"`
-	Manager    string             `bson:"manager" json:"manager"`
+	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name            string             `bson:"name" json:"name"`
+	EndDate         string             `bson:"end_date" json:"end_date"`
+	MinMembers      string             `bson:"min_members" json:"min_members"`
+	MaxMembers      string             `bson:"max_members" json:"max_members"`
+	UserIDs         []string           `bson:"user_ids" json:"user_ids"`
+	Manager         string             `bson:"manager" json:"manager"`
+	PendingDeletion bool               `bson:"pending_deletion" json:"pending_deletion"`
 }
 
 type Projects []*Project

@@ -18,9 +18,8 @@ type KeyProject struct{}
 type KeyRole struct{}
 
 type ProjectsHandler struct {
-	logger   *log.Logger
-	repo     *repositories.ProjectRepo
-	natsConn *nats.Conn
+	logger *log.Logger
+	repo   *repositories.ProjectRepo
 }
 
 type Task struct {
@@ -87,8 +86,8 @@ func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, stri
 	return result.UserID, result.Role, nil
 }
 
-func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo, natsConn *nats.Conn) *ProjectsHandler {
-	return &ProjectsHandler{l, r, natsConn}
+func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
+	return &ProjectsHandler{l, r}
 }
 
 func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request) {
@@ -381,24 +380,100 @@ func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request)
 		return
 	}
 
-	//TODO: before deleting project implement archive project functionality, in case if 'rollback' is necessary
-	//TODO: finish SAGA pattern with rollback
-
-	err := p.repo.DeleteProject(projectId)
+	err := p.repo.PendingDeletion(projectId, true)
 	if err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	nc, err := Conn()
+	if err != nil {
+		log.Println("Error connecting to NATS:", err)
+		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
+		return
+	}
 	// publish a "ProjectDeleted" event to NATS, => this will be executed in taskHnadler/HandleProjectDeleted
-	err = p.natsConn.Publish("ProjectDeleted", []byte(projectId))
+	err = nc.Publish("ProjectDeleted", []byte(projectId))
 	if err != nil {
 		p.logger.Printf("Failed to publish ProjectDeleted event: %v", err)
 		http.Error(rw, "Failed to publish event", http.StatusInternalServerError)
 		return
 	}
 
+	rw.Write([]byte("Project deletion request accepted"))
 	rw.WriteHeader(http.StatusOK)
+}
+
+func (p *ProjectsHandler) SubscribeToEvent() {
+	nc, err := Conn()
+	if err != nil {
+		log.Println("Error connecting to NATS:", err)
+		p.logger.Printf("Error connecting to NATS: ", err)
+
+		return
+	}
+	// Subscribe on channel to react on task deletion
+	_, err = nc.QueueSubscribe("TasksDeleted", "tasks-deleted-queue", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		p.HandleTasksDeleted(projectID)
+	})
+
+	if err != nil {
+		p.logger.Printf("Failed to subscribe to TasksDeleted event: %v", err)
+	}
+	_, err = nc.QueueSubscribe("TaskDeletionFailed", "task-failed-queue", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		p.HandleTasksDeletedRollback(projectID)
+	})
+}
+
+func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
+	project, _ := p.repo.GetById(projectID)
+	nc, err := Conn()
+	if err != nil {
+		p.logger.Println("Error connecting to NATS:", err)
+		return
+	}
+	defer nc.Close()
+
+	subject := "project.deleted"
+
+	message := struct {
+		UserIDs     []string `json:"userIds"`
+		ProjectName string   `json:"projectName"`
+	}{
+		UserIDs:     project.UserIDs,
+		ProjectName: project.Name,
+	}
+
+	jsonMessage, err := json.Marshal(message)
+	if err != nil {
+		log.Println("Error marshalling message:", err)
+		//continue
+	}
+
+	err = nc.Publish(subject, jsonMessage)
+	if err != nil {
+		log.Println("Error publishing message to NATS:", err)
+	}
+	p.logger.Println("a message has been sent")
+
+	err = p.repo.DeleteProject(projectID)
+	if err != nil {
+		p.logger.Printf("Failed to delete project %s: %v", projectID, err)
+		return
+	}
+
+	p.logger.Printf("Successfully deleted project %s", projectID)
+}
+func (p *ProjectsHandler) HandleTasksDeletedRollback(projectID string) {
+	err := p.repo.PendingDeletion(projectID, false)
+	if err != nil {
+		p.logger.Printf("Failed to delete project %s: %v", projectID, err)
+		return
+	}
+
+	p.logger.Printf("Successfully retrive deleted project %s", projectID)
 }
 
 func (ph *ProjectsHandler) checkTasks(project model.Project, userID string, authTokenCookie *http.Cookie) bool {

@@ -49,8 +49,9 @@ func main() {
 	store.Ping()
 
 	taskHandler := handlers.NewTasksHandler(logger, store, nc)
+
 	// subscribe to "ProjectDeleted" events to delete tasks that belong to project
-	sub, err := nc.Subscribe("ProjectDeleted", func(msg *nats.Msg) {
+	sub, err := nc.QueueSubscribe("ProjectDeleted", "task-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
 		taskHandler.HandleProjectDeleted(projectID)
 	})
@@ -100,6 +101,8 @@ func main() {
 	go func() {
 		logger.Println("Server listening on port", port)
 		err := server.ListenAndServe()
+		//err := http.ListenAndServeTLS(":443", "/etc/nginx/ssl/trello.crt", "/etc/nginx/ssl/trello.key", nil)
+
 		if err != nil {
 			logger.Fatal(err)
 		}

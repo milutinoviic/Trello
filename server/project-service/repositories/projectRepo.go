@@ -88,7 +88,7 @@ func (pr *ProjectRepo) GetAllByManager(managerEmail string) (model.Projects, err
 	projectsCollection := pr.getCollection()
 
 	var projects model.Projects
-	filter := bson.M{"manager": managerEmail}
+	filter := bson.M{"manager": managerEmail, "pending_deletion": false}
 	projectsCursor, err := projectsCollection.Find(ctx, filter)
 	if err != nil {
 		pr.logger.Println(err)
@@ -114,7 +114,7 @@ func (pr *ProjectRepo) GetAllByMember(userID string) (model.Projects, error) {
 		return nil, fmt.Errorf("invalid user ID: %v", err)
 	}
 
-	filter := bson.M{"user_ids": objID}
+	filter := bson.M{"user_ids": objID, "pending_deletion": false}
 	projectsCursor, err := projectsCollection.Find(ctx, filter)
 	if err != nil {
 		pr.logger.Println(err)
@@ -190,6 +190,7 @@ func (pr *ProjectRepo) AddUsersToProject(projectId string, userIds []string) err
 	_, err = collection.UpdateOne(
 		ctx,
 		bson.M{"_id": objID},
+
 		bson.M{"$addToSet": bson.M{"user_ids": bson.M{"$each": objIDs}}},
 	)
 	if err != nil {
@@ -241,6 +242,28 @@ func (pr *ProjectRepo) DeleteProject(projectId string) error {
 	_, err = collection.DeleteOne(
 		ctx,
 		bson.M{"_id": projectObjID},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to remove user from project: %v", err)
+	}
+
+	return nil
+}
+func (pr *ProjectRepo) PendingDeletion(projectId string, toBeDeleted bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	collection := pr.getCollection()
+
+	projectObjID, err := primitive.ObjectIDFromHex(projectId)
+	if err != nil {
+		return fmt.Errorf("invalid project ID: %v", err)
+	}
+
+	_, err = collection.UpdateOne(
+		ctx,
+		bson.M{"_id": projectObjID},
+		bson.M{"$set": bson.M{"pending_deletion": toBeDeleted}},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to remove user from project: %v", err)
