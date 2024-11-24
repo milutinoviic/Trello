@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"task--service/client"
+	"task--service/customLogger"
 	"task--service/handlers"
 	"task--service/repositories"
 	"time"
@@ -39,6 +40,8 @@ func main() {
 		port = "8080"
 	}
 
+	custLogger := customLogger.GetLogger()
+
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -55,7 +58,7 @@ func main() {
 
 	userClient := initUserClient()
 
-	taskHandler := handlers.NewTasksHandler(logger, store, nc, userClient)
+	taskHandler := handlers.NewTasksHandler(logger, store, nc, userClient, custLogger)
 	// subscribe to "ProjectDeleted" events to delete tasks that belong to project
 	sub, err := nc.Subscribe("ProjectDeleted", func(msg *nats.Msg) {
 		projectID := string(msg.Data)

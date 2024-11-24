@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"project-service/client"
+	"project-service/customLogger"
 	"project-service/handlers"
 	"project-service/repositories"
 	"time"
@@ -47,6 +48,8 @@ func main() {
 	logger := log.New(os.Stdout, "[product-api] ", log.LstdFlags)
 	storeLogger := log.New(os.Stdout, "[project-store] ", log.LstdFlags)
 
+	custLogger := customLogger.GetLogger()
+
 	store, err := repositories.New(timeoutContext, storeLogger)
 	if err != nil {
 		logger.Fatal(err)
@@ -58,7 +61,7 @@ func main() {
 	userClient := initUserClient()
 	taskClient := initTaskClient()
 
-	projectsHandler := handlers.NewProjectsHandler(logger, store, nc, userClient, taskClient)
+	projectsHandler := handlers.NewProjectsHandler(logger, custLogger, store, nc, userClient, taskClient)
 
 	router := mux.NewRouter()
 

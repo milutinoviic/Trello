@@ -3,10 +3,13 @@ module task--service
 go 1.22.2
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/nats-io/nats.go v1.37.0
 	github.com/rs/cors v1.11.1
+	github.com/sirupsen/logrus v1.9.3
 	go.mongodb.org/mongo-driver v1.17.1
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (

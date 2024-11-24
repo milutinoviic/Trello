@@ -6,6 +6,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"log"
+	"main.go/customLogger"
 	"main.go/handlers"
 	"main.go/repository"
 	"main.go/service"
@@ -16,17 +17,21 @@ import (
 )
 
 func main() {
+
 	config := loadConfig()
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	logger := log.New(os.Stdout, "[user-api] ", log.LstdFlags)
+
+	custLogger := customLogger.GetLogger()
+
 	ur, err := repository.New(timeoutContext, logger)
 	if err != nil {
 		logger.Fatal(err)
 	}
 	uc, err := repository.NewCache(logger, ur)
 	us := service.NewUserService(ur, uc, logger)
-	uh := handlers.NewUserHandler(logger, us)
+	uh := handlers.NewUserHandler(logger, custLogger, us)
 
 	r := mux.NewRouter()
 

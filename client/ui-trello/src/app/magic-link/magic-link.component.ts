@@ -37,6 +37,9 @@ export class MagicLinkComponent implements OnInit {
 
           if (response) {
             this.service.startTokenVerification(response);
+            console.log("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
+            console.log(response)
+            console.log("KKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKKK")
             this.linkValid = true;
 
             setTimeout(() => {

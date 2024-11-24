@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
+	"github.com/sirupsen/logrus"
 	"log"
 	"net/http"
 	"slices"
 	"strings"
 	"task--service/client"
+	"task--service/customLogger"
 	"task--service/model"
 	"task--service/repositories"
 	"time"
@@ -21,92 +23,162 @@ type TasksHandler struct {
 	repo       *repositories.TaskRepository
 	natsConn   *nats.Conn
 	userClient client.UserClient
+	custLogger *customLogger.Logger
 }
 
 type KeyTask struct{}
 type KeyId struct{}
 type KeyRole struct{}
 
-func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, userClient client.UserClient) *TasksHandler {
-	return &TasksHandler{l, r, natsConn, userClient}
+func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, userClient client.UserClient, custLogger *customLogger.Logger) *TasksHandler {
+	return &TasksHandler{l, r, natsConn, userClient, custLogger}
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
-	task := h.Context().Value(KeyTask{}).(*model.Task)
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Preuzimanje Task-a iz Context-a
+	task, ok := h.Context().Value(KeyTask{}).(*model.Task)
+	if !ok || task == nil {
+		errMsg := "Invalid task data in context"
+		t.logger.Printf(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		http.Error(rw, "Invalid task data", http.StatusBadRequest)
+		return
+	}
+	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task data retrieved successfully")
+
+	// Ubacivanje Task-a u repozitorijum
 	err := t.repo.Insert(task)
 	if err != nil {
+		errMsg := "Unable to create task: " + err.Error()
+		t.logger.Printf(errMsg)
+		t.custLogger.Error(logrus.Fields{"taskID": task.ID}, errMsg)
 		http.Error(rw, "Unable to create task", http.StatusInternalServerError)
 		return
 	}
+	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task created successfully")
+
+	// Slanje odgovora
 	rw.WriteHeader(http.StatusCreated)
+	response := map[string]string{"message": "Task created successfully"}
+	err = json.NewEncoder(rw).Encode(response)
+	if err != nil {
+		errMsg := "Error writing response: " + err.Error()
+		t.logger.Printf(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		return
+	}
+	t.custLogger.Info(nil, "Task creation response sent successfully")
 }
 
 func (t *TasksHandler) GetAllTask(rw http.ResponseWriter, h *http.Request) {
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Preuzimanje svih zadataka iz repozitorijuma
 	projects, err := t.repo.GetAllTask()
 	if err != nil {
-		t.logger.Print("Database exception: ", err)
-	}
-
-	err = projects.ToJSON(rw)
-	if err != nil {
-		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
-		t.logger.Fatal("Unable to convert to json :", err)
+		errMsg := "Database exception: " + err.Error()
+		t.logger.Print(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		http.Error(rw, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	t.custLogger.Info(nil, "All tasks retrieved successfully")
+
+	// Konvertovanje u JSON i slanje odgovora
+	err = projects.ToJSON(rw)
+	if err != nil {
+		errMsg := "Unable to convert to JSON: " + err.Error()
+		t.logger.Fatal(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		http.Error(rw, "Unable to convert to JSON", http.StatusInternalServerError)
+		return
+	}
+	t.custLogger.Info(nil, "Tasks successfully converted to JSON and sent in response")
 }
 
 func (t *TasksHandler) GetAllTasksByProjectId(rw http.ResponseWriter, h *http.Request) {
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Ekstrakcija projectID iz URL-a
 	vars := mux.Vars(h)
 	projectID := vars["projectId"]
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Extracted project ID from request")
 
+	// Preuzimanje zadataka za dati projectID
 	tasks, err := t.repo.GetAllByProjectId(projectID)
-
 	if err != nil {
-		t.logger.Print("Database exception: ", err)
+		errMsg := "Database exception while fetching tasks"
+		t.logger.Print(errMsg, err)
+		t.custLogger.Error(logrus.Fields{"projectID": projectID}, errMsg+": "+err.Error())
 		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
 		return
 	}
+	t.custLogger.Info(logrus.Fields{"projectID": projectID, "taskCount": len(tasks)}, "Tasks fetched successfully")
 
+	// Enkodovanje zadataka u JSON i slanje odgovora
 	if err := json.NewEncoder(rw).Encode(tasks); err != nil {
-		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+		errMsg := "Failed to encode response"
+		t.logger.Printf("%s: %v", errMsg, err)
+		t.custLogger.Error(logrus.Fields{"projectID": projectID}, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusInternalServerError)
+		return
 	}
-
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Tasks successfully encoded and sent in response")
 }
 
 func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *http.Request) {
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
 	// Step 1: Get the project ID from the URL
 	vars := mux.Vars(h)
 	projectID := vars["projectId"]
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Extracted project ID from request")
 
+	// Step 2: Validate token in cookies
 	cookie, err := h.Cookie("auth_token")
 	if err != nil {
-		http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
-		t.logger.Println("No token in cookie:", err)
+		errMsg := "No token found in cookie"
+		t.logger.Println(errMsg, err)
+		t.custLogger.Error(nil, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusUnauthorized)
 		return
 	}
+	t.custLogger.Info(nil, "Authorization token found in cookie")
 
-	// Step 2: Fetch tasks for the given project
+	// Step 3: Fetch tasks for the given project
 	tasks, err := t.repo.GetAllByProjectId(projectID)
 	if err != nil {
-		t.logger.Print("Database exception: ", err)
+		errMsg := "Database exception while fetching tasks"
+		t.logger.Print(errMsg, err)
+		t.custLogger.Error(logrus.Fields{"projectID": projectID}, errMsg+": "+err.Error())
 		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
 		return
 	}
+	t.custLogger.Info(logrus.Fields{"projectID": projectID, "taskCount": len(tasks)}, "Tasks fetched successfully")
 
-	// Step 3: Prepare a slice to store tasks with user details
+	// Step 4: Prepare a slice to store tasks with user details
 	var tasksWithUserDetails []client.TaskDetails
 
-	// Step 4: Fetch user details for each task
+	// Step 5: Fetch user details for each task
 	for _, task := range tasks {
-		// Fetch user details for the task based on UserIDs
+		t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Fetching user details for task")
 		usersDetails, err := t.userClient.GetByIdsWithCookies(task.UserIDs, cookie)
 		if err != nil {
-			t.logger.Printf("Error fetching user details for task ID '%s': %v", task.ID, err)
+			errMsg := "Error fetching user details"
+			t.logger.Printf("%s for task ID '%s': %v", errMsg, task.ID, err)
+			t.custLogger.Error(logrus.Fields{"taskID": task.ID}, errMsg+": "+err.Error())
 			http.Error(rw, "Error fetching user details for tasks", http.StatusInternalServerError)
 			return
 		}
+		t.custLogger.Info(logrus.Fields{"taskID": task.ID, "userCount": len(usersDetails)}, "User details fetched successfully")
 
-		// Step 5: Map task to TaskDetails and include user details
+		// Step 6: Map task to TaskDetails and include user details
 		taskDetails := client.TaskDetails{
 			ID:           task.ID,
 			ProjectID:    task.ProjectID,
@@ -116,7 +188,7 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 			CreatedAt:    task.CreatedAt,
 			UpdatedAt:    task.UpdatedAt,
 			UserIDs:      task.UserIDs,
-			Users:        usersDetails, // Add the user details
+			Users:        usersDetails,
 			Dependencies: task.Dependencies,
 			Blocked:      task.Blocked,
 		}
@@ -125,11 +197,15 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 		tasksWithUserDetails = append(tasksWithUserDetails, taskDetails)
 	}
 
-	// Step 6: Return the tasks with user details in the response
+	// Step 7: Return the tasks with user details in the response
 	if err := json.NewEncoder(rw).Encode(tasksWithUserDetails); err != nil {
-		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
-		t.logger.Printf("Error encoding response: %v", err)
+		errMsg := "Failed to encode response"
+		t.logger.Printf("%s: %v", errMsg, err)
+		t.custLogger.Error(nil, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusInternalServerError)
+		return
 	}
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Tasks with user details successfully returned in response")
 }
 
 func (t *TasksHandler) HandleProjectDeleted(projectID string) {
@@ -207,59 +283,89 @@ func (uh *TasksHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Ha
 
 func (p *TasksHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		p.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+		p.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+		// Ekstrakcija auth_token iz kolačića
 		cookie, err := h.Cookie("auth_token")
 		if err != nil {
-			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
-			p.logger.Println("No token in cookie:", err)
+			errMsg := "No token found in cookie"
+			p.logger.Println(errMsg, err)
+			p.custLogger.Error(nil, errMsg+": "+err.Error())
+			http.Error(rw, errMsg, http.StatusUnauthorized)
 			return
 		}
+		p.custLogger.Info(nil, "Authorization token found in cookie")
 
+		// Verifikacija tokena preko korisničkog servisa
 		userID, role, err := p.verifyTokenWithUserService(cookie.Value)
 		if err != nil {
-			http.Error(rw, "Invalid token", http.StatusUnauthorized)
-			p.logger.Println("Invalid token:", err)
+			errMsg := "Invalid token"
+			p.logger.Println(errMsg, err)
+			p.custLogger.Error(nil, errMsg+": "+err.Error())
+			http.Error(rw, errMsg, http.StatusUnauthorized)
 			return
 		}
+		p.custLogger.Info(logrus.Fields{"userID": userID, "role": role}, "Token verified successfully")
 
+		// Dodavanje korisničkih podataka u kontekst
 		ctx := context.WithValue(h.Context(), KeyId{}, userID)
 		ctx = context.WithValue(ctx, KeyRole{}, role)
-
 		h = h.WithContext(ctx)
 
+		// Nastavak do sledećeg handler-a
+		p.custLogger.Info(logrus.Fields{"userID": userID, "role": role}, "Context updated with user ID and role, proceeding to next handler")
 		next.ServeHTTP(rw, h)
 	})
 }
-
 func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string, error) {
 	userServiceURL := "http://user-server:8080/validate-token"
+	p.logger.Printf("Validating token with user service at %s", userServiceURL)
+	p.custLogger.Info(nil, fmt.Sprintf("Sending token validation request to %s", userServiceURL))
+
+	// Kreiranje zahteva
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
+		p.logger.Printf("Failed to create token validation request: %v", err)
+		p.custLogger.Error(nil, "Failed to create token validation request: "+err.Error())
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	// Slanje zahteva
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		p.logger.Printf("Error sending token validation request: %v", err)
+		p.custLogger.Error(nil, "Error sending token validation request: "+err.Error())
 		return "", "", err
 	}
 	defer resp.Body.Close()
 
+	// Provera statusa odgovora
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+		errMsg := fmt.Sprintf("Failed to validate token, status: %s", resp.Status)
+		p.logger.Println(errMsg)
+		p.custLogger.Warn(nil, errMsg)
+		return "", "", fmt.Errorf(errMsg)
 	}
+	p.custLogger.Info(nil, "Token validation request successful")
 
+	// Dekodovanje odgovora
 	var result struct {
 		UserID string `json:"user_id"`
 		Role   string `json:"role"`
 	}
-
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
+		p.logger.Printf("Error decoding token validation response: %v", err)
+		p.custLogger.Error(nil, "Error decoding token validation response: "+err.Error())
 		return "", "", err
 	}
+	p.custLogger.Info(logrus.Fields{"userID": result.UserID, "role": result.Role}, "Token validated successfully")
 
+	// Povratak korisničkog ID-a i uloge
 	return result.UserID, result.Role, nil
 }
 
@@ -490,42 +596,63 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 
 func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {
 	th.logger.Println("Received request to update task status")
+	th.custLogger.Info(nil, "Received request to update task status")
 
+	// Ekstrakcija task-a iz konteksta
 	task, ok := req.Context().Value(KeyTask{}).(*model.Task)
 	if !ok || task == nil {
-		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
-		th.logger.Println("Error retrieving task from context")
+		errMsg := "Task data is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusBadRequest)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task extracted from context successfully")
 
-	th.logger.Printf("Task received: %+v", task)
-
+	// Ažuriranje statusa zadatka
 	err := th.repo.UpdateStatus(task)
 	if err != nil {
-		th.logger.Println("Failed to update task status:", err)
-		http.Error(rw, "Failed to update status", http.StatusInternalServerError)
+		errMsg := "Failed to update task status"
+		th.logger.Println(errMsg, err)
+		th.custLogger.Error(logrus.Fields{"taskID": task.ID, "status": task.Status}, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusInternalServerError)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task status updated successfully")
 
+	// Slanje uspešnog odgovora
 	rw.WriteHeader(http.StatusOK)
 	th.logger.Println("Task status updated successfully")
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Response sent successfully")
 }
 
 func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *http.Request) {
+	th.logger.Println("Received request to check if user is part of the task")
+	th.custLogger.Info(nil, "Received request to check if user is part of the task")
+
+	// Ekstrakcija zadatka iz konteksta
 	task, ok := r.Context().Value(KeyTask{}).(*model.Task)
 	if !ok || task == nil {
-		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
-		th.logger.Println("Error retrieving task from context")
+		errMsg := "Task data is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusBadRequest)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task extracted from context successfully")
 
+	// Ekstrakcija korisničkog ID-a iz konteksta
 	id, ok := r.Context().Value(KeyId{}).(string)
 	if !ok || id == "" {
-		http.Error(rw, "User ID is missing or invalid", http.StatusUnauthorized)
-		th.logger.Println("Error retrieving user ID from context")
+		errMsg := "User ID is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusUnauthorized)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"userID": id}, "User ID extracted from context successfully")
 
+	// Provera da li je korisnik deo zadatka
 	itContains := slices.Contains(task.UserIDs, id)
 	rw.Header().Set("Content-Type", "text/plain")
 
@@ -533,9 +660,11 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("true"))
 		th.logger.Println("User is part of the task")
+		th.custLogger.Info(logrus.Fields{"taskID": task.ID, "userID": id}, "User is part of the task")
 	} else {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("false"))
 		th.logger.Println("User is not part of the task")
+		th.custLogger.Info(logrus.Fields{"taskID": task.ID, "userID": id}, "User is not part of the task")
 	}
 }
