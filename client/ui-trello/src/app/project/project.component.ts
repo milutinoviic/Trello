@@ -77,9 +77,23 @@ export class ProjectComponent implements OnInit {
   }
 
   openTask(task: TaskDetails): void {
+    console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    console.log(task);
+    console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
     this.selectedTask = task;
 
+
+    console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
     console.log(this.selectedTask.users);
+    console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+
+    console.log(this.selectedTask.userIds);
+    console.log(this.selectedTask.user_ids)
+
+
+
+
+
     this.checkIfUserInTask();
 
   }
@@ -147,11 +161,12 @@ export class ProjectComponent implements OnInit {
         status: this.selectedTask.status,
         createdAt: this.selectedTask.createdAt,
         updatedAt: this.selectedTask.updatedAt,
-        user_ids: this.selectedTask.userIds,
+        user_ids: this.selectedTask.user_ids,
         dependencies: this.selectedTask.dependencies,
         blocked: this.selectedTask.blocked
       };
-
+      console.log("Taskkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+      console.log(task);
       // Poziv servisa sa konvertovanim objektom
       this.taskService.checkIfUserInTask(task).subscribe(
         (response: boolean) => {

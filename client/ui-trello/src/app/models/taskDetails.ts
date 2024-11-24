@@ -11,12 +11,13 @@ export class TaskDetails {
   createdAt: Date;
   updatedAt: Date;
   userIds: string[];
+  user_ids: string[];
   users: UserDetails[];
   dependencies: string[];
   blocked: boolean;
 
   constructor(id: string, projectId: string, name: string, description: string, status: TaskStatus,
-              createdAt: Date, updatedAt: Date, userIds: string[], users: UserDetails[],
+              createdAt: Date, updatedAt: Date, userIds: string[],user_ids:string[] ,users: UserDetails[],
               dependencies: string[], blocked: boolean) {
     this.id = id;
     this.projectId = projectId;
@@ -26,6 +27,7 @@ export class TaskDetails {
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
     this.userIds = userIds;
+    this.user_ids = user_ids;
     this.users = users;
     this.dependencies = dependencies;
     this.blocked = blocked;
