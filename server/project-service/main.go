@@ -73,7 +73,10 @@ func main() {
 
 	store.Ping()
 
-	projectsHandler := handlers.NewProjectsHandler(logger, store, nc, tracer)
+	userClient := initUserClient()
+	taskClient := initTaskClient()
+
+	projectsHandler := handlers.NewProjectsHandler(logger, store, nc, tracer, userClient, taskClient)
 
 	router := mux.NewRouter()
 
