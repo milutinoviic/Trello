@@ -5,8 +5,8 @@ services:
       context: ./server/project-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "project-server"
-    hostname: "project-server"
+    container_name: ${PROJECT_SERVICE_HOST}
+    hostname: ${PROJECT_SERVICE_HOST}
     ports:
       - 8080:8080
     environment:
@@ -14,14 +14,19 @@ services:
       - MONGO_DB_URI=${MONGO_DB_URI_PROJECT}
       - NATS_URL=nats://nats:4222
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
+      - USER_SERVICE_HOST=${USER_SERVICE_HOST}
+      - USER_SERVICE_PORT=${PORT}
+      - TASK_SERVICE_HOST=${TASK_SERVICE_HOST}
+      - TASK_SERVICE_PORT=${PORT}
+    volumes:
+      - ./server/project-service/app.log:/app.log
+      - ./server/project-service/cert.crt:/app/cert.crt
+      - ./server/project-service/privat.key:/app/privat.key
     depends_on:
       mongo-project:
         condition: service_healthy
       nats:
         condition: service_started
-    volumes:
-      - ./server/project-service/cert.crt:/app/cert.crt
-      - ./server/project-service/privat.key:/app/privat.key
     networks:
       - network
 
@@ -93,8 +98,8 @@ services:
       context: ./server/task-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "task-server"
-    hostname: "task-server"
+    container_name: ${TASK_SERVICE_HOST}
+    hostname: ${TASK_SERVICE_HOST}
     ports:
       - 8089:8080
     environment:
@@ -102,14 +107,19 @@ services:
       - MONGO_DB_URI=mongodb://root:pass@mongo-task:27017
       - NATS_URL=nats://nats:4222
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
+      - PORT=${PORT}
+      - MONGO_DB_URI=${MONGO_DB_URI_TASK}
+      - USER_SERVICE_HOST=${USER_SERVICE_HOST}
+      - USER_SERVICE_PORT=${PORT}
+    volumes:
+      - ./server/task-service/app.log:/app.log
+      - ./server/task-service/cert.crt:/app/cert.crt
+      - ./server/task-service/privat.key:/app/privat.key
     depends_on:
       mongo-task:
         condition: service_healthy
       nats:
         condition: service_started
-    volumes:
-      - ./server/task-service/cert.crt:/app/cert.crt
-      - ./server/task-service/privat.key:/app/privat.key
     networks:
       - network
 
@@ -159,15 +169,15 @@ services:
       context: ./server/user-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "user-server"
-    hostname: "user-server"
+    container_name: ${USER_SERVICE_HOST}
+    hostname: ${USER_SERVICE_HOST}
     env_file:
       - .env
     ports:
       - 8090:8080
     environment:
       - PORT=${PORT}
-      - MONGO_DB_URI=${MONGO_DB_URI} #mongodb://root:pass@mongo-user:27017
+      - MONGO_DB_URI=${MONGO_DB_URI_USER} #mongodb://root:pass@mongo-user:27017
       - SMTP_EMAIL=${SMTP_EMAIL}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_HOST=${SMTP_HOST}
@@ -183,6 +193,7 @@ services:
       - ./server/user-service/10k-worst-passwords.txt:/app/10k-worst-passwords.txt
       - ./server/user-service/cert.crt:/app/cert.crt
       - ./server/user-service/privat.key:/app/privat.key
+      - ./server/user-service/app.log:/app.log
     networks:
       - network
 
@@ -334,7 +345,7 @@ volumes:
   cassandra_data:
   mongo_task_express_data:
 
-    
+
 networks:
   network:
     driver: bridge

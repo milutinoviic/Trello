@@ -95,6 +95,9 @@ export class AccountService {
         },
         (error) => {
           console.error("[Error] Error verifying token:", error);
+          if (localStorage.getItem("role")) {
+            localStorage.removeItem("role");
+          }
         },
         () => {
           console.log(`[Complete] Token verification stopped for user: ${key}`);
@@ -107,6 +110,9 @@ export class AccountService {
   stopTokenVerification() {
     if (this.tokenVerificationSub) {
       this.tokenVerificationSub.unsubscribe();
+      if (localStorage.getItem("role")) {
+        localStorage.removeItem("role");
+      }
     }
   }
 
@@ -154,6 +160,10 @@ export class AccountService {
       }
     }
     return null;
+  }
+
+  getRole(email: string): Observable<string> {
+    return this.http.post<string>(this.config.get_role_url, { email });
   }
 
 

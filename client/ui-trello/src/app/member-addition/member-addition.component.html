@@ -1,22 +1,13 @@
-<app-menu></app-menu>
-<h1 class="main-text">{{ project?.name | uppercase }}</h1>
-<p class="main-text">Min Members: {{ minMembers }}</p>
-<p class="main-text">Max Members: {{ maxMembers }}</p>
+<!--<app-menu></app-menu>-->
+<!--<h1 style="text-align: center; color: #96a0e3">{{ project?.name | uppercase }}</h1>-->
+<!--<p style="text-align: center;">Min Members: {{ minMembers }}</p>-->
+<!--<p style="text-align: center;">Max Members: {{ maxMembers }}</p>-->
 <div class="container mt-4">
   <div class="row">
-    <div class="col-md-6">
-      <div class="project-members border rounded p-3">
-        <h4 class="main-text">Project Members</h4>
-        <div *ngFor="let member of projectMembers" class="user bg-light border rounded mb-2 p-2">
-          {{ member.email }}
-          <button class="btn btn-danger btn-sm float-end remove-btn" (click)="removeMember(member.id)">Remove</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6">
-      <div class="available-users border rounded p-3">
-        <h3 class="main-text">All Users</h3>
+    <div class="col-md-12">
+      <!-- All Users first -->
+      <div class="available-users border rounded p-3 mb-4">
+        <h3 style="text-align: center">All Users</h3>
         <div class="search-bar mb-3">
           <input
             type="text"
@@ -37,11 +28,19 @@
           </button>
         </div>
       </div>
+
+      <!-- Project Members second -->
+      <div class="project-members border rounded p-3">
+        <h4 style="text-align: center; color: #1f203c">Project Members</h4>
+        <div *ngFor="let member of projectMembers" class="user bg-light border rounded mb-2 p-2">
+          {{ member.email }}
+          <button class="btn btn-danger btn-sm float-end remove-btn" (click)="removeMember(member.id)">Remove</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
-<br><br><br><br>
-<br>
-<button class="btn btn-success mb-3" (click)="addNewProject()">Add new project</button>
-<br>
-<button class="btn btn-success mb-3" (click)="addNewTask(projectId)">Add new task for this project</button>
+
+<!--<button class="btn btn-success mb-3" (click)="addNewProject()">Add new project</button>-->
+<!--<br>-->
+<!--<button class="btn btn-success mb-3" (click)="addNewTask(projectId)">Add new task for this project</button>-->

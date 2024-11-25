@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/bcrypt"
 	"log"
+	"main.go/customLogger"
 	"main.go/data"
 	"main.go/utils"
 	"net/http"
@@ -28,12 +29,13 @@ import (
 )
 
 type UserRepository struct {
-	cli    *mongo.Client
-	logger *log.Logger
-	tracer trace.Tracer
+	cli        *mongo.Client
+	logger     *log.Logger
+	custLogger *customLogger.Logger
+	tracer     trace.Tracer
 }
 
-func New(ctx context.Context, logger *log.Logger, tracer trace.Tracer) (*UserRepository, error) {
+func New(ctx context.Context, logger *log.Logger, custLogger *customLogger.Logger, tracer trace.Tracer) (*UserRepository, error) {
 	dburi := os.Getenv("MONGO_DB_URI")
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dburi))
@@ -46,9 +48,10 @@ func New(ctx context.Context, logger *log.Logger, tracer trace.Tracer) (*UserRep
 	}
 
 	return &UserRepository{
-		cli:    client,
-		logger: logger,
-		tracer: tracer,
+		cli:        client,
+		logger:     logger,
+		custLogger: custLogger,
+		tracer:     tracer,
 	}, nil
 }
 

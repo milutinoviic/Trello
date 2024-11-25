@@ -1,4 +1,4 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, Input, OnInit} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ActivatedRoute} from "@angular/router";
 import {Task, TaskStatus} from "../models/task";
@@ -23,7 +23,7 @@ interface User {
 export class AddTaskComponent implements OnInit {
 
   taskForm!: FormGroup;
-  projectId!: string;
+  @Input()  projectId!: string;
   tasks: Task[] = [];
   tempStatusMap: { [taskId: string]: TaskStatus } = {};
   isManager: boolean = false;
@@ -133,9 +133,11 @@ export class AddTaskComponent implements OnInit {
           console.log('Task created successfully');
           this.fetchTasks(this.projectId);
           this.toastr.success("Task successfully created");
+
+          this.taskForm.reset();
         },
         error: (error) => {
-          console.error('Error creating task:', error)
+          console.error('Error creating task:', error);
           this.toastr.error(error || error.err() || "Something went wrong");
         }
       });
@@ -144,6 +146,7 @@ export class AddTaskComponent implements OnInit {
       console.log('Project ID:', this.projectId);
     }
   }
+
 
 
   getTaskDependencies(task: Task): Task[] {

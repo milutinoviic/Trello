@@ -44,5 +44,5 @@ Thumbs.db
 node_modules
 src/environments
 
-./cert.crt
-./privat.key
+cert.crt
+privat.key

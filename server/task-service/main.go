@@ -16,10 +16,16 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"task--service/client"
+	"task--service/customLogger"
 	"task--service/handlers"
 	"task--service/repositories"
 	"time"
 )
+
+func initUserClient() client.UserClient {
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+}
 
 func main() {
 
@@ -39,6 +45,8 @@ func main() {
 	if len(port) == 0 {
 		port = "8080"
 	}
+
+	custLogger := customLogger.GetLogger()
 
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -66,8 +74,9 @@ func main() {
 	defer store.Disconnect(timeoutContext)
 
 	store.Ping()
+	userClient := initUserClient()
 
-	taskHandler := handlers.NewTasksHandler(logger, store, nc, tracer)
+	taskHandler := handlers.NewTasksHandler(logger, store, nc, tracer, userClient, custLogger)
 	// subscribe to "ProjectDeleted" events to delete tasks that belong to project
 	sub, err := nc.QueueSubscribe("ProjectDeleted", "task-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
@@ -91,6 +100,7 @@ func main() {
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetAllTask))))
 	getRouter.Handle("/tasks/{projectId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(taskHandler.GetAllTasksByProjectId))))
+	getRouter.Handle("/tasksDetails/{projectId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(taskHandler.GetAllTasksDetailsByProjectId))))
 
 	postPutRouter := router.Methods(http.MethodPost, http.MethodPut).Subrouter()
 	postPutRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(taskHandler.PostTask))))

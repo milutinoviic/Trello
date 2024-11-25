@@ -1,2 +1,9 @@
-./cert.crt
-./privat.key
+cert.crt
+privat.key
+ca.srl
+ca.key
+ca.crt
+ca.cnf
+san_config.cnf
+sert.csr
+cert.csr
