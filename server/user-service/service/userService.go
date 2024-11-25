@@ -262,3 +262,11 @@ func (us *UserService) GetUsersByIds(userIds []string) ([]data.Account, error) {
 	span.SetStatus(codes.Ok, "Successful get users")
 	return users, nil
 }
+
+func (us *UserService) GetRoleByEmail(email string) (string, error) {
+	role, err := us.user.GetUserRoleByEmail(email)
+	if err != nil {
+		return "", err
+	}
+	return role, nil
+}

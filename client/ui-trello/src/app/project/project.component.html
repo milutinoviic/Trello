@@ -45,7 +45,7 @@
   <div class="modal-content" (click)="$event.stopPropagation()">
 
 
-    <div class="status-buttons" *ngIf="isUserInTask || isManager()">
+    <div class="status-buttons" *ngIf="isUserInTask">
       <button class="btn-status" (click)="changeStatus('Pending')">Pending</button>
       <button class="btn-status" (click)="changeStatus('In Progress')">In Progress</button>
       <button class="btn-status" (click)="changeStatus('Completed')">Completed</button>
@@ -58,11 +58,25 @@
     <p><strong>Created At:</strong> {{ selectedTask.createdAt | date }}</p>
     <p><strong>Updated At:</strong> {{ selectedTask.updatedAt | date }}</p>
     <p><strong>Users:</strong></p>
-    <ul>
-      <li *ngFor="let user of selectedTask.users">
-        <p>{{ user.first_name}}</p>
-      </li>
-    </ul>
+    <div *ngIf="isManager()" class="user-management">
+      <label for="userSearch">Search Users:</label>
+      <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
+
+      <div class="filtered-users">
+        <div *ngFor="let user of filteredUsers[selectedTask.id]">
+          <span>{{ user.email }}</span>
+          <button (click)="addUserToTask(selectedTask, user)">Add</button>
+        </div>
+      </div>
+
+      <h5>Assigned Members:</h5>
+      <ul>
+        <li *ngFor="let member of taskMembers[selectedTask.id]">
+          <span>{{ member.email }}</span>
+          <button (click)="removeUserFromTask(selectedTask, member)">Remove</button>
+        </li>
+      </ul>
+    </div>
     <button (click)="closeTask()">Close</button>
   </div>
 </div>

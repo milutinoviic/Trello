@@ -309,6 +309,7 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 	taskID := vars["taskId"]
 	action := vars["action"] // Can be "add" or "remove"
 	userID := vars["userId"]
+	t.logger.Println("User id is " + userID)
 
 	if action != "add" && action != "remove" {
 		span.RecordError(errors.New("Invalid action"))
@@ -464,8 +465,12 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	t.ProcessTaskMemberActivity()
 
+	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(rw, "Task member change logged and task updated successfully")
+	json.NewEncoder(rw).Encode(map[string]string{
+		"message": "Task member change logged and task updated successfully",
+	})
+
 	span.SetStatus(codes.Ok, "Successfully updated task")
 }
 

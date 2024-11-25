@@ -29,15 +29,27 @@ export class MagicLinkComponent implements OnInit {
 
   verifyMagic() {
     const email = this.route.snapshot.paramMap.get('email') || '';
+    let role: string;
+    this.service.getRole(email).subscribe({
+      next: (success) => {
+        role = success;
+      },
+      error: (err) => {
+        console.log(err);
+      }
+    })
 
     this.service.verifyMagic(email).subscribe({
       next: (response) => {
+
         setTimeout(() => {
           this.loading = false;
 
           if (response) {
+            localStorage.setItem("role", role);
             this.service.startTokenVerification(response);
             this.linkValid = true;
+
 
             setTimeout(() => {
               this.router.navigate(['/projects']);

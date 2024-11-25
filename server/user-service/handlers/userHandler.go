@@ -884,3 +884,49 @@ func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
 	}
 	span.SetStatus(codes.Ok, " users found")
 }
+
+func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request) {
+	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleGettingRole")
+	defer span.End()
+
+	type RequestPayload struct {
+		Email string `json:"email"`
+	}
+
+	var payload RequestPayload
+	err := json.NewDecoder(h.Body).Decode(&payload)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Invalid request body")
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if payload.Email == "" {
+		span.RecordError(errors.New("email is required"))
+		span.SetStatus(codes.Error, "Email is required")
+		http.Error(rw, "Email is required", http.StatusBadRequest)
+		return
+	}
+
+	role, err := uh.service.GetRoleByEmail(payload.Email)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "There has been an error", http.StatusInternalServerError)
+		return
+	}
+
+	rw.WriteHeader(http.StatusOK)
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	err = json.NewEncoder(rw).Encode(role)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		uh.logger.Println("Error writing response:", err)
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+	}
+	span.SetStatus(codes.Ok, " role found")
+
+}
