@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"project-service/client"
+	"project-service/customLogger"
 	"project-service/handlers"
 	"project-service/repositories"
 	"time"
@@ -65,6 +66,8 @@ func main() {
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	tracer := tp.Tracer("project-service")
+
+	custLogger := customLogger.GetLogger()
 	store, err := repositories.New(timeoutContext, storeLogger, tracer)
 	if err != nil {
 		logger.Fatal(err)
@@ -76,7 +79,7 @@ func main() {
 	userClient := initUserClient()
 	taskClient := initTaskClient()
 
-	projectsHandler := handlers.NewProjectsHandler(logger, store, nc, tracer, userClient, taskClient)
+	projectsHandler := handlers.NewProjectsHandler(logger, custLogger, store, nc, tracer, userClient, taskClient)
 
 	router := mux.NewRouter()
 

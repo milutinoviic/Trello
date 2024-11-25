@@ -12,6 +12,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
+	"main.go/customLogger"
 	"main.go/handlers"
 	"main.go/repository"
 	"main.go/service"
@@ -36,14 +37,16 @@ func main() {
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	tracer := tp.Tracer("user-service")
+	custLogger := customLogger.GetLogger()
 
-	ur, err := repository.New(timeoutContext, logger, tracer)
+	ur, err := repository.New(timeoutContext, logger, custLogger, tracer)
+
 	if err != nil {
 		logger.Fatal(err)
 	}
 	uc, err := repository.NewCache(logger, ur, tracer)
 	us := service.NewUserService(ur, uc, logger, tracer)
-	uh := handlers.NewUserHandler(logger, us, tracer)
+	uh := handlers.NewUserHandler(logger, us, tracer, custLogger)
 
 	r := mux.NewRouter()
 

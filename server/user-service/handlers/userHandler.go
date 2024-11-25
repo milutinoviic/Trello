@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"io"
 	"log"
+	"main.go/customLogger"
 	"main.go/data"
 	"main.go/repository"
 	"main.go/service"
@@ -20,9 +22,10 @@ type KeyAccount struct{}
 type KeyRole struct{}
 
 type UserHandler struct {
-	logger  *log.Logger
-	service *service.UserService
-	tracer  trace.Tracer
+	logger     *log.Logger
+	service    *service.UserService
+	tracer     trace.Tracer
+	custLogger *customLogger.Logger
 }
 type Task struct {
 	Status  TaskStatus `bson:"status" json:"status"`
@@ -30,39 +33,46 @@ type Task struct {
 }
 type TaskStatus string
 
-func NewUserHandler(logger *log.Logger, service *service.UserService, trace trace.Tracer) *UserHandler {
-	return &UserHandler{logger, service, trace}
+func NewUserHandler(logger *log.Logger, service *service.UserService, tracer trace.Tracer, custLogger *customLogger.Logger) *UserHandler {
+	return &UserHandler{logger, service, tracer, custLogger}
 }
 
 func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
 	_, span := uh.tracer.Start(context.Background(), "UserHandler.Registration")
 	defer span.End()
+	uh.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
 
+	// Decode request body
 	request, err := decodeBody(h.Body)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Printf("Error decoding request body: %v", err)
+		uh.custLogger.Error(nil, "Error decoding request body: "+err.Error())
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{"email": request.Email}, "Registration request body decoded successfully")
 
-	uh.logger.Printf("Registration request: %+v", request)
-
+	// Process registration
 	err = uh.service.Registration(request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Registration error:", err)
 		if errors.Is(err, data.ErrEmailAlreadyExists()) {
+			uh.custLogger.Warn(logrus.Fields{"email": request.Email}, "Registration failed: Email already exists")
 			http.Error(rw, `{"message": "Email already exists"}`, http.StatusConflict)
 		} else {
+			uh.custLogger.Error(logrus.Fields{"email": request.Email}, "Registration error: "+err.Error())
 			http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		}
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{"email": request.Email}, "Registration successful")
 
+	// Send success response
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
 	response := map[string]string{"message": "Registration successful"}
@@ -71,9 +81,11 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
+		uh.custLogger.Error(nil, "Error writing registration response: "+err.Error())
 		return
 	}
 	span.SetStatus(codes.Ok, "Registration handled successfully")
+	uh.custLogger.Info(nil, "Registration response sent successfully")
 }
 
 func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
@@ -104,29 +116,48 @@ func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
 func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
 
+		// Retrieve the auth token from the cookie
 		cookie, err := h.Cookie("auth_token")
 		if err != nil {
 			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
 			uh.logger.Println("No token in cookie:", err)
+			uh.custLogger.Warn(logrus.Fields{
+				"error": err.Error(),
+			}, "No token found in cookie")
 			return
 		}
 
 		uh.logger.Println("Token retrieved from cookie:", cookie.Value) // Log token value
+		uh.custLogger.Info(logrus.Fields{
+			"token": cookie.Value,
+		}, "Token retrieved from cookie")
 
+		// Validate the token
 		userID, role, err := uh.service.ValidateToken(cookie.Value)
-		uh.logger.Println("User ID is:", userID, "Role is:", role)
-
 		if err != nil {
 			uh.logger.Println("Token validation failed:", err)
+			uh.custLogger.Error(logrus.Fields{
+				"token": cookie.Value,
+				"error": err.Error(),
+			}, "Token validation failed")
 			http.Error(rw, `{"message": "Invalid token"}`, http.StatusUnauthorized)
 			return
 		}
 
+		uh.logger.Println("Token validated successfully. User ID:", userID, "Role:", role)
+		uh.custLogger.Info(logrus.Fields{
+			"user_id": userID,
+			"role":    role,
+		}, "Token validated successfully mankiiiiiiiiiiii")
+
+		// Add user ID and role to the request context
 		ctx := context.WithValue(h.Context(), KeyAccount{}, userID)
 		ctx = context.WithValue(ctx, KeyRole{}, role)
 
+		// Update the request with the new context
 		h = h.WithContext(ctx)
 
+		// Call the next handler
 		next.ServeHTTP(rw, h)
 	})
 }
@@ -392,7 +423,7 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 		http.Error(rw, "User ID missing", http.StatusBadRequest)
 		return
 	}
-	repo, _ := repository.New(context.Background(), uh.logger, uh.tracer)
+	repo, _ := repository.New(context.Background(), uh.logger, uh.custLogger, uh.tracer)
 
 	cache, err := repository.NewCache(uh.logger, repo, uh.tracer)
 	if err != nil {
@@ -423,37 +454,57 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	_, span := uh.tracer.Start(context.Background(), "UserHandler.Login")
 	defer span.End()
+	uh.logger.Println("Processing login request")
+	uh.custLogger.Info(nil, "Processing login request")
+
+	// Decode the login request body
 	request, err := decodeLoginBody(h.Body)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error decoding request:", err)
+		uh.custLogger.Error(nil, "Error decoding request: "+err.Error())
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{}, "Login request decoded successfully")
 
+	// Verify reCAPTCHA
 	boolean, err := uh.service.VerifyRecaptcha(request.RecaptchaToken)
 	if !boolean {
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
+			uh.logger.Println("Error verifying reCAPTCHA:", err)
+			uh.custLogger.Error(nil, "Error verifying reCAPTCHA: "+err.Error())
 			http.Error(rw, err.Error(), http.StatusForbidden)
 			return
 		}
+		uh.logger.Println("reCAPTCHA validation failed")
+		uh.custLogger.Warn(nil, "reCAPTCHA validation failed")
 		http.Error(rw, "Error validating reCAPTCHA", http.StatusForbidden)
 		return
-
 	}
+	uh.custLogger.Info(nil, "reCAPTCHA verified successfully")
 
+	// Process login
 	id, role, token, err := uh.service.Login(request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error logging in:", err)
+		uh.custLogger.Error(logrus.Fields{
+			"user_email": request.Email,
+		}, "Error logging in: "+err.Error())
 		http.Error(rw, `{"message": "`+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{
+		"user_id": id,
+		"role":    role,
+	}, "Login successful")
 
+	// Set auth token cookie
 	http.SetCookie(rw, &http.Cookie{
 		Name:     "auth_token",
 		Value:    token,
@@ -462,7 +513,11 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		SameSite: http.SameSiteStrictMode, // Set SameSite policy to prevent CSRF attacks
 		Path:     "/",                     // Cookie valid for the entire site
 	})
+	uh.custLogger.Info(logrus.Fields{
+		"token": "auth_token_set",
+	}, "Authentication token set in cookie")
 
+	// Send success response
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
 
@@ -475,6 +530,7 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error encoding response:", err)
+		uh.custLogger.Error(nil, "Error encoding response: "+err.Error())
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -484,41 +540,53 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
+		uh.custLogger.Error(nil, "Error writing response: "+err.Error())
 	}
 	span.SetStatus(codes.Ok, "Successfully logged in")
+	uh.logger.Println("Login response sent successfully")
+	uh.custLogger.Info(nil, "Login response sent successfully")
 }
 
 func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 	_, span := uh.tracer.Start(context.Background(), "UserHandler.Logout")
 	defer span.End()
+	// Dohvatanje User ID iz konteksta
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
 	if !ok {
 		span.RecordError(errors.New("user id not found"))
 		span.SetStatus(codes.Error, "user id not found")
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		uh.logger.Println("User ID not found in context")
+		uh.custLogger.Warn(nil, "User ID not found in context")
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "Processing logout request")
 
+	// Poziv servisa za logout
 	err := uh.service.Logout(userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error logging out:", err)
+		uh.custLogger.Error(logrus.Fields{"user_id": userID}, "Error logging out: "+err.Error())
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "User logged out successfully")
 
+	// Brisanje auth tokena
 	http.SetCookie(rw, &http.Cookie{
 		Name:     "auth_token",
-		Value:    "", // Clear the value
+		Value:    "", // Brisanje vrednostiiiii
 		HttpOnly: true,
 		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
-		Path:     "/", // Cookie valid for the entire site
-		MaxAge:   0,   // Set MaxAge to 0 to delete the cookie
+		Path:     "/", // Cookie važi za cijeliiiii
+		MaxAge:   0,   // MaxAge 0 za brisanje cookie-jaaaaaa
 	})
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "Authentication token cleared in cookie")
 
+	// Slanje uspešnog odgovora
 	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusOK)
 
@@ -528,6 +596,7 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error encoding response:", err)
+		uh.custLogger.Error(logrus.Fields{"user_id": userID}, "Error encoding logout response: "+err.Error())
 		http.Error(rw, `{"message": "Internal Server Error"}`, http.StatusInternalServerError)
 		return
 	}
@@ -537,8 +606,11 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		uh.logger.Println("Error writing response:", err)
+		uh.custLogger.Error(logrus.Fields{"user_id": userID}, "Error writing logout response: "+err.Error())
 	}
 	span.SetStatus(codes.Ok, "Successfully logged out")
+	uh.logger.Println("Logout response sent successfully")
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "Logout response sent successfully")
 }
 
 func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
@@ -587,35 +659,50 @@ func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
 func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 	_, span := uh.tracer.Start(context.Background(), "UserHandler.ChangePassword")
 	defer span.End()
+	uh.custLogger.Info(nil, "Processing change password request")
+
+	// Parsiranje zahteva
 	var req data.ChangePasswordRequest
 	err := json.NewDecoder(h.Body).Decode(&req)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		uh.logger.Println("Invalid request body:", err)
+		uh.custLogger.Error(nil, "Invalid request body: "+err.Error())
 		return
 	}
 	defer h.Body.Close()
+	uh.custLogger.Info(nil, "Request body decoded successfully")
 
+	// Dohvatanje korisničkog ID-a iz konteksta
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
 	if !ok {
 		span.RecordError(errors.New("user id not found"))
 		span.SetStatus(codes.Error, "user id not found")
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		uh.logger.Println("User ID not found in context")
+		uh.custLogger.Warn(nil, "User ID not found in context")
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "User ID retrieved from context")
 
+	// Promena lozinke
 	err = uh.service.ChangePassword(userID, req.Password)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to change password", http.StatusInternalServerError)
+		uh.logger.Println("Failed to change password:", err)
+		uh.custLogger.Error(logrus.Fields{"user_id": userID}, "Failed to change password: "+err.Error())
 		return
 	}
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "Password changed successfully")
 
+	// Uspešan odgovor
 	rw.WriteHeader(http.StatusOK)
 	span.SetStatus(codes.Ok, "Successfully changed password")
+	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "Change password response sent successfully")
 }
 
 func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
