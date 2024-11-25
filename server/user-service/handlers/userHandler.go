@@ -281,9 +281,14 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 func (uh *UserHandler) checkTasks(projects []service.Project, userID, role string, authTokenCookie *http.Cookie) bool {
 	_, span := uh.tracer.Start(context.Background(), "UserHandler.checkTasks")
 	defer span.End()
-	client := &http.Client{}
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		uh.logger.Println("Failed to create request to task-service:", err)
+		return false
+	}
 	for _, project := range projects {
-		taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID)
+		taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s", project.ID)
 		taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
 		if err != nil {
 			span.RecordError(err)
