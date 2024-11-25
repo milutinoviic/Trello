@@ -118,8 +118,8 @@ func main() {
 
 	go func() {
 		logger.Println("Server listening on port", port)
-		err := server.ListenAndServe()
-		//err := http.ListenAndServeTLS(":443", "/etc/nginx/ssl/trello.crt", "/etc/nginx/ssl/trello.key", nil)
+		err := server.ListenAndServeTLS("/app/cert.crt", "/app/privat.key")
+		//err := server.ListenAndServe()
 
 		if err != nil {
 			logger.Fatal(err)

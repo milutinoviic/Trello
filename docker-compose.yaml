@@ -19,6 +19,11 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+    volumes:
+      - ./server/project-service/cert.crt:/app/cert.crt
+      - ./server/project-service/privat.key:/app/privat.key
+      - ./server/project-service/ca.crt:/app/ca.crt
+
     networks:
       - network
 
@@ -104,6 +109,10 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+    volumes:
+      - ./server/task-service/cert.crt:/app/cert.crt
+      - ./server/task-service/privat.key:/app/privat.key
+      - ./server/task-service/ca.crt:/app/ca.crt
     networks:
       - network
 
@@ -175,6 +184,9 @@ services:
         condition: service_healthy
     volumes:
       - ./server/user-service/10k-worst-passwords.txt:/app/10k-worst-passwords.txt
+      - ./server/user-service/cert.crt:/app/cert.crt
+      - ./server/user-service/privat.key:/app/privat.key
+      - ./server/user-service/ca.crt:/app/ca.crt
     networks:
       - network
 
@@ -265,6 +277,10 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+    volumes:
+      - ./server/notification-service/cert.crt:/app/cert.crt
+      - ./server/notification-service/privat.key:/app/privat.key
+      - ./server/notification-service/ca.crt:/app/ca.crt
     networks:
       - network
 

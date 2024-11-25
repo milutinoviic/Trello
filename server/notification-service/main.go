@@ -89,7 +89,7 @@ func main() {
 
 	go func() {
 		logger.Println("Server listening on", config["address"])
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServeTLS("/app/cert.crt", "/app/privat.key"); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Server failed: ", err)
 		}
 	}()

@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"project-service/model"
@@ -58,7 +61,7 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 }
 
 func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, string, error) {
-	userServiceURL := "http://user-server:8080/validate-token"
+	userServiceURL := "https://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
@@ -66,7 +69,11 @@ func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, stri
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		return "", "", fmt.Errorf("failed to connect to certificate: %s", err)
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", "", err
@@ -88,6 +95,30 @@ func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, stri
 	}
 
 	return result.UserID, result.Role, nil
+}
+
+func createTLSClient() (*http.Client, error) {
+	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		RootCAs: caCertPool,
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	return client, nil
 }
 
 func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo, tracer trace.Tracer) *ProjectsHandler {
@@ -572,8 +603,12 @@ func (p *ProjectsHandler) HandleTasksDeletedRollback(projectID string) {
 func (ph *ProjectsHandler) checkTasks(project model.Project, userID string, authTokenCookie *http.Cookie) bool {
 	_, span := ph.tracer.Start(context.Background(), "ProjectsHandler.checkTasks")
 	defer span.End()
-	client := &http.Client{}
-	taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID.Hex())
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		return false
+	}
+	taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s", project.ID.Hex())
 	taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
 	if err != nil {
 		span.RecordError(err)

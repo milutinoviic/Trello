@@ -2,6 +2,8 @@ package handler
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"notification-service/model"
@@ -60,7 +63,7 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, string, error) {
 	_, span := n.tracer.Start(context.Background(), "NotificationHandler.verifyTokenWithUserService")
 	defer span.End()
-	userServiceURL := "http://user-server:8080/validate-token"
+	userServiceURL := "https://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
@@ -70,7 +73,11 @@ func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		return "", "", err
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		span.RecordError(err)
@@ -99,6 +106,30 @@ func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, 
 	}
 	span.SetStatus(codes.Ok, "Successfully validated token")
 	return result.UserID, result.Role, nil
+}
+
+func createTLSClient() (*http.Client, error) {
+	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		RootCAs: caCertPool,
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	return client, nil
 }
 
 func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http.Request) {

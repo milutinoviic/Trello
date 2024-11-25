@@ -92,7 +92,8 @@ func main() {
 	logger.Println("Server listening on port", config["address"])
 
 	go func() {
-		err := server.ListenAndServe()
+		err := server.ListenAndServeTLS("/app/cert.crt", "/app/privat.key")
+		//err := server.ListenAndServe()
 		if err != nil {
 			logger.Fatal(err)
 		}

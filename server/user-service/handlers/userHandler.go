@@ -2,12 +2,15 @@ package handlers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"io"
+	"io/ioutil"
 	"log"
 	"main.go/data"
 	"main.go/repository"
@@ -184,7 +187,7 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	projectServiceURL := "http://project-server:8080/projects"
+	projectServiceURL := "https://project-server:8080/projects"
 	req, err := http.NewRequest("GET", projectServiceURL, nil)
 	if err != nil {
 		span.RecordError(err)
@@ -203,7 +206,13 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		http.Error(rw, "Authorization token required", http.StatusUnauthorized)
 		return
 	}
-	client := &http.Client{}
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		http.Error(rw, "Error creating TLS client", http.StatusInternalServerError)
+
+		return
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		span.RecordError(err)
@@ -883,4 +892,28 @@ func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 	span.SetStatus(codes.Ok, " users found")
+}
+
+func createTLSClient() (*http.Client, error) {
+	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		RootCAs: caCertPool,
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	return client, nil
 }
