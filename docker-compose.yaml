@@ -17,6 +17,8 @@ services:
       - USER_SERVICE_PORT=${PORT}
       - TASK_SERVICE_HOST=${TASK_SERVICE_HOST}
       - TASK_SERVICE_PORT=${PORT}
+    volumes:
+      - ./server/project-service/app.log:/app.log
 
 
 
@@ -102,11 +104,14 @@ services:
         - NATS_URL=nats://nats:4222
         - USER_SERVICE_HOST=${USER_SERVICE_HOST}
         - USER_SERVICE_PORT=${PORT}
+    volumes:
+      - ./server/task-service/app.log:/app.log
     depends_on:
       mongo-task:
         condition: service_healthy
       nats:
         condition: service_started
+
 
   mongo-task:
     image: mongo
@@ -171,6 +176,7 @@ services:
         condition: service_healthy
     volumes:
       - ./server/user-service/10k-worst-passwords.txt:/app/10k-worst-passwords.txt
+      - ./server/user-service/app.log:/app.log
 
 
   mongo-user:
