@@ -5,12 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/eapache/go-resiliency/retrier"
+	"github.com/sony/gobreaker"
 	"io"
 	"log"
 	"main.go/data"
+	"main.go/domain"
 	"main.go/repository"
 	"main.go/service"
 	"net/http"
+	"strconv"
+	"time"
 )
 
 type KeyAccount struct{}
@@ -148,13 +153,55 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
+	ctx, cancel := context.WithTimeout(h.Context(), 10*time.Second)
+	defer cancel()
+
 	projectServiceURL := "http://project-server:8080/projects"
-	req, err := http.NewRequest("GET", projectServiceURL, nil)
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     10,
+		},
+	}
+
+	projectBreaker := gobreaker.NewCircuitBreaker(
+		gobreaker.Settings{
+			Name:        "DeleteUserProjectService",
+			MaxRequests: 10,
+			Timeout:     10 * time.Second,
+			Interval:    0,
+			ReadyToTrip: func(counts gobreaker.Counts) bool {
+				return counts.ConsecutiveFailures > 2
+			},
+			OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+				uh.logger.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+				if to == gobreaker.StateOpen {
+					uh.logger.Printf("Circuit Breaker '%s' is OPEN due to consecutive failures\n", name)
+				}
+			},
+			IsSuccessful: func(err error) bool {
+				if err == nil {
+					return true
+				}
+				errResp, ok := err.(domain.ErrResp)
+				if _, ok := err.(domain.ErrRespTmp); ok {
+					return false
+				}
+				return ok && errResp.StatusCode >= 400 && errResp.StatusCode < 500
+			},
+		},
+	)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", projectServiceURL, nil)
 	if err != nil {
 		uh.logger.Println("Failed to create request to project-service:", err)
 		http.Error(rw, "Error communicating with project service", http.StatusInternalServerError)
 		return
 	}
+
 	authTokenCookie, err := h.Cookie("auth_token")
 	if err == nil {
 		req.AddCookie(authTokenCookie)
@@ -163,29 +210,76 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		http.Error(rw, "Authorization token required", http.StatusUnauthorized)
 		return
 	}
-	client := &http.Client{}
-	resp, err := client.Do(req)
+
+	var timeout time.Duration
+	deadline, reqHasDeadline := ctx.Deadline()
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), retrier.WhitelistClassifier{domain.ErrRespTmp{}})
+
+	var resp *http.Response
+
+	retryCount := 0
+	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
+		retryCount++
+		uh.logger.Printf("Attempting project service request, attempt #%d", retryCount)
+
+		if reqHasDeadline {
+			timeout = time.Until(deadline)
+		}
+
+		_, err := projectBreaker.Execute(func() (interface{}, error) {
+			if timeout > 0 {
+				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
+			}
+			resp, err = client.Do(req)
+			if err != nil {
+				return nil, err
+			}
+
+			if resp.StatusCode == http.StatusGatewayTimeout || resp.StatusCode == http.StatusServiceUnavailable {
+				return nil, domain.ErrRespTmp{
+					URL:        resp.Request.URL.String(),
+					Method:     resp.Request.Method,
+					StatusCode: resp.StatusCode,
+				}
+			}
+
+			if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+				return nil, domain.ErrResp{
+					URL:        resp.Request.URL.String(),
+					Method:     resp.Request.Method,
+					StatusCode: resp.StatusCode,
+				}
+			}
+
+			return resp, nil
+		})
+
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		uh.logger.Println("Failed to reach project-service:", err)
-		http.Error(rw, "Error reaching project service", http.StatusInternalServerError)
+		uh.logger.Println("Error during project service request:", err)
+		http.Error(rw, "Error communicating with project service", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
 
-	var projects []service.Project
-	if resp.StatusCode == http.StatusNotFound {
-		uh.logger.Println("No active projects found, proceeding with deletion.")
-	} else if resp.StatusCode != http.StatusOK {
-		uh.logger.Printf("Unexpected response from project-service: %s", resp.Status)
-		http.Error(rw, "Error checking manager projects", http.StatusInternalServerError)
-		return
-	} else { // if found projects, check if project has all completed tasks
-		if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
-			uh.logger.Println("Failed to decode project-service response:", err)
-			http.Error(rw, "Error parsing project service response", http.StatusInternalServerError)
-			return
+	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent {
+		var projects []service.Project
+		if resp.StatusCode == http.StatusOK {
+			if err := json.NewDecoder(resp.Body).Decode(&projects); err != nil {
+				uh.logger.Println("Failed to decode project-service response:", err)
+				http.Error(rw, "Error parsing project service response", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			projects = []service.Project{}
 		}
-		if manager.Role == "member" { // check if member is part of project, if so don`t delete account
+
+		if manager.Role == "member" {
 			for _, project := range projects {
 				for _, user := range project.UserIDs {
 					if user == userID {
@@ -194,31 +288,80 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 					}
 				}
 			}
-
 		}
-		if uh.checkTasks(projects, userID, manager.Role, authTokenCookie) {
+
+		if uh.checkTasks(h.Context(), projects, userID, manager.Role, authTokenCookie) {
 			http.Error(rw, "User has active projects, deletion blocked", http.StatusConflict)
 			return
 		}
+
+		err = uh.service.Delete(userID)
+		if err != nil {
+			uh.logger.Println("Failed to delete user:", err)
+			http.Error(rw, "Error deleting user", http.StatusInternalServerError)
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte("User deleted successfully"))
+	} else {
+		if resp.StatusCode == http.StatusGatewayTimeout || resp.StatusCode == http.StatusServiceUnavailable {
+			uh.logger.Printf("Temporary error from project service (status code %d), retrying...\n", resp.StatusCode)
+			http.Error(rw, "Temporary error, please try again later", http.StatusServiceUnavailable)
+			return
+		}
+
+		uh.logger.Printf("Unexpected response code %d from project service\n", resp.StatusCode)
+		http.Error(rw, "Error checking manager projects", http.StatusInternalServerError)
 	}
-
-	err = uh.service.Delete(userID)
-	if err != nil {
-		uh.logger.Println("Failed to delete manager:", err)
-		http.Error(rw, "Error deleting user", http.StatusInternalServerError)
-		return
-	}
-
-	rw.WriteHeader(http.StatusOK)
-	rw.Write([]byte("User deleted successfully"))
-
 }
 
-func (uh *UserHandler) checkTasks(projects []service.Project, userID, role string, authTokenCookie *http.Cookie) bool {
-	client := &http.Client{}
+func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Project, userID, role string, authTokenCookie *http.Cookie) bool {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     10,
+		},
+	}
+
+	taskServiceBreaker := gobreaker.NewCircuitBreaker(
+		gobreaker.Settings{
+			Name:        "TaskServiceCircuitBreaker",
+			MaxRequests: 10,
+			Timeout:     10 * time.Second,
+			Interval:    0 * time.Second,
+			ReadyToTrip: func(counts gobreaker.Counts) bool {
+				return counts.ConsecutiveFailures > 2
+			},
+			OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+				log.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+			},
+			IsSuccessful: func(err error) bool {
+				if err == nil {
+					return true
+				}
+				errResp, ok := err.(domain.ErrResp)
+				if _, ok := err.(domain.ErrRespTmp); ok {
+					return false
+				}
+				return ok && errResp.StatusCode >= 400 && errResp.StatusCode < 500
+			},
+		},
+	)
+
+	var timeout time.Duration
+	deadline, reqHasDeadline := ctx.Deadline()
+	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+
 	for _, project := range projects {
 		taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID)
-		taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
+		reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second) // Set timeout for each request
+		defer cancel()
+
+		taskReq, err := http.NewRequestWithContext(reqCtx, "GET", taskServiceURL, nil)
 		if err != nil {
 			uh.logger.Println("Failed to create request to task-service:", err)
 			continue
@@ -226,14 +369,65 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 		taskReq.Header.Set("Content-Type", "application/json")
 		taskReq.AddCookie(authTokenCookie)
 
-		taskResp, err := client.Do(taskReq)
+		var taskResp *http.Response
+
+		retryCount := 0
+		err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+			retryCount++
+			uh.logger.Printf("Attempting task service request, attempt #%d", retryCount)
+			if reqHasDeadline {
+				timeout = time.Until(deadline)
+			}
+
+			_, err := taskServiceBreaker.Execute(func() (interface{}, error) {
+				if timeout > 0 {
+					taskReq.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
+				}
+				resp, err := client.Do(taskReq)
+				if err != nil {
+					return nil, err
+				}
+
+				// Handle 503 and 504 responses here
+				if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+					return nil, domain.ErrRespTmp{
+						URL:        resp.Request.URL.String(),
+						Method:     resp.Request.Method,
+						StatusCode: resp.StatusCode,
+					}
+				}
+
+				if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+					return nil, domain.ErrResp{
+						URL:        resp.Request.URL.String(),
+						Method:     resp.Request.Method,
+						StatusCode: resp.StatusCode,
+					}
+				}
+
+				taskResp = resp
+				return resp, nil
+			})
+
+			if err != nil {
+				return err
+			}
+
+			return nil
+		})
+
 		if err != nil {
-			uh.logger.Println("Failed to reach task-service:", err)
+			uh.logger.Println("Error during task service request:", err)
 			continue
 		}
 		defer taskResp.Body.Close()
 
-		if taskResp.StatusCode != http.StatusOK {
+		if taskResp.StatusCode == http.StatusServiceUnavailable || taskResp.StatusCode == http.StatusGatewayTimeout {
+			uh.logger.Printf("Final response is 503 or 504 for project %s, terminating user deletion", project.ID)
+			return true
+		}
+
+		if taskResp.StatusCode != http.StatusOK && taskResp.StatusCode != http.StatusNoContent {
 			uh.logger.Printf("Unexpected response from task-service for project %s: %s", project.ID, taskResp.Status)
 			continue
 		}
@@ -244,14 +438,13 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 			continue
 		}
 
-		if role == "manager" { // if user is manager check if the project he made has tasks with status: pending/inProgress
+		if role == "manager" {
 			for _, task := range tasks {
 				if task.Status == "Pending" || task.Status == "InProgress" {
 					return true
 				}
-
 			}
-		} else { // if member check if he is added to task with status pending/inProgress
+		} else {
 			for _, task := range tasks {
 				if task.Status == "Pending" || task.Status == "InProgress" {
 					for _, id := range task.UserIDs {
@@ -262,8 +455,8 @@ func (uh *UserHandler) checkTasks(projects []service.Project, userID, role strin
 				}
 			}
 		}
-
 	}
+
 	return false
 }
 

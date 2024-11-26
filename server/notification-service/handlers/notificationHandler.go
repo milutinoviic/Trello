@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/eapache/go-resiliency/retrier"
 	"github.com/gocql/gocql"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
+	"github.com/sony/gobreaker"
 	"log"
 	"net/http"
+	"notification-service/domain"
 	"notification-service/model"
 	"notification-service/repository"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,7 +41,7 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 			return
 		}
 
-		userID, role, err := n.verifyTokenWithUserService(cookie.Value)
+		userID, role, err := n.verifyTokenWithUserService(h.Context(), cookie.Value)
 		if err != nil {
 			http.Error(rw, "Invalid token", http.StatusUnauthorized)
 			n.logger.Println("Invalid token:", err)
@@ -53,36 +57,117 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 	})
 }
 
-func (n *NotificationHandler) verifyTokenWithUserService(token string) (string, string, error) {
+func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
-	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	circuitBreaker := gobreaker.NewCircuitBreaker(
+		gobreaker.Settings{
+			Name:        "UserServiceCircuitBreaker",
+			MaxRequests: 5,
+			Timeout:     5 * time.Second,
+			Interval:    0,
+			ReadyToTrip: func(counts gobreaker.Counts) bool {
+				return counts.ConsecutiveFailures > 2
+			},
+			OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+				n.logger.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+			},
+			IsSuccessful: func(err error) bool {
+				if err == nil {
+					return true
+				}
+				if _, ok := err.(domain.ErrRespTmp); ok {
+					return false
+				}
+				return false
+			},
+		},
+	)
+
+	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+
+	var timeout time.Duration
+	deadline, reqHasDeadline := ctx.Deadline()
+
+	var resp *http.Response
+	retryCount := 0
+
+	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+		retryCount++
+		n.logger.Printf("Attempting user-service request, attempt #%d", retryCount)
+
+		if reqHasDeadline {
+			timeout = time.Until(deadline)
+		}
+
+		_, err := circuitBreaker.Execute(func() (interface{}, error) {
+			if timeout > 0 {
+				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
+			}
+
+			resp, err = http.DefaultClient.Do(req)
+			if err != nil {
+				return nil, err
+			}
+
+			if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+				return nil, domain.ErrRespTmp{
+					URL:        resp.Request.URL.String(),
+					Method:     resp.Request.Method,
+					StatusCode: resp.StatusCode,
+				}
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("unexpected status code from user-service: %s", resp.Status)
+			}
+
+			return resp, nil
+		})
+
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
 	if err != nil {
+		n.logger.Printf("Error during user-service request after retries: %v", err)
 		return "", "", err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+	if resp == nil {
+		n.logger.Println("Received nil response from user service")
+		return "", "", fmt.Errorf("received nil response from user service")
 	}
+
+	defer func() {
+		if resp != nil {
+			resp.Body.Close()
+		}
+	}()
 
 	var result struct {
 		UserID string `json:"user_id"`
 		Role   string `json:"role"`
 	}
 
-	n.logger.Println("ROLE IS " + result.Role)
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return "", "", err
 	}
+
+	n.logger.Println("ROLE IS " + result.Role)
 
 	return result.UserID, result.Role, nil
 }

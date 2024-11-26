@@ -4,12 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/eapache/go-resiliency/retrier"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
+	"github.com/sony/gobreaker"
 	"log"
 	"net/http"
 	"slices"
+	"strconv"
 	"strings"
+	"task--service/domain"
 	"task--service/model"
 	"task--service/repositories"
 	"time"
@@ -58,6 +62,9 @@ func (t *TasksHandler) GetAllTasksByProjectId(rw http.ResponseWriter, h *http.Re
 	projectID := vars["projectId"]
 
 	tasks, err := t.repo.GetAllByProjectId(projectID)
+
+	//http.Error(rw, "Service unavailable for testing", http.StatusServiceUnavailable)
+	//return
 
 	if err != nil {
 		t.logger.Print("Database exception: ", err)
@@ -151,7 +158,7 @@ func (p *TasksHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 			return
 		}
 
-		userID, role, err := p.verifyTokenWithUserService(cookie.Value)
+		userID, role, err := p.verifyTokenWithUserService(h.Context(), cookie.Value)
 		if err != nil {
 			http.Error(rw, "Invalid token", http.StatusUnauthorized)
 			p.logger.Println("Invalid token:", err)
@@ -167,37 +174,120 @@ func (p *TasksHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 	})
 }
 
-func (p *TasksHandler) verifyTokenWithUserService(token string) (string, string, error) {
+func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
-	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     10,
+		},
+	}
+
+	circuitBreaker := gobreaker.NewCircuitBreaker(
+		gobreaker.Settings{
+			Name:        "UserServiceCircuitBreaker",
+			MaxRequests: 5,
+			Timeout:     5 * time.Second,
+			Interval:    0,
+			ReadyToTrip: func(counts gobreaker.Counts) bool {
+				return counts.ConsecutiveFailures > 2
+			},
+			OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+				log.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+			},
+			IsSuccessful: func(err error) bool {
+				if err == nil {
+					return true
+				}
+				if _, ok := err.(domain.ErrRespTmp); ok {
+					return false
+				}
+				return false
+			},
+		},
+	)
+
+	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+
+	var timeout time.Duration
+	deadline, reqHasDeadline := ctx.Deadline()
+
+	retryCount := 0
+	var userID, role string
+
+	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+		retryCount++
+		log.Printf("Attempting validate-token request, attempt #%d", retryCount)
+
+		if reqHasDeadline {
+			timeout = time.Until(deadline)
+		}
+
+		// Execute the circuit breaker for each request
+		_, err := circuitBreaker.Execute(func() (interface{}, error) {
+			if timeout > 0 {
+				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				return nil, err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+				return nil, domain.ErrRespTmp{
+					URL:        resp.Request.URL.String(),
+					Method:     resp.Request.Method,
+					StatusCode: resp.StatusCode,
+				}
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("failed to validate token, status: %s", resp.Status)
+			}
+
+			var result struct {
+				UserID string `json:"user_id"`
+				Role   string `json:"role"`
+			}
+
+			err = json.NewDecoder(resp.Body).Decode(&result)
+			if err != nil {
+				return nil, err
+			}
+
+			userID = result.UserID
+			role = result.Role
+
+			return result, nil
+		})
+
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
 	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+		log.Printf("Error during validate-token request after retries: %v", err)
+		return "", "", fmt.Errorf("error validating token: %w", err)
 	}
 
-	var result struct {
-		UserID string `json:"user_id"`
-		Role   string `json:"role"`
-	}
-
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		return "", "", err
-	}
-
-	return result.UserID, result.Role, nil
+	return userID, role, nil
 }
 
 func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Request) {

@@ -4,14 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/eapache/go-resiliency/retrier"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
+	"github.com/sony/gobreaker"
 	"log"
 	"net/http"
+	"project-service/domain"
 	"project-service/model"
 	"project-service/repositories"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type KeyProject struct{}
@@ -37,7 +41,7 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 			return
 		}
 
-		userID, role, err := p.verifyTokenWithUserService(cookie.Value)
+		userID, role, err := p.verifyTokenWithUserService(h.Context(), cookie.Value)
 		if err != nil {
 			http.Error(rw, "Invalid token", http.StatusUnauthorized)
 			p.logger.Println("Invalid token:", err)
@@ -53,37 +57,118 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 	})
 }
 
-func (p *ProjectsHandler) verifyTokenWithUserService(token string) (string, string, error) {
+func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	userServiceURL := "http://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
-	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     10,
+		},
+	}
+
+	circuitBreaker := gobreaker.NewCircuitBreaker(
+		gobreaker.Settings{
+			Name:        "UserServiceCircuitBreaker",
+			MaxRequests: 5,
+			Timeout:     5 * time.Second,
+			Interval:    0,
+			ReadyToTrip: func(counts gobreaker.Counts) bool {
+				return counts.ConsecutiveFailures > 2
+			},
+			OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+				log.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+			},
+			IsSuccessful: func(err error) bool {
+				if err == nil {
+					return true
+				}
+				if _, ok := err.(domain.ErrRespTmp); ok {
+					return false
+				}
+				return false
+			},
+		},
+	)
+
+	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+
+	var timeout time.Duration
+	deadline, reqHasDeadline := ctx.Deadline()
+
+	var userID, role string
+	retryCount := 0
+	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+		retryCount++
+		log.Printf("Attempting validate-token request, attempt #%d", retryCount)
+
+		if reqHasDeadline {
+			timeout = time.Until(deadline)
+		}
+
+		_, err := circuitBreaker.Execute(func() (interface{}, error) {
+			if timeout > 0 {
+				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
+			}
+
+			resp, err := client.Do(req)
+			if err != nil {
+				return nil, err
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+				return nil, domain.ErrRespTmp{
+					URL:        resp.Request.URL.String(),
+					Method:     resp.Request.Method,
+					StatusCode: resp.StatusCode,
+				}
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("failed to validate token, status: %s", resp.Status)
+			}
+
+			var result struct {
+				UserID string `json:"user_id"`
+				Role   string `json:"role"`
+			}
+
+			err = json.NewDecoder(resp.Body).Decode(&result)
+			if err != nil {
+				return nil, err
+			}
+
+			userID = result.UserID
+			role = result.Role
+
+			return result, nil
+		})
+
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
 	if err != nil {
-		return "", "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("failed to validate token, status: %s", resp.Status)
+		log.Printf("Error during validate-token request after retries: %v", err)
+		return "", "", fmt.Errorf("error validating token: %w", err)
 	}
 
-	var result struct {
-		UserID string `json:"user_id"`
-		Role   string `json:"role"`
-	}
-
-	err = json.NewDecoder(resp.Body).Decode(&result)
-	if err != nil {
-		return "", "", err
-	}
-
-	return result.UserID, result.Role, nil
+	return userID, role, nil
 }
 
 func NewProjectsHandler(l *log.Logger, r *repositories.ProjectRepo) *ProjectsHandler {
@@ -138,8 +223,12 @@ func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.R
 		return
 	}
 	if projects == nil {
-		http.Error(rw, "No projects found", http.StatusNotFound)
+		http.Error(rw, "No projects found", http.StatusNoContent)
 		return
+		//log.Println("service currently unavailable")
+		//http.Error(rw, "Service unavailable", http.StatusServiceUnavailable)
+		//return
+		//DO NOT DELETE THESE COMMENTS, NEEDED FOR PARTIAL FAILURE TESTING, thank you <3
 	}
 
 	err = projects.ToJSON(rw)
@@ -310,7 +399,7 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 	}
 	cookie, err := h.Cookie("auth_token")
 
-	if p.checkTasks(*project, userId, cookie) {
+	if p.checkTasks(h.Context(), *project, userId, cookie) {
 		http.Error(rw, "User id added to active tasks, deletion blocked", http.StatusConflict)
 		return
 	}
@@ -434,10 +523,20 @@ func (p *ProjectsHandler) HandleTasksDeletedRollback(projectID string) {
 	p.logger.Printf("Successfully retrive deleted project %s", projectID)
 }
 
-func (ph *ProjectsHandler) checkTasks(project model.Project, userID string, authTokenCookie *http.Cookie) bool {
-	client := &http.Client{}
+func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project, userID string, authTokenCookie *http.Cookie) bool {
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:        10,
+			MaxIdleConnsPerHost: 10,
+			MaxConnsPerHost:     10,
+		},
+	}
+
 	taskServiceURL := fmt.Sprintf("http://task-server:8080/tasks/%s", project.ID.Hex())
-	taskReq, err := http.NewRequest("GET", taskServiceURL, nil)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	taskReq, err := http.NewRequestWithContext(reqCtx, "GET", taskServiceURL, nil)
 	if err != nil {
 		ph.logger.Println("Failed to create request to task-service:", err)
 		return false
@@ -445,23 +544,92 @@ func (ph *ProjectsHandler) checkTasks(project model.Project, userID string, auth
 	taskReq.Header.Set("Content-Type", "application/json")
 	taskReq.AddCookie(authTokenCookie)
 
-	taskResp, err := client.Do(taskReq)
-	if err != nil {
-		ph.logger.Println("Failed to reach task-service:", err)
-		return false
-	}
-	defer taskResp.Body.Close()
+	circuitBreaker := gobreaker.NewCircuitBreaker(
+		gobreaker.Settings{
+			Name:        "TaskServiceCircuitBreaker",
+			MaxRequests: 5,
+			Timeout:     5 * time.Second,
+			Interval:    0,
+			ReadyToTrip: func(counts gobreaker.Counts) bool {
+				return counts.ConsecutiveFailures > 2
+			},
+			OnStateChange: func(name string, from gobreaker.State, to gobreaker.State) {
+				ph.logger.Printf("Circuit Breaker '%s' changed from '%s' to '%s'\n", name, from, to)
+			},
+			IsSuccessful: func(err error) bool {
+				if err == nil {
+					return true
+				}
+				if _, ok := err.(domain.ErrRespTmp); ok {
+					return false
+				}
+				return false
+			},
+		},
+	)
 
-	if taskResp.StatusCode != http.StatusOK {
-		ph.logger.Printf("Unexpected response from task-service for project %s: %s", project.ID, taskResp.Status)
+	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+
+	var timeout time.Duration
+	deadline, reqHasDeadline := ctx.Deadline()
+
+	var taskResp *http.Response
+	retryCount := 0
+
+	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+		retryCount++
+		ph.logger.Printf("Attempting task-service request, attempt #%d", retryCount)
+
+		if reqHasDeadline {
+			timeout = time.Until(deadline)
+		}
+
+		_, err := circuitBreaker.Execute(func() (interface{}, error) {
+			if timeout > 0 {
+				taskReq.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
+			}
+
+			resp, err := client.Do(taskReq)
+			if err != nil {
+				return nil, err
+			}
+
+			if resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+				return nil, domain.ErrRespTmp{
+					URL:        resp.Request.URL.String(),
+					Method:     resp.Request.Method,
+					StatusCode: resp.StatusCode,
+				}
+			}
+
+			if resp.StatusCode != http.StatusOK {
+				return nil, fmt.Errorf("unexpected status code from task-service: %s", resp.Status)
+			}
+
+			taskResp = resp
+			return resp, nil
+		})
+
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		ph.logger.Printf("Error during task-service request after retries: %v", err)
 		return false
 	}
+
+	defer taskResp.Body.Close()
 
 	var tasks []Task
 	if err := json.NewDecoder(taskResp.Body).Decode(&tasks); err != nil {
 		ph.logger.Println("Failed to decode task-service response:", err)
 		return false
 	}
+
 	for _, task := range tasks {
 		if task.Status == "Pending" || task.Status == "InProgress" {
 			for _, id := range task.UserIDs {
