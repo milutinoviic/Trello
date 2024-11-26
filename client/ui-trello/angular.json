@@ -76,8 +76,8 @@
           "options": {
             "ssl": true,
             "proxyConfig": "./proxy.conf.json",
-            "sslCert": "/app/api-gateway/trello.crt",
-            "sslKey": "/app/api-gateway/trello.key",
+            "sslCert": "/app/cert.crt",
+            "sslKey": "/app/privat.key",
             "port": 4200,
             "host": "localhost"
           },

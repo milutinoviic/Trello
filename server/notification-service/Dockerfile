@@ -13,6 +13,8 @@ FROM alpine
 
 COPY --from=build_container /app/server /usr/bin
 COPY --from=build_container /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=build_container /app/cert.crt /app/cert.crt
+COPY --from=build_container /app/privat.key /app/privat.key
 
 ENV TZ=Europe/Budapest
 

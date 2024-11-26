@@ -8,6 +8,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 	"log"
 	"os"
 	"task--service/model"
@@ -17,32 +19,43 @@ import (
 type TaskRepository struct {
 	cli    *mongo.Client
 	logger *log.Logger
+	tracer trace.Tracer
 }
 
-func New(ctx context.Context, logger *log.Logger) (*TaskRepository, error) {
+func New(ctx context.Context, logger *log.Logger, trace trace.Tracer) (*TaskRepository, error) {
 	dburi := os.Getenv("MONGO_DB_URI")
-
-	client, err := mongo.NewClient(options.Client().ApplyURI(dburi))
-	if err != nil {
-		return nil, err
+	if dburi == "" {
+		return nil, fmt.Errorf("MONGO_DB_URI environment variable is not set")
 	}
 
-	err = client.Connect(ctx)
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dburi))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to MongoDB: %w", err)
 	}
+
+	if err = client.Ping(ctx, nil); err != nil {
+		return nil, fmt.Errorf("failed to ping MongoDB: %w", err)
+	}
+
+	logger.Println("Successfully connected to MongoDB")
 
 	return &TaskRepository{
 		cli:    client,
 		logger: logger,
+		tracer: trace,
 	}, nil
 }
 
 func (tr *TaskRepository) Disconnect(ctx context.Context) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.Disconnect")
+	defer span.End()
 	err := tr.cli.Disconnect(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+	span.SetStatus(codes.Ok, "Successfully disconnected")
 	return nil
 }
 
@@ -71,6 +84,8 @@ func (tr *TaskRepository) Ping() {
 func (tr *TaskRepository) Insert(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.Insert")
+	defer span.End()
 	tasksCollection := tr.getCollection()
 
 	if task.UserIDs == nil {
@@ -84,31 +99,45 @@ func (tr *TaskRepository) Insert(task *model.Task) error {
 	task.CreatedAt = time.Now()
 	task.UpdatedAt = time.Now()
 
-	result, err := tasksCollection.InsertOne(ctx, task)
+	insertOneCtx, insertOneSpan := tr.tracer.Start(ctx, "TaskRepository.Insert.InsertOne")
+	result, err := tasksCollection.InsertOne(insertOneCtx, task)
+	insertOneSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		tr.logger.Println(err)
 		return err
 	}
 	tr.logger.Printf("Task created with ID: %v\n", result.InsertedID)
+	span.SetStatus(codes.Ok, "Successfully inserted a task")
 	return nil
 }
 
 func (tr *TaskRepository) GetAllTask() (model.Tasks, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetAllTask")
+	defer span.End()
 
 	tasksCollection := tr.getCollection()
 
 	var tasks model.Tasks
-	tasksCursor, err := tasksCollection.Find(ctx, bson.M{})
+	findCtx, findSpan := tr.tracer.Start(ctx, "TaskRepository.GetAllTask.Find")
+	tasksCursor, err := tasksCollection.Find(findCtx, bson.M{})
+	findSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		tr.logger.Println(err)
 		return nil, err
 	}
 	if err = tasksCursor.All(ctx, &tasks); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		tr.logger.Println(err)
 		return nil, err
 	}
+	span.SetStatus(codes.Ok, "Successfully got all tasks")
 	return tasks, nil
 }
 
@@ -120,10 +149,16 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetAllByProjectIdProject")
+	defer span.End()
 
 	tasksCollection := tr.getCollection()
-	tasksCursor, err := tasksCollection.Find(ctx, filter)
+	findCtx, findSpan := tr.tracer.Start(ctx, "TaskRepository.GetAllByProjectIdProject.Find")
+	tasksCursor, err := tasksCollection.Find(findCtx, filter)
+	findSpan.End()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return tasks, err
 	}
 	defer tasksCursor.Close(ctx)
@@ -131,15 +166,19 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 	for tasksCursor.Next(ctx) {
 		var task model.Task
 		if err := tasksCursor.Decode(&task); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return tasks, err
 		}
 		tasks = append(tasks, task)
 	}
 
 	if err := tasksCursor.Err(); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return tasks, err
 	}
-
+	span.SetStatus(codes.Ok, "Successfully got all tasks")
 	return tasks, nil
 
 }
@@ -147,19 +186,27 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 func (tr *TaskRepository) DeleteTask(taskId primitive.ObjectID) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
+	_, span := tr.tracer.Start(ctx, "TaskRepository.DeleteTask")
+	defer span.End()
 	collection := tr.getCollection()
 	_, err := collection.DeleteOne(ctx, bson.M{"_id": taskId})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("Failed to delete task with id %s: %v", taskId.Hex(), err)
 	}
+	span.SetStatus(codes.Ok, "Successfully deleted the task")
 	return nil
 }
 
 func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 
+	_, span := t.tracer.Start(context.Background(), "TaskRepository.DeleteAllTasksByProjectId")
+	defer span.End()
 	tasks, err := t.GetAllByProjectId(projectID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Printf("Failed to fetch tasks for project %s: %v", projectID, err)
 		return fmt.Errorf("failed to fetch tasks: %w", err)
 	}
@@ -167,39 +214,49 @@ func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 	for _, task := range tasks {
 		err := t.DeleteTask(task.ID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Printf("Failed to delete task with ID %s: %v", task.ID.Hex(), err)
 			return fmt.Errorf("failed to delete task with ID %s: %w", task.ID.Hex(), err)
 		}
 	}
 
 	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
 	return nil
 }
 
 func (tr *TaskRepository) GetByID(taskID string) (*model.Task, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
+	_, span := tr.tracer.Start(ctx, "TaskRepository.GetByID")
+	defer span.End()
 	tasksCollection := tr.getCollection()
 
 	// Convert string ID to ObjectID
 	taskObjID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, fmt.Errorf("invalid taskID format: %v", err)
 	}
 
 	var task model.Task
 	err = tasksCollection.FindOne(ctx, bson.M{"_id": taskObjID}).Decode(&task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-
+	span.SetStatus(codes.Ok, "Successfully got task")
 	return &task, nil
 }
 
 func (tr *TaskRepository) Update(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.Update")
+	defer span.End()
 
 	tasksCollection := tr.getCollection()
 	filter := bson.M{"_id": task.ID}
@@ -211,37 +268,68 @@ func (tr *TaskRepository) Update(task *model.Task) error {
 	}
 
 	_, err := tasksCollection.UpdateOne(ctx, filter, update)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully updated the task")
+	return nil
 }
 
 func (tr *TaskRepository) InsertTaskMemberActivity(change *model.TaskMemberActivity) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
+	_, span := tr.tracer.Start(ctx, "TaskRepository.InsertTaskMemberActivity")
+	defer span.End()
 	_, err := tr.getChangeCollection().InsertOne(ctx, change)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully inserted the task member activity")
+	return nil
 }
 
 func (tr *TaskRepository) GetUnprocessedActivities() ([]model.TaskMemberActivity, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.GetUnprocessedActivities")
+	defer span.End()
 
 	cursor, err := tr.getChangeCollection().Find(ctx, bson.M{"processed": false})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	var changes []model.TaskMemberActivity
 	err = cursor.All(ctx, &changes)
-	return changes, err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	span.SetStatus(codes.Ok, "Successfully got all task member activity")
+	return changes, nil
 }
 
 func (tr *TaskRepository) MarkChangeAsProcessed(changeID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.MarkChangeAsProcessed")
+	defer span.End()
 
 	_, err := tr.getChangeCollection().UpdateOne(ctx, bson.M{"_id": changeID}, bson.M{"$set": bson.M{"processed": true}})
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully marked as processed")
+	return nil
 }
 
 func (tr *TaskRepository) getChangeCollection() *mongo.Collection {
@@ -253,9 +341,13 @@ func (tr *TaskRepository) getChangeCollection() *mongo.Collection {
 func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateStatus")
+	defer span.End()
 
 	objID, err := primitive.ObjectIDFromHex(task.ID.Hex())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("invalid task ID: %v", err)
 	}
 
@@ -270,12 +362,16 @@ func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
 
 	result, err := tasksCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("failed to update task status: %v", err)
 	}
 
 	if result.MatchedCount == 0 {
+		span.SetStatus(codes.Error, "no task found")
 		return fmt.Errorf("no task found with the given ID")
 	}
+	span.SetStatus(codes.Ok, "Successfully updated the task")
 
 	return nil
 }

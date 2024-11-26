@@ -2,17 +2,26 @@ package handlers
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/eapache/go-resiliency/retrier"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
+	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
+	"task--service/client"
+	"task--service/customLogger"
 	"task--service/domain"
 	"task--service/model"
 	"task--service/repositories"
@@ -20,68 +29,232 @@ import (
 )
 
 type TasksHandler struct {
-	logger   *log.Logger
-	repo     *repositories.TaskRepository
-	natsConn *nats.Conn
+	logger     *log.Logger
+	repo       *repositories.TaskRepository
+	natsConn   *nats.Conn
+	tracer     trace.Tracer
+	userClient client.UserClient
+	custLogger *customLogger.Logger
 }
 
 type KeyTask struct{}
 type KeyId struct{}
 type KeyRole struct{}
 
-func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn) *TasksHandler {
-	return &TasksHandler{l, r, natsConn}
+func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, tracer trace.Tracer, userClient client.UserClient, custLogger *customLogger.Logger) *TasksHandler {
+	return &TasksHandler{l, r, natsConn, tracer, userClient, custLogger}
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.PostTask")
+	defer span.End()
 	task := h.Context().Value(KeyTask{}).(*model.Task)
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Preuzimanje Task-a iz Context-a
+	task, ok := h.Context().Value(KeyTask{}).(*model.Task)
+	if !ok || task == nil {
+		errMsg := "Invalid task data in context"
+		t.logger.Printf(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		http.Error(rw, "Invalid task data", http.StatusBadRequest)
+		return
+	}
+	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task data retrieved successfully")
+
+	// Ubacivanje Task-a u repozitorijum
 	err := t.repo.Insert(task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		errMsg := "Unable to create task: " + err.Error()
+		t.logger.Printf(errMsg)
+		t.custLogger.Error(logrus.Fields{"taskID": task.ID}, errMsg)
 		http.Error(rw, "Unable to create task", http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, "Successfully created task")
+	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task created successfully")
+
+	// Slanje odgovora
 	rw.WriteHeader(http.StatusCreated)
+	response := map[string]string{"message": "Task created successfully"}
+	err = json.NewEncoder(rw).Encode(response)
+	if err != nil {
+		errMsg := "Error writing response: " + err.Error()
+		t.logger.Printf(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		return
+	}
+	t.custLogger.Info(nil, "Task creation response sent successfully")
 }
 
 func (t *TasksHandler) GetAllTask(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.GetAllTask")
+	defer span.End()
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Preuzimanje svih zadataka iz repozitorijuma
 	projects, err := t.repo.GetAllTask()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Print("Database exception: ", err)
-	}
-
-	err = projects.ToJSON(rw)
-	if err != nil {
-		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
-		t.logger.Fatal("Unable to convert to json :", err)
+		errMsg := "Database exception: " + err.Error()
+		t.logger.Print(errMsg)
+		t.custLogger.Error(nil, errMsg)
+		http.Error(rw, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	t.custLogger.Info(nil, "All tasks retrieved successfully")
+
+	// Konvertovanje u JSON i slanje odgovora
+	err = projects.ToJSON(rw)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
+		errMsg := "Unable to convert to JSON: " + err.Error()
+		t.custLogger.Error(nil, errMsg)
+		http.Error(rw, "Unable to convert to JSON", http.StatusInternalServerError)
+		return
+	}
+	t.custLogger.Info(nil, "Tasks successfully converted to JSON and sent in response")
+	span.SetStatus(codes.Ok, "Successfully retrieved all tasks")
 }
 
 func (t *TasksHandler) GetAllTasksByProjectId(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.GetAllTasksByProjectId")
+	defer span.End()
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Ekstrakcija projectID iz URL-a
 	vars := mux.Vars(h)
 	projectID := vars["projectId"]
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Extracted project ID from request")
 
+	// Preuzimanje zadataka za dati projectID
 	tasks, err := t.repo.GetAllByProjectId(projectID)
 
 	//http.Error(rw, "Service unavailable for testing", http.StatusServiceUnavailable)
 	//return
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Print("Database exception: ", err)
+		errMsg := "Database exception while fetching tasks"
+		t.logger.Print(errMsg, err)
+		t.custLogger.Error(logrus.Fields{"projectID": projectID}, errMsg+": "+err.Error())
 		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
 		return
 	}
+	t.custLogger.Info(logrus.Fields{"projectID": projectID, "taskCount": len(tasks)}, "Tasks fetched successfully")
 
+	// Enkodovanje zadataka u JSON i slanje odgovora
 	if err := json.NewEncoder(rw).Encode(tasks); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to encode response", http.StatusInternalServerError)
+		errMsg := "Failed to encode response"
+		t.logger.Printf("%s: %v", errMsg, err)
+		t.custLogger.Error(logrus.Fields{"projectID": projectID}, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusInternalServerError)
+		return
+	}
+	span.SetStatus(codes.Ok, "Successfully retrieved all tasks")
+
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Tasks successfully encoded and sent in response")
+}
+
+func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *http.Request) {
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	// Step 1: Get the project ID from the URL
+	vars := mux.Vars(h)
+	projectID := vars["projectId"]
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Extracted project ID from request")
+
+	// Step 2: Validate token in cookies
+	cookie, err := h.Cookie("auth_token")
+	if err != nil {
+		errMsg := "No token found in cookie"
+		t.logger.Println(errMsg, err)
+		t.custLogger.Error(nil, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusUnauthorized)
+		return
+	}
+	t.custLogger.Info(nil, "Authorization token found in cookie")
+
+	// Step 3: Fetch tasks for the given project
+	tasks, err := t.repo.GetAllByProjectId(projectID)
+	if err != nil {
+		errMsg := "Database exception while fetching tasks"
+		t.logger.Print(errMsg, err)
+		t.custLogger.Error(logrus.Fields{"projectID": projectID}, errMsg+": "+err.Error())
+		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
+		return
+	}
+	t.custLogger.Info(logrus.Fields{"projectID": projectID, "taskCount": len(tasks)}, "Tasks fetched successfully")
+
+	// Step 4: Prepare a slice to store tasks with user details
+	var tasksWithUserDetails []client.TaskDetails
+
+	// Step 5: Fetch user details for each task
+	for _, task := range tasks {
+		t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Fetching user details for task")
+		usersDetails, err := t.userClient.GetByIdsWithCookies(task.UserIDs, cookie)
+		if err != nil {
+			errMsg := "Error fetching user details"
+			t.logger.Printf("%s for task ID '%s': %v", errMsg, task.ID, err)
+			t.custLogger.Error(logrus.Fields{"taskID": task.ID}, errMsg+": "+err.Error())
+			http.Error(rw, "Error fetching user details for tasks", http.StatusInternalServerError)
+			return
+		}
+		t.custLogger.Info(logrus.Fields{"taskID": task.ID, "userCount": len(usersDetails)}, "User details fetched successfully")
+
+		// Step 6: Map task to TaskDetails and include user details
+		taskDetails := client.TaskDetails{
+			ID:           task.ID,
+			ProjectID:    task.ProjectID,
+			Name:         task.Name,
+			Description:  task.Description,
+			Status:       task.Status,
+			CreatedAt:    task.CreatedAt,
+			UpdatedAt:    task.UpdatedAt,
+			UserIDs:      task.UserIDs,
+			Users:        usersDetails,
+			Dependencies: task.Dependencies,
+			Blocked:      task.Blocked,
+		}
+
+		// Add the task with user details to the result slice
+		tasksWithUserDetails = append(tasksWithUserDetails, taskDetails)
 	}
 
+	// Step 7: Return the tasks with user details in the response
+	if err := json.NewEncoder(rw).Encode(tasksWithUserDetails); err != nil {
+		errMsg := "Failed to encode response"
+		t.logger.Printf("%s: %v", errMsg, err)
+		t.custLogger.Error(nil, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusInternalServerError)
+		return
+	}
+	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Tasks with user details successfully returned in response")
 }
 
 func (t *TasksHandler) HandleProjectDeleted(projectID string) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.HandleProjectDeleted")
+	defer span.End()
 
 	err := t.repo.DeleteAllTasksByProjectId(projectID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Printf("Failed to delete tasks for project %s: %v", projectID, err)
 
 		_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID))
@@ -95,6 +268,7 @@ func (t *TasksHandler) HandleProjectDeleted(projectID string) {
 
 	//_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID)) // uncomment this, and comment out the code above to test 'rollback' function
 
+	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
 }
 
 func (t *TasksHandler) MiddlewareContentTypeSet(next http.Handler) http.Handler {
@@ -151,48 +325,65 @@ func (uh *TasksHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Ha
 
 func (p *TasksHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		p.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+		p.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+		// Ekstrakcija auth_token iz kolačića
 		cookie, err := h.Cookie("auth_token")
 		if err != nil {
-			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
-			p.logger.Println("No token in cookie:", err)
+			errMsg := "No token found in cookie"
+			p.logger.Println(errMsg, err)
+			p.custLogger.Error(nil, errMsg+": "+err.Error())
+			http.Error(rw, errMsg, http.StatusUnauthorized)
 			return
 		}
+		p.custLogger.Info(nil, "Authorization token found in cookie")
 
+		// Verifikacija tokena preko korisničkog servisa
 		userID, role, err := p.verifyTokenWithUserService(h.Context(), cookie.Value)
 		if err != nil {
-			http.Error(rw, "Invalid token", http.StatusUnauthorized)
-			p.logger.Println("Invalid token:", err)
+			errMsg := "Invalid token"
+			p.logger.Println(errMsg, err)
+			p.custLogger.Error(nil, errMsg+": "+err.Error())
+			http.Error(rw, errMsg, http.StatusUnauthorized)
 			return
 		}
+		p.custLogger.Info(logrus.Fields{"userID": userID, "role": role}, "Token verified successfully")
 
+		// Dodavanje korisničkih podataka u kontekst
 		ctx := context.WithValue(h.Context(), KeyId{}, userID)
 		ctx = context.WithValue(ctx, KeyRole{}, role)
-
 		h = h.WithContext(ctx)
 
+		// Nastavak do sledećeg handler-a
+		p.custLogger.Info(logrus.Fields{"userID": userID, "role": role}, "Context updated with user ID and role, proceeding to next handler")
 		next.ServeHTTP(rw, h)
 	})
 }
 
 func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
-	userServiceURL := "http://user-server:8080/validate-token"
-	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
-	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+	_, span := p.tracer.Start(ctx, "TaskHandler.verifyTokenWithUserService")
+	defer span.End()
 
-	req, err := http.NewRequestWithContext(reqCtx, "POST", userServiceURL, strings.NewReader(reqBody))
+	userServiceURL := "https://user-server:8080/validate-token"
+	p.logger.Printf("Validating token with user service at %s", userServiceURL)
+	p.custLogger.Info(nil, fmt.Sprintf("Sending token validation request to %s", userServiceURL))
+
+	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
+	req, err := http.NewRequest("POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		p.logger.Printf("Failed to create token validation request: %v", err)
+		p.custLogger.Error(nil, "Failed to create token validation request: "+err.Error())
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:        10,
-			MaxIdleConnsPerHost: 10,
-			MaxConnsPerHost:     10,
-		},
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		return "", "", err
 	}
 
 	circuitBreaker := gobreaker.NewCircuitBreaker(
@@ -228,7 +419,7 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 	retryCount := 0
 	var userID, role string
 
-	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		log.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -236,7 +427,6 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 			timeout = time.Until(deadline)
 		}
 
-		// Execute the circuit breaker for each request
 		_, err := circuitBreaker.Execute(func() (interface{}, error) {
 			if timeout > 0 {
 				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
@@ -264,7 +454,6 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 				UserID string `json:"user_id"`
 				Role   string `json:"role"`
 			}
-
 			err = json.NewDecoder(resp.Body).Decode(&result)
 			if err != nil {
 				return nil, err
@@ -283,26 +472,63 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 	})
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Printf("Error during validate-token request after retries: %v", err)
+		p.custLogger.Error(nil, fmt.Sprintf("Error during validate-token request after retries: %v", err))
 		return "", "", fmt.Errorf("error validating token: %w", err)
 	}
+
+	p.custLogger.Info(logrus.Fields{"userID": userID, "role": role}, "Token validated successfully")
+	span.SetStatus(codes.Ok, "Successfully validated token")
 
 	return userID, role, nil
 }
 
+func createTLSClient() (*http.Client, error) {
+	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		RootCAs: caCertPool,
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	return client, nil
+}
+
 func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Request) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.LogTaskMemberChange")
+	defer span.End()
 	vars := mux.Vars(h)
 	taskID := vars["taskId"]
 	action := vars["action"] // Can be "add" or "remove"
 	userID := vars["userId"]
+	t.logger.Println("User id is " + userID)
 
 	if action != "add" && action != "remove" {
+		span.RecordError(errors.New("Invalid action"))
+		span.SetStatus(codes.Error, "Invalid action")
 		http.Error(rw, "Invalid action", http.StatusBadRequest)
 		return
 	}
 
 	task, err := t.repo.GetByID(taskID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Task not found", http.StatusNotFound)
 		t.logger.Println("Error fetching task:", err)
 		return
@@ -310,11 +536,15 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	if action == "add" {
 		if !t.isUserInProject(task.ProjectID, userID) {
+			span.RecordError(errors.New("Invalid userId"))
+			span.SetStatus(codes.Error, "Invalid userId")
 			http.Error(rw, "User not part of the project", http.StatusForbidden)
 			return
 		}
 
 		if contains(task.UserIDs, userID) {
+			span.RecordError(errors.New("user is already a member of this task"))
+			span.SetStatus(codes.Error, "User is already a member of this task")
 			http.Error(rw, "User is already a member of this task", http.StatusConflict)
 			return
 		}
@@ -322,11 +552,15 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	if action == "remove" {
 		if task.Status == model.Completed {
+			span.RecordError(errors.New("cannot remove task"))
+			span.SetStatus(codes.Error, "cannot remove task")
 			http.Error(rw, "Cannot remove member from a completed task", http.StatusForbidden)
 			return
 		}
 
 		if !contains(task.UserIDs, userID) {
+			span.RecordError(errors.New("Invalid userId"))
+			span.SetStatus(codes.Error, "Invalid userId")
 			http.Error(rw, "User is not a member of this task", http.StatusBadRequest)
 			return
 		}
@@ -342,6 +576,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	err = t.repo.InsertTaskMemberActivity(&activity)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to log task member change", http.StatusInternalServerError)
 		t.logger.Println("Error inserting task member change:", err)
 		return
@@ -351,6 +587,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 		task.UserIDs = append(task.UserIDs, userID)
 		nc, err := Conn()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error connecting to NATS:", err)
 			http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
 			return
@@ -369,20 +607,26 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 		jsonMessage, err := json.Marshal(message)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error marshalling message:", err)
 			return
 		}
 
 		err = nc.Publish(subject, jsonMessage)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error publishing message to NATS:", err)
 		}
 
 		t.logger.Println("a message has been sent")
-	} else if action == "remove" {
+	} else {
 		task.UserIDs = remove(task.UserIDs, userID)
 		nc, err := Conn()
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error connecting to NATS:", err)
 			http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
 			return
@@ -401,12 +645,16 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 		jsonMessage, err := json.Marshal(message)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error marshalling message:", err)
 			return
 		}
 
 		err = nc.Publish(subject, jsonMessage)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error publishing message to NATS:", err)
 		}
 
@@ -415,6 +663,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	err = t.repo.Update(task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Failed to update task", http.StatusInternalServerError)
 		t.logger.Println("Error updating task:", err)
 		return
@@ -422,8 +672,13 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 
 	t.ProcessTaskMemberActivity()
 
+	rw.Header().Set("Content-Type", "application/json")
 	rw.WriteHeader(http.StatusCreated)
-	fmt.Fprintf(rw, "Task member change logged and task updated successfully")
+	json.NewEncoder(rw).Encode(map[string]string{
+		"message": "Task member change logged and task updated successfully",
+	})
+
+	span.SetStatus(codes.Ok, "Successfully updated task")
 }
 
 func Conn() (*nats.Conn, error) {
@@ -436,8 +691,12 @@ func Conn() (*nats.Conn, error) {
 }
 
 func (t *TasksHandler) ProcessTaskMemberActivity() {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.ProcessTaskMemberActivity")
+	defer span.End()
 	activities, err := t.repo.GetUnprocessedActivities()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Println("Error fetching unprocessed changes:", err)
 		return
 	}
@@ -445,6 +704,8 @@ func (t *TasksHandler) ProcessTaskMemberActivity() {
 	for _, activity := range activities {
 		task, err := t.repo.GetByID(activity.TaskID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Println("Error fetching task for change:", err)
 			continue
 		}
@@ -462,16 +723,21 @@ func (t *TasksHandler) ProcessTaskMemberActivity() {
 
 		err = t.repo.Update(task)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Println("Error updating task:", err)
 			continue
 		}
 
 		err = t.repo.MarkChangeAsProcessed(activity.ID)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			t.logger.Println("Error marking change as processed:", err)
 			continue
 		}
 	}
+	span.SetStatus(codes.Ok, "Successfully updated task")
 }
 
 func contains(slice []string, item string) bool {
@@ -494,10 +760,18 @@ func remove(slice []string, item string) []string {
 }
 
 func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
-	projectServiceURL := "http://project-server:8080/projects/" + projectID + "/users/" + userID + "/check"
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.isUserInProject")
+	defer span.End()
+	projectServiceURL := "https://project-server:8080/projects/" + projectID + "/users/" + userID + "/check"
 
 	resp, err := http.Get(projectServiceURL)
+	client, err := createTLSClient()
 	if err != nil {
+		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		t.logger.Println("Error checking user in project:", err)
 		return false
 	}
@@ -512,27 +786,45 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 	}
 
 	t.logger.Println("Unexpected status code:", resp.StatusCode)
+	span.SetStatus(codes.Ok, "Function is working")
 	return false
 }
 
 func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {
+	_, span := th.tracer.Start(context.Background(), "TaskHandler.HandleStatusUpdate")
+	defer span.End()
 	th.logger.Println("Received request to update task status")
+	th.custLogger.Info(nil, "Received request to update task status")
 
+	// Ekstrakcija task-a iz konteksta
 	task, ok := req.Context().Value(KeyTask{}).(*model.Task)
 	if !ok || task == nil {
+		span.RecordError(errors.New("cannot get task from context"))
+		span.SetStatus(codes.Error, "cannot get task from context")
 		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
 		th.logger.Println("Error retrieving task from context")
+		errMsg := "Task data is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusBadRequest)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task extracted from context successfully")
 
-	th.logger.Printf("Task received: %+v", task)
-
+	// Ažuriranje statusa zadatka
 	err := th.repo.UpdateStatus(task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		th.logger.Println("Failed to update task status:", err)
 		http.Error(rw, "Failed to update status", http.StatusInternalServerError)
+		errMsg := "Failed to update task status"
+		th.logger.Println(errMsg, err)
+		th.custLogger.Error(logrus.Fields{"taskID": task.ID, "status": task.Status}, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusInternalServerError)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task status updated successfully")
 
 	err = th.publishStatusUpdate(task)
 	if err != nil {
@@ -543,6 +835,8 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 
 	rw.WriteHeader(http.StatusOK)
 	th.logger.Println("Task status updated successfully")
+	span.SetStatus(codes.Ok, "Successfully updated task")
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Response sent successfully")
 }
 
 func (t *TasksHandler) publishStatusUpdate(task *model.Task) error {
@@ -579,19 +873,39 @@ func (t *TasksHandler) publishStatusUpdate(task *model.Task) error {
 }
 
 func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *http.Request) {
+	th.logger.Println("Received request to check if user is part of the task")
+	th.custLogger.Info(nil, "Received request to check if user is part of the task")
+
+	// Ekstrakcija zadatka iz konteksta
+	_, span := th.tracer.Start(context.Background(), "TaskHandler.HandleCheckingIfUserIsInTask")
+	defer span.End()
 	task, ok := r.Context().Value(KeyTask{}).(*model.Task)
 	if !ok || task == nil {
+		span.RecordError(errors.New("task data is missing or invalid"))
+		span.SetStatus(codes.Error, "task data is missing or invalid")
 		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
 		th.logger.Println("Error retrieving task from context")
+		errMsg := "Task data is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusBadRequest)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task extracted from context successfully")
 
 	id, ok := r.Context().Value(KeyId{}).(string)
 	if !ok || id == "" {
+		span.RecordError(errors.New("User ID is missing or invalid"))
+		span.SetStatus(codes.Error, "User ID is missing or invalid")
 		http.Error(rw, "User ID is missing or invalid", http.StatusUnauthorized)
 		th.logger.Println("Error retrieving user ID from context")
+		errMsg := "User ID is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusUnauthorized)
 		return
 	}
+	th.custLogger.Info(logrus.Fields{"userID": id}, "User ID extracted from context successfully")
 
 	itContains := slices.Contains(task.UserIDs, id)
 	rw.Header().Set("Content-Type", "text/plain")
@@ -600,9 +914,12 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("true"))
 		th.logger.Println("User is part of the task")
+		th.custLogger.Info(logrus.Fields{"taskID": task.ID, "userID": id}, "User is part of the task")
 	} else {
 		rw.WriteHeader(http.StatusOK)
 		rw.Write([]byte("false"))
 		th.logger.Println("User is not part of the task")
+		th.custLogger.Info(logrus.Fields{"taskID": task.ID, "userID": id}, "User is not part of the task")
 	}
+	span.SetStatus(codes.Ok, "Successfully checked user")
 }

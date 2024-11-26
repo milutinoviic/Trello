@@ -5,7 +5,14 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
+	"main.go/customLogger"
 	"main.go/handlers"
 	"main.go/repository"
 	"main.go/service"
@@ -20,13 +27,26 @@ func main() {
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	logger := log.New(os.Stdout, "[user-api] ", log.LstdFlags)
-	ur, err := repository.New(timeoutContext, logger)
+	cfg := os.Getenv("JAEGER_ADDRESS")
+	exp, err := newExporter(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tp := newTraceProvider(exp)
+	defer func() { _ = tp.Shutdown(timeoutContext) }()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	tracer := tp.Tracer("user-service")
+	custLogger := customLogger.GetLogger()
+
+	ur, err := repository.New(timeoutContext, logger, custLogger, tracer)
+
 	if err != nil {
 		logger.Fatal(err)
 	}
-	uc, err := repository.NewCache(logger, ur)
-	us := service.NewUserService(ur, uc, logger)
-	uh := handlers.NewUserHandler(logger, us)
+	uc, err := repository.NewCache(logger, ur, tracer)
+	us := service.NewUserService(ur, uc, logger, tracer)
+	uh := handlers.NewUserHandler(logger, us, tracer, custLogger)
 
 	r := mux.NewRouter()
 
@@ -50,6 +70,7 @@ func main() {
 	r.Handle("/password/reset", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandlePasswordReset))).Methods(http.MethodPost)
 	r.Handle("/magic", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagic))).Methods(http.MethodPost)
 	r.Handle("/magic/verify", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagicVerification))).Methods(http.MethodPost)
+	r.HandleFunc("/role", uh.HandleGettingRole).Methods(http.MethodPost)
 
 	// SAMO IM SERVIS PRISTUPA
 	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)
@@ -75,7 +96,8 @@ func main() {
 	logger.Println("Server listening on port", config["address"])
 
 	go func() {
-		err := server.ListenAndServe()
+		err := server.ListenAndServeTLS("/app/cert.crt", "/app/privat.key")
+		//err := server.ListenAndServe()
 		if err != nil {
 			logger.Fatal(err)
 		}
@@ -97,4 +119,30 @@ func loadConfig() map[string]string {
 	config := make(map[string]string)
 	config["address"] = fmt.Sprintf(":%s", os.Getenv("PORT"))
 	return config
+}
+
+func newExporter(address string) (*jaeger.Exporter, error) {
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(address)))
+	if err != nil {
+		return nil, err
+	}
+	return exp, nil
+}
+
+func newTraceProvider(exp sdktrace.SpanExporter) *sdktrace.TracerProvider {
+	r, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("user-service"),
+		),
+	)
+	if err != nil {
+		log.Fatalf("failed to create resource: %v", err)
+	}
+
+	return sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(r),
+	)
 }

@@ -137,7 +137,7 @@ export class AddProjectComponent implements OnInit {
   }
 
   manageMembersToProject(id: string) {
-    this.router.navigate(['/project/manageMembers/', id]);
+    this.router.navigate(['/project/', id]);
   }
 
   deleteProject(){

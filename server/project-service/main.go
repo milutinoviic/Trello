@@ -5,14 +5,29 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"project-service/client"
+	"project-service/customLogger"
 	"project-service/handlers"
 	"project-service/repositories"
 	"time"
 )
+
+func initUserClient() client.UserClient {
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+}
+func initTaskClient() client.TaskClient {
+	return client.NewTaskClient(os.Getenv("TASK_SERVICE_HOST"), os.Getenv("TASK_SERVICE_PORT"))
+}
 
 func main() {
 	fmt.Print("Hello from project-service")
@@ -27,8 +42,22 @@ func main() {
 
 	logger := log.New(os.Stdout, "[product-api] ", log.LstdFlags)
 	storeLogger := log.New(os.Stdout, "[project-store] ", log.LstdFlags)
+	cfg := os.Getenv("JAEGER_ADDRESS")
+	exp, err := newExporter(cfg)
+	if err != nil {
+		log.Fatalf("Jaeger exporter initialization failed: %v", err)
+	} else {
+		log.Println("Jaeger initialization succeeded")
+	}
+	log.Printf("Using JAEGER_ADDRESS: %s", cfg)
+	tp := newTraceProvider(exp)
+	defer func() { _ = tp.Shutdown(timeoutContext) }()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.TraceContext{})
+	tracer := tp.Tracer("project-service")
 
-	store, err := repositories.New(timeoutContext, storeLogger)
+	custLogger := customLogger.GetLogger()
+	store, err := repositories.New(timeoutContext, storeLogger, tracer)
 	if err != nil {
 		logger.Fatal(err)
 	}
@@ -36,12 +65,10 @@ func main() {
 
 	store.Ping()
 
-	projectsHandler := handlers.NewProjectsHandler(logger, store)
-	projectsHandler.SubscribeToEvent()
+	userClient := initUserClient()
+	taskClient := initTaskClient()
 
-	if err != nil {
-		logger.Printf("Failed to subscribe to TasksDeleted event: %v", err)
-	}
+	projectsHandler := handlers.NewProjectsHandler(logger, custLogger, store, tracer, userClient, taskClient)
 
 	router := mux.NewRouter()
 
@@ -60,6 +87,9 @@ func main() {
 
 	getByIdRouter := router.Methods(http.MethodGet).Subrouter()
 	getByIdRouter.Handle("/{id}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetProjectById))))
+
+	getDetailsByIdRouter := router.Methods(http.MethodGet).Subrouter()
+	getDetailsByIdRouter.Handle("/projectDetails/{id}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetProjectDetailsById))))
 
 	deleteRouter := router.Methods(http.MethodDelete).Subrouter()
 	deleteRouter.Handle("/projects/{id}/users/{userId}", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(projectsHandler.RemoveUserFromProject))))
@@ -85,7 +115,8 @@ func main() {
 
 	logger.Println("Server listening on port", port)
 	go func() {
-		err := server.ListenAndServe()
+		err := server.ListenAndServeTLS("/app/cert.crt", "/app/privat.key")
+		//err := server.ListenAndServe()
 		//err := http.ListenAndServeTLS(":443", "/etc/nginx/ssl/trello.crt", "/etc/nginx/ssl/trello.key", nil)
 		if err != nil {
 			logger.Fatal(err)
@@ -104,4 +135,34 @@ func main() {
 	}
 	logger.Println("Server stopped")
 
+}
+
+func newExporter(address string) (*jaeger.Exporter, error) {
+	if address == "" {
+		return nil, fmt.Errorf("jaeger collector endpoint address is empty")
+	}
+	exp, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(address)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Jaeger exporter: %w", err)
+	}
+	return exp, nil
+}
+
+func newTraceProvider(exp sdktrace.SpanExporter) *sdktrace.TracerProvider {
+	r, err := resource.Merge(
+		resource.Default(),
+		resource.NewWithAttributes(
+			semconv.SchemaURL,
+			semconv.ServiceNameKey.String("project-service"),
+		),
+	)
+	if err != nil {
+		log.Fatalf("failed to create resource: %v", err)
+	}
+
+	return sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exp),
+		sdktrace.WithResource(r),
+	)
 }

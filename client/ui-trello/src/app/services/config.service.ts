@@ -36,6 +36,12 @@ export class ConfigService {
 
   private _verify_magic_url = this._magic_link_url + "/verify"
 
+  private _get_role_url = this._api_url + "/role"
+
+
+  get get_role_url(): string {
+    return this._get_role_url;
+  }
 
   get verify_magic_url(): string {
     return this._verify_magic_url;
@@ -95,6 +101,15 @@ export class ConfigService {
   getProjectByIdUrl(projectId: string): string {
     return `${this._project_api_url}/${projectId}`;
   }
+
+  getProjectDetailsByIdUrl(projectId: string): string {
+    return `${this._project_api_url}/projectDetails/${projectId}`;
+  }
+
+  changeTaskStatus(): string {
+    return `${this.task_api_url}/tasks/status`;
+  }
+
 
   get users_url() {
     return this._users_url;
