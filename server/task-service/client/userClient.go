@@ -19,7 +19,7 @@ type UserClient struct {
 
 func NewUserClient(host, port string) UserClient {
 	return UserClient{
-		address: fmt.Sprintf("http://%s:%s", host, port),
+		address: fmt.Sprintf("https://%s:%s", host, port),
 	}
 }
 
