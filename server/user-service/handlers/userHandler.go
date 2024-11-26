@@ -21,6 +21,7 @@ import (
 	"main.go/repository"
 	"main.go/service"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -226,10 +227,10 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 
 	ctx, cancel := context.WithTimeout(h.Context(), 10*time.Second)
 	defer cancel()
+	projectUrl := os.Getenv("LINK_TO_PROJECT_SERVICE")
+	projectServiceURL := fmt.Sprintf("%s/projects", projectUrl)
 
-	projectServiceURL := "https://project-server:8080/projects"
-
-	client, err := createTLSClient()
+	clientToDo, err := createTLSClient()
 	if err != nil {
 		uh.logger.Printf("Error creating TLS client: %v\n", err)
 		http.Error(rw, "Error creating TLS client", http.StatusInternalServerError)
@@ -270,17 +271,17 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 	}
 	req.AddCookie(authTokenCookie)
 
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), retrier.WhitelistClassifier{domain.ErrRespTmp{}})
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), retrier.WhitelistClassifier{domain.ErrRespTmp{}})
 
 	var resp *http.Response
 	retryCount := 0
 
-	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		uh.logger.Printf("Attempting project service request, attempt #%d", retryCount)
 
 		_, err := projectBreaker.Execute(func() (interface{}, error) {
-			resp, err = client.Do(req)
+			resp, err = clientToDo.Do(req)
 			if err != nil {
 				return nil, err
 			}
@@ -365,11 +366,11 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 	_, span := uh.tracer.Start(ctx, "UserHandler.checkTasks")
 	defer span.End()
 
-	client, err := createTLSClient()
+	tlsClient, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		uh.logger.Printf("Error creating TLS client: %v\n", err)
+		uh.logger.Printf("Error creating TLS tlsClient: %v\n", err)
 		return false
 	}
 
@@ -391,10 +392,11 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	for _, project := range projects {
-		taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s", project.ID)
+		linkToTaskService := os.Getenv("LINK_TO_TASK_SERVICE")
+		taskServiceURL := fmt.Sprintf("%s/tasks/%s", linkToTaskService, project.ID)
 		reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second) // Set timeout for each request
 		defer cancel()
 
@@ -411,7 +413,7 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 		var taskResp *http.Response
 		retryCount := 0
 
-		err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+		err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
 			retryCount++
 			uh.logger.Printf("Attempting task service request, attempt #%d", retryCount)
 
@@ -423,7 +425,7 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 				if timeout > 0 {
 					taskReq.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 				}
-				resp, err := client.Do(taskReq)
+				resp, err := tlsClient.Do(taskReq)
 				if err != nil {
 					return nil, err
 				}
@@ -1116,19 +1118,24 @@ func createTLSClient() (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, err
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 
 	client := &http.Client{
+		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
@@ -1178,4 +1185,29 @@ func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request
 	}
 	span.SetStatus(codes.Ok, " role found")
 
+}
+
+func executeRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode == http.StatusGatewayTimeout || resp.StatusCode == http.StatusServiceUnavailable {
+		return nil, domain.ErrRespTmp{
+			URL:        resp.Request.URL.String(),
+			Method:     resp.Request.Method,
+			StatusCode: resp.StatusCode,
+		}
+	}
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return nil, domain.ErrResp{
+			URL:        resp.Request.URL.String(),
+			Method:     resp.Request.Method,
+			StatusCode: resp.StatusCode,
+		}
+	}
+
+	return resp, nil
 }

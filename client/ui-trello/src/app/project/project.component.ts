@@ -252,8 +252,13 @@ export class ProjectComponent implements OnInit {
 
 
   addUserToTask(selectedTask: TaskDetails, user: UserDetails) {
+    console.log(user)
     if (!this.taskMembers[selectedTask.id]) {
       this.taskMembers[selectedTask.id] = [];
+    }
+    if (this.isUserInTask) {
+      this.toastr.warning("You can't add this user");
+      return;
     }
     this.taskMembers[selectedTask.id].push(user);
 
@@ -281,12 +286,12 @@ export class ProjectComponent implements OnInit {
   }
 
 
-  private updateTaskMember(id: string, method: string, id2: string) {
-    const url = `/api/task-server/tasks/${id}/members/${method}/${id2}`;
+  private updateTaskMember(id: string, action: string, userId: string) {
+    const url = `/api/task-server/tasks/${id}/members/${action}/${userId}`;
 
     this.http.post(url, {}).subscribe({
       next: () => {
-        console.log(`User ${method}ed successfully`);
+        console.log(`User ${action}ed successfully`);
         if (this.projectId) {
           this.loadProjectDetails(this.projectId);
         }
