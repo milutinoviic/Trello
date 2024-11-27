@@ -210,16 +210,16 @@ export class ProjectComponent implements OnInit {
         dependencies: this.selectedTask.dependencies,
         blocked: this.selectedTask.blocked
       };
-      // console.log("Taskkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
-      // console.log(task);
+      console.log("Taskkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
+      console.log(task);
       // Poziv servisa sa konvertovanim objektom
       this.taskService.checkIfUserInTask(task).subscribe(
         (response: boolean) => {
           this.isUserInTask = response;
-          // console.log("----------------------------------------------------------------");
-          // console.log("aAAAAAAAAAAAAAAAAAAAAAA KKKKKKK CCCC BBBBB 12343245654654");
+          console.log("----------------------------------------------------------------");
+          console.log("aAAAAAAAAAAAAAAAAAAAAAA KKKKKKK CCCC BBBBB 12343245654654");
           console.log(this.isUserInTask);
-          // console.log("RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+          console.log("RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
           console.log('User is in task:', response);
         },
         (error) => {
