@@ -45,7 +45,7 @@
   <div class="modal-content" (click)="$event.stopPropagation()">
 
 
-    <div class="status-buttons" *ngIf="isUserInTask || isManager()">
+    <div class="status-buttons" *ngIf="isUserInTask">
       <button class="btn-status" (click)="changeStatus('Pending')">Pending</button>
       <button class="btn-status" (click)="changeStatus('In Progress')">In Progress</button>
       <button class="btn-status" (click)="changeStatus('Completed')">Completed</button>
