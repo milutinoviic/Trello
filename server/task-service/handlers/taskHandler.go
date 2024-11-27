@@ -775,7 +775,7 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 	defer span.End()
 
 	linkToProjectService := os.Getenv("LINK_TO_PROJECT_SERVICE")
-	projectServiceURL := fmt.Sprintf("%s/%s/users/%s/check", linkToProjectService, projectID, userID)
+	projectServiceURL := fmt.Sprintf("%s/projects/%s/users/%s/check", linkToProjectService, projectID, userID)
 
 	clientToDo, err := createTLSClient()
 	if err != nil {
