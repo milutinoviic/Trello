@@ -313,9 +313,9 @@ services:
   nats:
     image: 'nats:latest'
     expose:
-      - "4222"
+      - ${NATS_PORT}
     ports:
-      - "4222:4222"
+      - ${NATS_PORTS}
     networks:
       - network
 
