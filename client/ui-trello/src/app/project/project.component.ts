@@ -67,7 +67,6 @@ export class ProjectComponent implements OnInit {
       next: (data: ProjectDetails) => {
         this.project = data;
         console.log(this.project);
-        console.log("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
         const userIds = this.project.user_ids;
         if (!Array.isArray(userIds) || userIds.length === 0) {
           console.error('Invalid userIds:', userIds);
@@ -116,15 +115,11 @@ export class ProjectComponent implements OnInit {
   }
 
   openTask(task: TaskDetails): void {
-    console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     console.log(task);
-    console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
     this.selectedTask = task;
 
 
-    console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
     console.log(this.selectedTask.users);
-    console.log("kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
 
     console.log(this.selectedTask.userIds);
     console.log(this.selectedTask.user_ids)
@@ -161,7 +156,6 @@ export class ProjectComponent implements OnInit {
 
   closeTask(): void {
     this.selectedTask = null;
-    console.log("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
     console.log(this.selectedTask);
 
   }
@@ -210,16 +204,12 @@ export class ProjectComponent implements OnInit {
         dependencies: this.selectedTask.dependencies,
         blocked: this.selectedTask.blocked
       };
-      console.log("Taskkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk");
       console.log(task);
       // Poziv servisa sa konvertovanim objektom
       this.taskService.checkIfUserInTask(task).subscribe(
         (response: boolean) => {
           this.isUserInTask = response;
-          console.log("----------------------------------------------------------------");
-          console.log("aAAAAAAAAAAAAAAAAAAAAAA KKKKKKK CCCC BBBBB 12343245654654");
           console.log(this.isUserInTask);
-          console.log("RAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
           console.log('User is in task:', response);
         },
         (error) => {
@@ -266,6 +256,16 @@ export class ProjectComponent implements OnInit {
     this.filterUsers(selectedTask.id)
   }
 
+  addDependencyToTask(selectedTaskId: string, dependencyId: string) {
+
+    if(this.selectedTask!= null){
+      this.selectedTask.dependencies.push(dependencyId);
+    }
+
+    this.addDependency(selectedTaskId, dependencyId);
+
+  }
+
   removeUserFromTask(selectedTask: TaskDetails, member: UserDetails) {
     const assignedMembers = this.taskMembers[selectedTask.id] || [];
 
@@ -292,6 +292,41 @@ export class ProjectComponent implements OnInit {
     this.http.post(url, {}).subscribe({
       next: () => {
         console.log(`User ${action}ed successfully`);
+        if (this.projectId) {
+          this.loadProjectDetails(this.projectId);
+        }
+      },
+      error: (error) => {
+        console.error('Error updating task member:', error);
+      }
+    });
+
+  }
+
+  private addDependency(id: string, dependecyId: string) {
+    const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
+
+    this.http.post(url, {}).subscribe({
+      next: () => {
+        console.log(`User added dependency successfully: ${dependecyId}`);
+        if (this.projectId) {
+          this.loadProjectDetails(this.projectId);
+        }
+      },
+      error: (error) => {
+        console.error('Error updating task member:', error);
+      }
+    });
+
+  }
+
+
+  private craeteWorkflowTask(task: Task) {
+    const url = `/api/workflow-server/workflow`;
+
+    this.http.post(url, task).subscribe({
+      next: () => {
+        console.log(`Workflow created successfully: `);
         if (this.projectId) {
           this.loadProjectDetails(this.projectId);
         }
