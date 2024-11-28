@@ -144,6 +144,7 @@ export class AddTaskComponent implements OnInit {
 
       console.log('Task Created:', taskData);
       console.log('Project ID:', this.projectId);
+      this.createWorkflowTask(taskData);
     }
   }
 
@@ -251,5 +252,21 @@ export class AddTaskComponent implements OnInit {
         console.error('Error updating task member:', error);
       }
     });
+  }
+
+
+  private createWorkflowTask(task: Task) {
+    const url = `/api/workflow-server/workflow`;
+
+    this.http.post(url, task).subscribe({
+      next: () => {
+        console.log(`Workflow created successfully: `);
+
+      },
+      error: (error) => {
+        console.error('Error updating task member:', error);
+      }
+    });
+
   }
 }
