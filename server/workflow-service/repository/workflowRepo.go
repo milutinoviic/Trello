@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"os"
@@ -106,6 +107,18 @@ func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
 	ctx := context.Background()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
+	wf.logger.Printf("Query parameters: %+v\n", map[string]any{
+		"id":           task.ID,
+		"project_id":   task.ProjectID,
+		"name":         task.Name,
+		"description":  task.Description,
+		"status":       task.Status,
+		"created_at":   task.CreatedAt,
+		"updated_at":   task.UpdatedAt,
+		"user_ids":     task.UserIds,
+		"dependencies": task.Dependencies,
+		"blocked":      task.Blocked,
+	})
 
 	savedPerson, err := session.ExecuteWrite(ctx,
 		func(transaction neo4j.ManagedTransaction) (any, error) {
@@ -233,4 +246,134 @@ func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
 	}
 
 	return nil
+}
+
+func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
+	ctx := context.Background()
+	_, span := wf.tracer.Start(ctx, "WorkflowRepository.GetTaskGraph")
+	defer span.End()
+	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
+	defer session.Close(ctx)
+
+	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		query := `
+            MATCH (task:Task {project_id: $projectID})
+            OPTIONAL MATCH (task)-[:DEPENDS_ON]->(dep:Task)
+            RETURN
+                task.id AS id,
+                task.name AS name,
+                collect(dep.id) AS dependencies
+        `
+		params := map[string]any{"projectID": projectID}
+		res, err := tx.Run(ctx, query, params)
+		if err != nil {
+			wf.logger.Println("Query execution failed:", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+
+		graph := map[string]any{"nodes": []map[string]any{}, "edges": []map[string]string{}}
+		existingTasks := make(map[string]bool)
+
+		for res.Next(ctx) {
+			record := res.Record()
+			taskID, ok := record.Values[0].(string)
+			if !ok {
+				wf.logger.Println("Invalid task ID:", record.Values[0])
+				continue
+			}
+			taskName, ok := record.Values[1].(string)
+			if !ok {
+				wf.logger.Println("Invalid task name:", record.Values[1])
+				continue
+			}
+			dependencies, ok := record.Values[2].([]any)
+			if !ok {
+				wf.logger.Println("Invalid dependencies:", record.Values[2])
+				continue
+			}
+
+			if !existingTasks[taskID] {
+				err := wf.createTaskIfNotExist(taskID, taskName, projectID)
+				if err != nil {
+					return nil, err
+				}
+				existingTasks[taskID] = true
+			}
+
+			nodes := graph["nodes"].([]map[string]any)
+			nodes = append(nodes, map[string]any{
+				"id":    taskID,
+				"label": taskName,
+			})
+			graph["nodes"] = nodes
+
+			for _, dep := range dependencies {
+				depID, ok := dep.(string)
+				if !ok {
+					wf.logger.Println("Skipping invalid dependency:", dep)
+					continue
+				}
+				if !existingTasks[depID] {
+					err := wf.createTaskIfNotExist(depID, "Dependency Task", projectID)
+					if err != nil {
+						return nil, err
+					}
+					existingTasks[depID] = true
+				}
+
+				edges := graph["edges"].([]map[string]string)
+				edges = append(edges, map[string]string{
+					"from": taskID,
+					"to":   depID,
+				})
+				graph["edges"] = edges
+			}
+		}
+
+		if err := res.Err(); err != nil {
+			wf.logger.Println("Error in query result:", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+
+		return graph, nil
+	})
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		wf.logger.Println("Error querying task graph:", err)
+		return nil, err
+	}
+
+	span.SetStatus(codes.Ok, "Successfully retrieved task graph")
+	return result.(map[string]any), nil
+}
+
+func (wf *WorkflowRepo) createTaskIfNotExist(taskID, taskName, projectID string) error {
+	ctx := context.Background()
+	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
+	defer session.Close(ctx)
+
+	query := `
+        MERGE (task:Task {id: $taskID, project_id: $projectID})
+        ON CREATE SET task.name = $taskName
+        RETURN task
+    `
+	params := map[string]any{"taskID": taskID, "taskName": taskName, "projectID": projectID}
+	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		result, err := tx.Run(ctx, query, params)
+		if err != nil {
+			return nil, err
+		}
+		if result.Next(ctx) {
+			return nil, nil
+		}
+		return nil, result.Err()
+	})
+
+	return err
 }

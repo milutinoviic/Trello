@@ -26,6 +26,8 @@ import { ForbiddenComponent } from './forbidden/forbidden.component';
 
 import {AccountService} from "./services/account.service";
 import { ProjectComponent } from './project/project.component';
+import { GraphEditorComponent } from './graph-editor/graph-editor.component';
+import {GraphModule} from "@swimlane/ngx-graph";
 
 function initTokenVerification(accountService: AccountService) {
   return () => {
@@ -53,6 +55,7 @@ function initTokenVerification(accountService: AccountService) {
     MagicLinkComponent,
     ForbiddenComponent,
     ProjectComponent,
+    GraphEditorComponent,
   ],
   imports: [
     BrowserModule,
@@ -69,6 +72,7 @@ function initTokenVerification(accountService: AccountService) {
     MenuComponent,
     RecaptchaModule,
     RecaptchaFormsModule,
+    GraphModule,
   ],
   providers: [
     {

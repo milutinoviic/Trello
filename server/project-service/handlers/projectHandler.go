@@ -204,12 +204,12 @@ func createTLSClient() (*http.Client, error) {
 		MaxConnsPerHost:     10,
 	}
 
-	client := &http.Client{
+	c := &http.Client{
 		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
-	return client, nil
+	return c, nil
 }
 
 func NewProjectsHandler(l *log.Logger, custLogger *customLogger.Logger, r *repositories.ProjectRepo, tracer trace.Tracer, userClient client.UserClient, taskClient client.TaskClient) *ProjectsHandler {
@@ -1000,12 +1000,12 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	_, span := ph.tracer.Start(ctx, "ProjectsHandler.checkTasks")
 	defer span.End()
 
-	// Create the custom TLS client for secure communication
-	client, err := createTLSClient()
+	// Create the custom TLS tlsClient for secure communication
+	tlsClient, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		ph.logger.Printf("Error creating TLS client: %v\n", err)
+		ph.logger.Printf("Error creating TLS tlsClient: %v\n", err)
 		return false
 	}
 
@@ -1048,9 +1048,9 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 		},
 	)
 
-	// Set up the retrier with backoff strategy for retrying the request
+	// Set up the r with backoff strategy for retrying the request
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -1059,7 +1059,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	retryCount := 0
 
 	// Retry the task request if it fails (with circuit breaker)
-	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = r.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		ph.logger.Printf("Attempting task-service request, attempt #%d", retryCount)
 
@@ -1073,8 +1073,8 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 				taskReq.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			// Send the HTTP request using the TLS client
-			resp, err := client.Do(taskReq)
+			// Send the HTTP request using the TLS tlsClient
+			resp, err := tlsClient.Do(taskReq)
 			if err != nil {
 				return nil, err
 			}
@@ -1324,7 +1324,7 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 	// Step 5: Fetch the tasks associated with the project
 	tasksDetails, err := p.taskClient.GetTasksByProjectId(id, cookie)
 	if err != nil {
-		http.Error(rw, "Error fetching task details", http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

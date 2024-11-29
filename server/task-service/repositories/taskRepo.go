@@ -141,6 +141,30 @@ func (tr *TaskRepository) GetAllTask() (model.Tasks, error) {
 	return tasks, nil
 }
 
+func (tr *TaskRepository) GetDependenciesByTaskId(taskID string) ([]model.Task, error) {
+	var tasks []model.Task
+	filter := bson.M{"_id": taskID}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tasksCollection := tr.getCollection()
+	tasksCursor, err := tasksCollection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer tasksCursor.Close(ctx)
+
+	for tasksCursor.Next(ctx) {
+		var task model.Task
+		if err := tasksCursor.Decode(&task); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, tasksCursor.Err()
+}
+
 func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, error) {
 
 	var tasks []model.Task

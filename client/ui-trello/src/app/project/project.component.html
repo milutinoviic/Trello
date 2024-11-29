@@ -40,6 +40,10 @@
   </div>
 </div>
 
+<div *ngIf="projectId && isManager()">
+  <app-graph-editor [projectId]="projectId"></app-graph-editor>
+</div>
+
 
 <div *ngIf="selectedTask" class="modal" (click)="closeTask()">
   <div class="modal-content" (click)="$event.stopPropagation()">
@@ -133,4 +137,7 @@
       </div>
     </div>
   </div>
+
+
+
 </div>

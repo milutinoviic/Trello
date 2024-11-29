@@ -1,8 +1,12 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
@@ -92,4 +96,44 @@ func (w *WorkflowHandler) MiddlewareContentTypeSet(next http.Handler) http.Handl
 
 		next.ServeHTTP(rw, h)
 	})
+}
+
+func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	_, span := w.tracer.Start(context.Background(), "WorkflowHandler.GetTaskGraphByProject")
+	defer span.End()
+	projectID, ok := vars["project_id"]
+	if !ok {
+		span.RecordError(errors.New("Missing project_id"))
+		span.SetStatus(codes.Error, "Missing project_id")
+		http.Error(rw, "Missing project_id in route parameters", http.StatusBadRequest)
+		return
+	}
+
+	objectID, err := primitive.ObjectIDFromHex(projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Invalid project_id format", http.StatusBadRequest)
+		return
+	}
+
+	taskGraph, err := w.repo.GetTaskGraph(objectID.Hex())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Error fetching task graph: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(rw).Encode(taskGraph)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Error encoding response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	span.SetStatus(codes.Ok, "Successfully fetched task graph")
+	rw.WriteHeader(http.StatusOK)
 }
