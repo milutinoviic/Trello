@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -762,32 +763,37 @@ func remove(slice []string, item string) []string {
 func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 	_, span := t.tracer.Start(context.Background(), "TaskHandler.isUserInProject")
 	defer span.End()
-	projectServiceURL := "https://project-server:8080/projects/" + projectID + "/users/" + userID + "/check"
 
-	resp, err := http.Get(projectServiceURL)
-	client, err := createTLSClient()
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
-	}
+	linkToProjectService := os.Getenv("LINK_TO_PROJECT_SERVICE")
+	projectServiceURL := fmt.Sprintf("%s/%s/users/%s/check", linkToProjectService, projectID, userID)
+
+	clientToDo, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		t.logger.Println("Error checking user in project:", err)
+		t.logger.Println("Error creating TLS client:", err)
+		return false
+	}
+
+	resp, err := clientToDo.Get(projectServiceURL)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		t.logger.Println("Error making GET request:", err)
 		return false
 	}
 	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK {
+	t.logger.Println("Response code: " + resp.Status)
+	switch resp.StatusCode {
+	case http.StatusOK:
 		return true
-	}
-
-	if resp.StatusCode == http.StatusNotFound {
+	case http.StatusNotFound:
+		return false
+	default:
+		t.logger.Println("Unexpected status code:", resp.StatusCode)
+		span.SetStatus(codes.Ok, "Function is working with unexpected response")
 		return false
 	}
-
-	t.logger.Println("Unexpected status code:", resp.StatusCode)
-	span.SetStatus(codes.Ok, "Function is working")
-	return false
 }
 
 func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {

@@ -8,11 +8,11 @@ services:
     container_name: ${PROJECT_SERVICE_HOST}
     hostname: ${PROJECT_SERVICE_HOST}
     ports:
-      - 8080:8080
+      - ${PROJECT_SERVER_PORT}
     environment:
       - PORT=${PORT}
       - MONGO_DB_URI=${MONGO_DB_URI_PROJECT}
-      - NATS_URL=nats://nats:4222
+      - NATS_URL=${NATS_URL}
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
       - USER_SERVICE_HOST=${USER_SERVICE_HOST}
       - USER_SERVICE_PORT=${PORT}
@@ -35,11 +35,11 @@ services:
     image: mongo
     restart: always
     ports:
-      - "27017:27017"
+      - ${MONGO_PROJECT_PORT}
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: pass
-      MONGO_INITDB_DATABASE: mongoDemo
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE_USER}
     healthcheck:
       test: echo 'db.runCommand("ping").ok'
       interval: 10s
@@ -56,7 +56,7 @@ services:
       dockerfile: Dockerfile
     container_name: angular-app
     ports:
-      - "4200:4200"
+      - ${ANGULAR_APP_PORT}
     volumes:
       - ./client/ui-trello:/app
       - /app/node_modules
@@ -76,16 +76,16 @@ services:
     image: mongo-express
     restart: always
     environment:
-      - ME_CONFIG_MONGODB_SERVER=${PROJECT_HOST} #mongo-project
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_INITDB_ROOT_USERNAME} #root
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD} #pass
-      - ME_CONFIG_BASICAUTH_USERNAME=admin
-      - ME_CONFIG_BASICAUTH_PASSWORD=admin
-      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI_PROJECT} #mongodb://root:pass@mongo-project:27017
+      - ME_CONFIG_MONGODB_SERVER=${ME_CONFIG_MONGODB_SERVER_PROJECT}
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${ME_CONFIG_BASICAUTH_USERNAME}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${ME_CONFIG_BASICAUTH_PASSWORD}
+      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI_PROJECT}
     depends_on:
       - mongo-project
     ports:
-      - "8081:8081"
+      - ${MONGO_EXPRESS_PROJECT_PORTS}
     volumes:
       - mong_project_express_data:/data/db
     networks:
@@ -101,11 +101,9 @@ services:
     container_name: ${TASK_SERVICE_HOST}
     hostname: ${TASK_SERVICE_HOST}
     ports:
-      - 8089:8080
+      - ${TASK_SERVER_PORTS}
     environment:
-      - PORT=8080
-      - MONGO_DB_URI=mongodb://root:pass@mongo-task:27017
-      - NATS_URL=nats://nats:4222
+      - NATS_URL=${NATS_URL}
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
       - PORT=${PORT}
       - MONGO_DB_URI=${MONGO_DB_URI_TASK}
@@ -127,11 +125,11 @@ services:
     image: mongo
     restart: always
     ports:
-      - "27019:27017"
+      - ${MONGO_TASK_PORT}
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: pass
-      MONGO_INITDB_DATABASE: mongoTask
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE_TASK}
     healthcheck:
       test: echo 'db.runCommand("ping").ok'
       interval: 10s
@@ -147,16 +145,16 @@ services:
     image: mongo-express
     restart: always
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo-task
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
-      - ME_CONFIG_BASICAUTH_USERNAME=admin
-      - ME_CONFIG_BASICAUTH_PASSWORD=admin
-      - ME_CONFIG_MONGODB_URL=mongodb://root:pass@mongo-task:27017
+      - ME_CONFIG_MONGODB_SERVER=${ME_CONFIG_MONGODB_SERVER_TASK}
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${ME_CONFIG_MONGODB_ADMINUSERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${ME_CONFIG_MONGODB_ADMINPASSWORD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${ME_CONFIG_BASICAUTH_USERNAME}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${ME_CONFIG_BASICAUTH_PASSWORD}
+      - ME_CONFIG_MONGODB_URL=${ME_CONFIG_MONGODB_URL}
     depends_on:
       - mongo-task
     ports:
-      - "8088:8081"
+      - ${MONGO_EXPRESS_TASK_PORT}
     volumes:
       - mongo_task_express_data:/data/db
     networks:
@@ -174,10 +172,10 @@ services:
     env_file:
       - .env
     ports:
-      - 8090:8080
+      - ${USER_SERVER_PORTS}
     environment:
       - PORT=${PORT}
-      - MONGO_DB_URI=${MONGO_DB_URI_USER} #mongodb://root:pass@mongo-user:27017
+      - MONGO_DB_URI=${MONGO_DB_URI_USER}
       - SMTP_EMAIL=${SMTP_EMAIL}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_HOST=${SMTP_HOST}
@@ -202,11 +200,11 @@ services:
     image: mongo
     restart: always
     ports:
-      - "27018:27017"
+      - ${MONGO_USER_PORT}
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: pass
-      MONGO_INITDB_DATABASE: mongoDb
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE_USER}
     healthcheck:
       test: echo 'db.runCommand("ping").ok'
       interval: 10s
@@ -221,16 +219,16 @@ services:
     image: mongo-express
     restart: always
     environment:
-      - ME_CONFIG_MONGODB_SERVER=mongo-user
-      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=pass
-      - ME_CONFIG_BASICAUTH_USERNAME=admin
-      - ME_CONFIG_BASICAUTH_PASSWORD=admin
-      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI} #mongodb://root:pass@mongo-user:27017
+      - ME_CONFIG_MONGODB_SERVER=${ME_CONFIG_MONGODB_SERVER_USER}
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${ME_CONFIG_MONGODB_ADMINUSERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${ME_CONFIG_MONGODB_ADMINPASSWORD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${ME_CONFIG_BASICAUTH_USERNAME}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${ME_CONFIG_BASICAUTH_PASSWORD}
+      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI_USER}
     depends_on:
       - mongo-user
     ports:
-      - "8083:8081"
+      - ${MONGO_EXPRESS_USER_PORTS}
     volumes:
       - mong_user_express_data:/data/db
     networks:
@@ -243,7 +241,7 @@ services:
     container_name: api-gateway
     restart: on-failure
     ports:
-      - "443:443"
+      - ${API_GATEWAY_PORTS}
     depends_on:
       - user-server
       - project-server
@@ -258,7 +256,7 @@ services:
     image: redis:alpine
     restart: always
     ports:
-      - "6379:6379"
+      - ${REDIS_PORTS}
     volumes:
       - redis_data:/data
     networks:
@@ -269,10 +267,10 @@ services:
       context: ./server/notification-service/
       dockerfile: Dockerfile
     restart: always
-    container_name: "notification-service"
-    hostname: "notification-service"
+    container_name: ${NOTIFICATION_SERVICE_HOST}
+    hostname: ${NOTIFICATION_SERVICE_HOST}
     ports:
-      - "8085:8080"
+      - ${NOTIFICATION_SERVER_PORT}
     environment:
       - PORT=${PORT}
       - CASSANDRA_HOST=${CASSANDRA_HOST}
@@ -293,15 +291,15 @@ services:
   cassandra:
     image: cassandra:4.0
     restart: always
-    container_name: "cassandra"
-    hostname: "cassandra"
+    container_name: ${CASSANDRA_HOST}
+    hostname: ${CASSANDRA_HOST}
     ports:
-      - "9042:9042"
+      - ${CASSANDRA_PORTS}
     environment:
-      - CASSANDRA_CLUSTER_NAME=MyCassandraCluster
-      - CASSANDRA_DC=DC1
-      - CASSANDRA_RACK=RAC1
-      - CASSANDRA_LISTENER_RPC_ADDRESS=0.0.0.0
+      - CASSANDRA_CLUSTER_NAME=${CASSANDRA_CLUSTER_NAME}
+      - CASSANDRA_DC=${CASSANDRA_DC}
+      - CASSANDRA_RACK=${CASSANDRA_RACK}
+      - CASSANDRA_LISTENER_RPC_ADDRESS=${CASSANDRA_LISTENER_RPC_ADDRESS}
     healthcheck:
       test: ["CMD", "cqlsh", "--username", "cassandra", "--password", "cassandra", "--execute", "describe keyspaces"]
       interval: 15s
@@ -315,15 +313,15 @@ services:
   nats:
     image: 'nats:latest'
     expose:
-      - "4222"
+      - ${NATS_PORT}
     ports:
-      - "4222:4222"
+      - ${NATS_PORTS}
     networks:
       - network
 
   tracing:
     image: jaegertracing/all-in-one:latest
-    container_name: jaeger
+    container_name: ${JAEGER_HOST}
     ports:
       - "${UDP_PORT}:${UDP_PORT}/udp"
       - "${JAEGER_UI_PORT}:${JAEGER_UI_PORT}"
