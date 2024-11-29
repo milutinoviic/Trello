@@ -116,6 +116,13 @@ export class ProjectComponent implements OnInit {
 
   openTask(task: TaskDetails): void {
     console.log(task);
+    if (this.project == null) {
+      console.log("tasksssssss is NULLLLLL");
+    } else {
+      console.log("tasksssssss", this.project);
+    }
+
+
     this.selectedTask = task;
 
 
@@ -256,15 +263,16 @@ export class ProjectComponent implements OnInit {
     this.filterUsers(selectedTask.id)
   }
 
-  addDependencyToTask(selectedTaskId: string, dependencyId: string) {
-
-    if(this.selectedTask!= null){
-      this.selectedTask.dependencies.push(dependencyId);
-    }
-
-    this.addDependency(selectedTaskId, dependencyId);
-
-  }
+  // addDependencyToTask(selectedTaskId: string, dependencyId: string) {
+  //
+  //   if(this.selectedTask!= null){
+  //     this.selectedTask.dependencies.push(dependencyId);
+  //   }
+  //   console.log(this.selectedTask);
+  //
+  // this.addDependency(selectedTaskId, dependencyId);
+  //
+  // }
 
   removeUserFromTask(selectedTask: TaskDetails, member: UserDetails) {
     const assignedMembers = this.taskMembers[selectedTask.id] || [];
@@ -303,22 +311,22 @@ export class ProjectComponent implements OnInit {
 
   }
 
-  private addDependency(id: string, dependecyId: string) {
-    const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
-
-    this.http.post(url, {}).subscribe({
-      next: () => {
-        console.log(`User added dependency successfully: ${dependecyId}`);
-        if (this.projectId) {
-          this.loadProjectDetails(this.projectId);
-        }
-      },
-      error: (error) => {
-        console.error('Error updating task member:', error);
-      }
-    });
-
-  }
+  // private addDependency(id: string, dependecyId: string) {
+  //   const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
+  //
+  //   this.http.post(url, {}).subscribe({
+  //     next: () => {
+  //       console.log(`User added dependency successfully: ${dependecyId}`);
+  //       if (this.projectId) {
+  //         this.loadProjectDetails(this.projectId);
+  //       }
+  //     },
+  //     error: (error) => {
+  //       console.error('Error updating task member:', error);
+  //     }
+  //   });
+  //
+  // }
 
 
   private craeteWorkflowTask(task: Task) {

@@ -76,19 +76,20 @@
           <button (click)="removeUserFromTask(selectedTask, member)">Remove</button>
         </li>
       </ul>
-    <div class="filtered-users">
-      <div *ngFor="let dependencyId of selectedTask.dependencies">
-        <span>{{ dependencyId }}</span>
-        <button (click)="addDependencyToTask(selectedTask.id, dependencyId)">Add</button>
-      </div>
+<!--      <h5>Add Dependency:</h5>-->
+<!--      <div *ngIf="project != null">-->
+<!--        <div *ngIf="project?.tasks?.length > 0">-->
+
+<!--        <div *ngFor="let task of project.tasks">-->
+<!--              <span>{{ task.id }}</span>-->
+<!--              <button (click)="addDependencyToTask(selectedTask.id, task.id)">Add</button>-->
+
+<!--        </div>-->
+<!--      </div>-->
+<!--      </div>-->
     </div>
-    <h5>Assigned Members:</h5>
-    <ul>
-      <li *ngFor="let dependencyId of selectedTask.dependencies">
-        <span>{{ dependencyId }}</span>
-      </li>
-    </ul>
-    </div>
+
+
 
     <button (click)="closeTask()">Close</button>
   </div>

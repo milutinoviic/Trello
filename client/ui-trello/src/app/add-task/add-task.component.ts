@@ -129,11 +129,11 @@ export class AddTaskComponent implements OnInit {
       );
 
       this.taskService.addTask(taskData).subscribe({
-        next: () => {
+        next: (response) => {
           console.log('Task created successfully');
           this.fetchTasks(this.projectId);
           this.toastr.success("Task successfully created");
-
+          this.createWorkflowTask(response.task);
           this.taskForm.reset();
         },
         error: (error) => {
@@ -144,7 +144,7 @@ export class AddTaskComponent implements OnInit {
 
       console.log('Task Created:', taskData);
       console.log('Project ID:', this.projectId);
-      this.createWorkflowTask(taskData);
+
     }
   }
 

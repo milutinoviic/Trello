@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/trace"
 	"log"
@@ -51,8 +52,22 @@ func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
-	task := h.Context().Value(KeyProduct{}).(*model.TaskGraph)
-	err := m.repo.PostTask(task)
+	var task model.TaskGraph
+	err := json.NewDecoder(h.Body).Decode(&task)
+	if err != nil {
+		m.logger.Println("Error decoding task:", err)
+		rw.WriteHeader(http.StatusBadRequest)
+		rw.Write([]byte("Invalid task format"))
+		return
+	}
+	m.logger.Printf("Received task: %+v\n", task)
+	//task, ok := h.Context().Value(KeyProduct{}).(*model.TaskGraph)
+	//if !ok {
+	//	m.logger.Println("Task not found or incorrect type in context:", h.Context().Value(KeyProduct{}))
+	//	rw.WriteHeader(http.StatusBadRequest)
+	//	return
+	//}
+	err = m.repo.PostTask(&task)
 	if err != nil {
 		m.logger.Print("Database exception: ", err)
 		rw.WriteHeader(http.StatusInternalServerError)

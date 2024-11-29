@@ -80,7 +80,11 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 
 	// Slanje odgovora
 	rw.WriteHeader(http.StatusCreated)
-	response := map[string]string{"message": "Task created successfully"}
+	//response := map[string]string{"message": "Task created successfully"}
+	response := map[string]interface{}{
+		"message": "Task created successfully",
+		"task":    task,
+	}
 	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {
 		errMsg := "Error writing response: " + err.Error()

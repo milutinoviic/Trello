@@ -72,7 +72,7 @@ func (wf *WorkflowRepo) GetAllNodesWithTask(limit int) (*model.TaskGraph, error)
 			var tasks model.TaskGraphs
 			for result.Next(ctx) {
 				record := result.Record()
-				id, _ := record.Get("id")
+				//id, _ := record.Get("id")
 				projectId, _ := record.Get("project_id")
 				name, _ := record.Get("name")
 				description, _ := record.Get("description")
@@ -81,7 +81,7 @@ func (wf *WorkflowRepo) GetAllNodesWithTask(limit int) (*model.TaskGraph, error)
 				updatedAt, _ := record.Get("updated_at")
 				blocked, _ := record.Get("blocked")
 				tasks = append(tasks, &model.TaskGraph{
-					ID:          id.(string),
+					//ID:          id.(string),
 					ProjectID:   projectId.(string),
 					Name:        name.(string),
 					Description: description.(string),
@@ -110,8 +110,8 @@ func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
 	savedPerson, err := session.ExecuteWrite(ctx,
 		func(transaction neo4j.ManagedTransaction) (any, error) {
 			result, err := transaction.Run(ctx,
-				"CREATE (p:Task) SET p.id = $id, p.project_id = $project_id, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.dependencies = $dependencies, p.blocked = $blocked  RETURN p.name + ', from node ' + id(p)",
-				map[string]any{"id": task.ID, "project_id": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "dependencies": task.Dependencies, "blocked": task.Blocked})
+				"CREATE (p:Task) SET p.id = $id, p.project_id = $project_id, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.user_ids = $user_ids, p.dependencies = $dependencies, p.blocked = $blocked  RETURN p.name + ', from node ' + id(p)",
+				map[string]any{"id": task.ID, "project_id": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "user_ids": task.UserIds, "dependencies": task.Dependencies, "blocked": task.Blocked})
 			if err != nil {
 				return nil, err
 			}
@@ -143,6 +143,7 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 			       t.description AS description, t.status AS status, 
 			       t.created_at AS created_at, 
 			       t.updated_at AS updated_at, 
+				   t.user_ids AS user_ids,
 			       collect(d.id) AS dependencies, 
 			       t.blocked AS blocked
 		`
@@ -161,6 +162,12 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 					dependencies = append(dependencies, dep.(string))
 				}
 			}
+			userIds := []string{}
+			if ids, ok := record.Get("user_ids"); ok && ids != nil {
+				for _, id := range ids.([]any) {
+					userIds = append(userIds, id.(string))
+				}
+			}
 
 			return &model.TaskGraph{
 				ID:           record.Values[0].(string),
@@ -170,7 +177,8 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 				Status:       model.TaskStatus(record.Values[4].(string)),
 				CreatedAt:    record.Values[5].(time.Time),
 				UpdatedAt:    record.Values[6].(time.Time),
-				Dependencies: record.Values[7].([]string),
+				UserIds:      userIds,
+				Dependencies: dependencies,
 				Blocked:      record.Values[8].(bool),
 			}, nil
 		}

@@ -51,7 +51,7 @@ func main() {
 
 	router := mux.NewRouter()
 
-	router.Use(workflowHandler.MiddlewareContentTypeSet)
+	//router.Use(workflowHandler.MiddlewareContentTypeSet)
 
 	//TODO: add authorization to every route
 	//router.Handle("/workflow/{limit}", workflowHandler.MiddlewareExtractUserFromCookie(workflowHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(workflowHandler.GetAllTasks)))).Methods(http.MethodGet)
@@ -100,7 +100,7 @@ func main() {
 
 func loadConfig() map[string]string {
 	config := make(map[string]string)
-	config["address"] = fmt.Sprintf(":%s", os.Getenv("WORKFLOW_PORT"))
+	config["address"] = fmt.Sprintf(":%s", os.Getenv("PORT"))
 	return config
 }
 

@@ -23,6 +23,7 @@ type TaskGraph struct {
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
 	Dependencies []string   `json:"dependencies"`
+	UserIds      []string   `json:"user_ids"`
 	Blocked      bool       `bson:"blocked"`
 }
 
