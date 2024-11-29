@@ -15,6 +15,7 @@ services:
       - NATS_URL=${NATS_URL}
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
       - USER_SERVICE_HOST=${USER_SERVICE_HOST}
+      - CAPTCHA=${CAPTCHA}
       - USER_SERVICE_PORT=${PORT}
       - TASK_SERVICE_HOST=${TASK_SERVICE_HOST}
       - TASK_SERVICE_PORT=${PORT}
@@ -109,6 +110,9 @@ services:
       - MONGO_DB_URI=${MONGO_DB_URI_TASK}
       - USER_SERVICE_HOST=${USER_SERVICE_HOST}
       - USER_SERVICE_PORT=${PORT}
+      - LINK_TO_PROJECT_SERVICE=${LINK_TO_PROJECT_SERVICE}
+      - LINK_TO_TASK_SERVICE=${LINK_TO_TASK_SERVICE}
+      - LINK_TO_USER_SERVICE=${LINK_TO_USER_SERVICE}
     volumes:
       - ./server/task-service/app.log:/app.log
       - ./server/task-service/cert.crt:/app/cert.crt
@@ -248,6 +252,7 @@ services:
       - angular-app
       - task-server
       - notification-server
+      - workflow-server
     entrypoint: [ "/bin/bash", "-c", "while ! curl -s user-server:8080; do sleep 1; done; nginx -g 'daemon off;'" ]
     networks:
       - network
@@ -333,6 +338,55 @@ services:
     networks:
       - network
 
+  workflow-server:
+    build:
+      context: ./server/workflow-service/
+      dockerfile: Dockerfile
+    restart: always
+    container_name: "workflow-service"
+    hostname: "workflow-service"
+    ports:
+      - ${WORKFLOW_SERVICE_PORT}
+    environment:
+      - PORT=${PORT}
+      - NEO4J_DB=${NEO4J_DB}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASS=${NEO4J_PASS}
+      - JAEGER_ADDRESS=${JAEGER_ADDRESS}
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    volumes:
+      - ./server/workflow-service/cert.crt:/app/cert.crt
+      - ./server/workflow-service/privat.key:/app/privat.key
+      - ./server/project-service/app.log:/app.log
+    networks:
+      - network
+  neo4j:
+    image: neo4j
+    restart: always
+    ports:
+      - "7687:7687"
+      - "7474:7474"
+      - "7473:7473"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "echo RETURN 1 | cypher-shell -a bolt://neo4j:7687 -u neo4j -p strongerpassword || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      - NEO4J_AUTH=neo4j/strongerpassword
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - network
+
 volumes:
   mongo_project_store:
   mongo_user_store:
@@ -342,6 +396,7 @@ volumes:
   redis_data:
   cassandra_data:
   mongo_task_express_data:
+  neo4j_data:
 
 
 networks:

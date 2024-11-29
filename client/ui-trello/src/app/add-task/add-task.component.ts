@@ -102,8 +102,8 @@ export class AddTaskComponent implements OnInit {
             this.taskMembers[task.id] = task.user_ids.map(userId =>
               this.allUsers.find(user => user.id === userId)
             ).filter(user => user !== undefined) as User[];
-          this.filteredUsers[task.id] = this.allUsers.filter(user =>
-            !this.taskMembers[task.id].some(member => member.id === user.id))
+            this.filteredUsers[task.id] = this.allUsers.filter(user =>
+              !this.taskMembers[task.id].some(member => member.id === user.id))
           });
           console.log('Data fetched successfully:', this.tasks);
         },
@@ -129,11 +129,11 @@ export class AddTaskComponent implements OnInit {
       );
 
       this.taskService.addTask(taskData).subscribe({
-        next: () => {
+        next: (response) => {
           console.log('Task created successfully');
           this.fetchTasks(this.projectId);
           this.toastr.success("Task successfully created");
-
+          this.createWorkflowTask(response.task);
           this.taskForm.reset();
         },
         error: (error) => {
@@ -144,6 +144,7 @@ export class AddTaskComponent implements OnInit {
 
       console.log('Task Created:', taskData);
       console.log('Project ID:', this.projectId);
+
     }
   }
 
@@ -251,5 +252,21 @@ export class AddTaskComponent implements OnInit {
         console.error('Error updating task member:', error);
       }
     });
+  }
+
+
+  private createWorkflowTask(task: Task) {
+    const url = `/api/workflow-server/workflow`;
+
+    this.http.post(url, task).subscribe({
+      next: () => {
+        console.log(`Workflow created successfully: `);
+
+      },
+      error: (error) => {
+        console.error('Error updating task member:', error);
+      }
+    });
+
   }
 }

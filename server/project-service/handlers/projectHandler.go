@@ -14,9 +14,9 @@ import (
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"project-service/client"
 	"project-service/customLogger"
 	"project-service/domain"
@@ -83,9 +83,9 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client, err := createTLSClient()
+	tlsClient, err := createTLSClient()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
+		return "", "", fmt.Errorf("failed to create TLS tlsClient: %s", err)
 	}
 
 	circuitBreaker := gobreaker.NewCircuitBreaker(
@@ -113,7 +113,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -121,7 +121,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	var userID, role string
 	retryCount := 0
 
-	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = r.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		p.logger.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -134,7 +134,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			resp, err := client.Do(req)
+			resp, err := tlsClient.Do(req)
 			if err != nil {
 				return nil, err
 			}
@@ -183,23 +183,29 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 }
 
 func createTLSClient() (*http.Client, error) {
-	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	caCert, err := os.ReadFile("/app/cert.crt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read certificate: %w", err)
 	}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append certs to the pool")
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 
 	client := &http.Client{
+		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 

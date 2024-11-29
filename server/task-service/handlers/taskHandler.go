@@ -80,7 +80,11 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 
 	// Slanje odgovora
 	rw.WriteHeader(http.StatusCreated)
-	response := map[string]string{"message": "Task created successfully"}
+	//response := map[string]string{"message": "Task created successfully"}
+	response := map[string]interface{}{
+		"message": "Task created successfully",
+		"task":    task,
+	}
 	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {
 		errMsg := "Error writing response: " + err.Error()
@@ -366,7 +370,8 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 	_, span := p.tracer.Start(ctx, "TaskHandler.verifyTokenWithUserService")
 	defer span.End()
 
-	userServiceURL := "https://user-server:8080/validate-token"
+	linkToUserService := os.Getenv("LINK_TO_USER_SERVICE")
+	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserService)
 	p.logger.Printf("Validating token with user service at %s", userServiceURL)
 	p.custLogger.Info(nil, fmt.Sprintf("Sending token validation request to %s", userServiceURL))
 
@@ -381,7 +386,7 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client, err := createTLSClient()
+	clientToDo, err := createTLSClient()
 	if err != nil {
 		log.Printf("Error creating TLS client: %v\n", err)
 		return "", "", err
@@ -412,7 +417,7 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -420,7 +425,7 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 	retryCount := 0
 	var userID, role string
 
-	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		log.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -433,7 +438,7 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			resp, err := client.Do(req)
+			resp, err := clientToDo.Do(req)
 			if err != nil {
 				return nil, err
 			}
@@ -491,23 +496,28 @@ func createTLSClient() (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, err
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 
-	client := &http.Client{
+	c := &http.Client{
+		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
-	return client, nil
+	return c, nil
 }
 
 func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Request) {
@@ -517,7 +527,9 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 	taskID := vars["taskId"]
 	action := vars["action"] // Can be "add" or "remove"
 	userID := vars["userId"]
+
 	t.logger.Println("User id is " + userID)
+	t.logger.Println("Action is " + action)
 
 	if action != "add" && action != "remove" {
 		span.RecordError(errors.New("Invalid action"))
@@ -562,6 +574,7 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 		if !contains(task.UserIDs, userID) {
 			span.RecordError(errors.New("Invalid userId"))
 			span.SetStatus(codes.Error, "Invalid userId")
+			t.logger.Println("Invalid userId " + userID)
 			http.Error(rw, "User is not a member of this task", http.StatusBadRequest)
 			return
 		}
@@ -683,7 +696,8 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 }
 
 func Conn() (*nats.Conn, error) {
-	conn, err := nats.Connect("nats://nats:4222")
+	connection := os.Getenv("NATS_URL")
+	conn, err := nats.Connect(connection)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -765,7 +779,7 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 	defer span.End()
 
 	linkToProjectService := os.Getenv("LINK_TO_PROJECT_SERVICE")
-	projectServiceURL := fmt.Sprintf("%s/%s/users/%s/check", linkToProjectService, projectID, userID)
+	projectServiceURL := fmt.Sprintf("%s/projects/%s/users/%s/check", linkToProjectService, projectID, userID)
 
 	clientToDo, err := createTLSClient()
 	if err != nil {
