@@ -74,7 +74,7 @@ func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
 	taskId, err := strconv.Atoi(vars["taskId"])
-	dependency, err := strconv.Atoi(vars["addTaskId"])
+	dependency, err := strconv.Atoi(vars["dependencyId"])
 	err = w.repo.AddDependency(taskId, dependency)
 	if err != nil {
 		w.logger.Print("Database exception: ", err)

@@ -66,6 +66,7 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 
 	// Ubacivanje Task-a u repozitorijum
 	err := t.repo.Insert(task)
+
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -77,13 +78,15 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 	}
 	span.SetStatus(codes.Ok, "Successfully created task")
 	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task created successfully")
+	t.custLogger.Info(logrus.Fields{"projectID": task.ProjectID}, "ProjectID")
 
+	taskIDStr := task.ID.Hex()
 	// Slanje odgovora
 	rw.WriteHeader(http.StatusCreated)
-	//response := map[string]string{"message": "Task created successfully"}
 	response := map[string]interface{}{
 		"message": "Task created successfully",
 		"task":    task,
+		"taskId":  taskIDStr,
 	}
 	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {

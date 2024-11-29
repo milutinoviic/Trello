@@ -133,7 +133,11 @@ export class AddTaskComponent implements OnInit {
           console.log('Task created successfully');
           this.fetchTasks(this.projectId);
           this.toastr.success("Task successfully created");
+          response.task.id = response.taskId
           this.createWorkflowTask(response.task);
+          console.log('Task Created projectId:', taskData.projectId);
+          console.log('Task Created id:', response.taskId);
+          console.log('Task Created id set:', response.task.id);
           this.taskForm.reset();
         },
         error: (error) => {
@@ -256,6 +260,7 @@ export class AddTaskComponent implements OnInit {
 
 
   private createWorkflowTask(task: Task) {
+    console.log("Task ready to be sent", task);
     const url = `/api/workflow-server/workflow`;
 
     this.http.post(url, task).subscribe({
