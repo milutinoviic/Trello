@@ -416,13 +416,6 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.PostProject")
 	defer span.End()
-	patient := h.Context().Value(KeyProject{}).(*model.Project)
-	err := p.repo.Insert(patient)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return
-	}
 	// Retrieve project from context
 	project, ok := h.Context().Value(KeyProject{}).(*model.Project)
 	if !ok {
@@ -440,7 +433,7 @@ func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	}, "Received project for insertion")
 
 	// Insert project into repository
-	err = p.repo.Insert(project)
+	err := p.repo.Insert(project)
 	if err != nil {
 		http.Error(rw, "Database error", http.StatusInternalServerError)
 		p.logger.Printf("Error inserting project into database: %v", err)

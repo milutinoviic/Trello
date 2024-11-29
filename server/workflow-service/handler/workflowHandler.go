@@ -61,12 +61,7 @@ func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 	m.logger.Printf("Received task: %+v\n", task)
-	//task, ok := h.Context().Value(KeyProduct{}).(*model.TaskGraph)
-	//if !ok {
-	//	m.logger.Println("Task not found or incorrect type in context:", h.Context().Value(KeyProduct{}))
-	//	rw.WriteHeader(http.StatusBadRequest)
-	//	return
-	//}
+
 	err = m.repo.PostTask(&task)
 	if err != nil {
 		m.logger.Print("Database exception: ", err)
