@@ -210,53 +210,37 @@ func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error 
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
-	// TODO: Make a proper check for cycles, now this version only generated new connections
 	_, err := session.ExecuteWrite(ctx, func(transaction neo4j.ManagedTransaction) (any, error) {
-		checkQuery := `
-			MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
-			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
-			RETURN path IS NOT NULL AS hasCycle
-		`
-		checkParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
-		checkResult, err := transaction.Run(ctx, checkQuery, checkParams)
-		if err != nil {
-			return nil, err
-		}
-		checkQuery2 := `
-			MATCH (t:Task {id: $dependencyID}), (d:Task {id:  $taskID})
-			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
-			OPTIONAL MATCH (t)-[r:DEPENDS_ON]->(d)
-			RETURN r IS NOT NULL AS hasCycle
-		`
-		checkResult2, err := transaction.Run(ctx, checkQuery2, checkParams)
+
+		query := `
+        MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
+        OPTIONAL MATCH path1 = (d)-[:DEPENDS_ON*]->(t)
+        OPTIONAL MATCH path2 = (t)-[:DEPENDS_ON*]->(d)
+        OPTIONAL MATCH (t)-[r:DEPENDS_ON]->(d)
+        RETURN 
+            path1 IS NOT NULL OR path2 IS NOT NULL AS hasCycle,
+            r IS NOT NULL AS hasExistingRelationship
+    `
+
+		params := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
+		result, err := transaction.Run(ctx, query, params)
 		if err != nil {
 			return nil, err
 		}
 
-		if checkResult.Next(ctx) {
-			hasCycle, _ := checkResult.Record().Get("hasCycle")
-			if hasCycle.(bool) {
-				return nil, errors.New("adding this dependency would create a cycle")
+		if result.Next(ctx) {
+			record := result.Record()
+			hasCycle, _ := record.Get("hasCycle")
+			hasExistingRelationship, _ := record.Get("hasExistingRelationship")
+			wf.logger.Println("Result from hasExistingRelationship:", hasExistingRelationship)
+			wf.logger.Println("Result from hasCycle:", hasCycle)
+
+			wf.logger.Println("Result from hasExistingRelationship.bool:", hasExistingRelationship.(bool))
+			wf.logger.Println("Result from hasCycle.bool:", hasCycle.(bool))
+
+			if hasExistingRelationship.(bool) {
+				return nil, errors.New("a dependency relationship already exists between these tasks")
 			}
-		}
-		if checkResult2.Next(ctx) {
-			hasCycle, _ := checkResult2.Record().Get("hasCycle")
-			if hasCycle.(bool) {
-				return nil, errors.New("adding this dependency would create a cycle")
-			}
-		}
-		checkCycleQuery := `
-			MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
-			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
-			RETURN path IS NOT NULL AS hasCycle
-		`
-		checkCycleParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
-		checkCycleResult, err := transaction.Run(ctx, checkCycleQuery, checkCycleParams)
-		if err != nil {
-			return nil, err
-		}
-		if checkCycleResult.Next(ctx) {
-			hasCycle, _ := checkCycleResult.Record().Get("hasCycle")
 			if hasCycle.(bool) {
 				return nil, errors.New("adding this dependency would create a cycle")
 			}

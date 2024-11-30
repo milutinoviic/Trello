@@ -116,11 +116,6 @@ export class ProjectComponent implements OnInit {
 
   openTask(task: TaskDetails): void {
     console.log(task);
-    if (this.project == null) {
-      console.log("tasksssssss is NULLLLLL");
-    } else {
-      console.log("tasksssssss", this.project);
-    }
 
 
     this.selectedTask = task;
@@ -314,6 +309,11 @@ export class ProjectComponent implements OnInit {
   private addDependency(id: string, dependecyId: string) {
     const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
 
+    if(id == dependecyId){
+      this.toastr.error("Task cannot be dependent on itself.");
+      return;
+    }
+
     console.log("task id: ", id);
     console.log("dependecy id: ", dependecyId);
     console.log("URL id: ", url);
@@ -328,8 +328,8 @@ export class ProjectComponent implements OnInit {
         }
       },
       error: (error) => {
-        console.error('Error making task connection:', error);
-        this.toastr.success("Error making task connection:", error);
+        console.error('Error making task dependecy:', error);
+        this.toastr.error("This dependecy will cause cycles.");
 
       }
     });
