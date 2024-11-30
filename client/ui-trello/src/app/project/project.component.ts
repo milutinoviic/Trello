@@ -7,8 +7,9 @@ import {Task, TaskStatus} from "../models/task";
 import {TaskService} from "../services/task.service";
 import {Account} from "../models/account.model";
 import {UserDetails} from "../models/userDetails";
-import {HttpClient} from "@angular/common/http";
+import {HttpClient, HttpHeaders} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
+import {TaskNode} from "../models/task-graph";
 
 @Component({
   selector: 'app-project',
@@ -33,6 +34,7 @@ export class ProjectComponent implements OnInit {
   private allUsers!: UserDetails[];
   filteredUsers: { [taskId: string]: UserDetails[] } = {};
   taskMembers: { [taskId: string]: UserDetails[] } = {};
+
 
 
 
@@ -263,16 +265,23 @@ export class ProjectComponent implements OnInit {
     this.filterUsers(selectedTask.id)
   }
 
-  // addDependencyToTask(selectedTaskId: string, dependencyId: string) {
-  //
-  //   if(this.selectedTask!= null){
-  //     this.selectedTask.dependencies.push(dependencyId);
-  //   }
-  //   console.log(this.selectedTask);
-  //
-  // this.addDependency(selectedTaskId, dependencyId);
-  //
-  // }
+  addDependencyToTask(selectedTaskId: string, dependencyId: string) {
+    if (this.selectedTask == null) {
+      console.error("No selected task. Cannot add dependency.");
+      return;
+    }
+
+    if (!Array.isArray(this.selectedTask.dependencies)) {
+      this.selectedTask.dependencies = [];
+    }
+
+    this.selectedTask.dependencies.push(dependencyId); // Safe to push now
+    console.log("Updated selected task:", this.selectedTask);
+
+    this.addDependency(selectedTaskId, dependencyId);
+  }
+
+
 
   removeUserFromTask(selectedTask: TaskDetails, member: UserDetails) {
     const assignedMembers = this.taskMembers[selectedTask.id] || [];
@@ -311,27 +320,35 @@ export class ProjectComponent implements OnInit {
 
   }
 
-  // private addDependency(id: string, dependecyId: string) {
-  //   const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
-  //
-  //   this.http.post(url, {}).subscribe({
-  //     next: () => {
-  //       console.log(`User added dependency successfully: ${dependecyId}`);
-  //       if (this.projectId) {
-  //         this.loadProjectDetails(this.projectId);
-  //       }
-  //     },
-  //     error: (error) => {
-  //       console.error('Error updating task member:', error);
-  //     }
-  //   });
-  //
-  // }
+  private addDependency(id: string, dependecyId: string) {
+    const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
+
+    console.log("task id: ", id);
+    console.log("dependecy id: ", dependecyId);
+    console.log("URL id: ", url);
+    const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+
+    this.http.post(url, {}, { headers }).subscribe({
+      next: () => {
+        console.log(`User added dependency successfully: ${dependecyId}`);
+        if (this.projectId) {
+          this.loadProjectDetails(this.projectId);
+          this.toastr.success("Succesfully created connection between tasks");
+        }
+      },
+      error: (error) => {
+        console.error('Error making task connection:', error);
+        this.toastr.success("Error making task connection:", error);
+
+      }
+    });
+  }
 
 
   private craeteWorkflowTask(task: Task) {
     const url = `/api/workflow-server/workflow`;
 
+    // TODO: find out why it always returns 201 when it doesnt create dependency
     this.http.post(url, task).subscribe({
       next: () => {
         console.log(`Workflow created successfully: `);

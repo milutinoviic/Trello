@@ -1,71 +1,111 @@
-import {ChangeDetectorRef, Component, Input, OnInit} from '@angular/core';
+// graph-editor.component.ts
+
+import { Component, ElementRef, Input, OnInit } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import * as shape from 'd3-shape';
-import {GraphService} from "../services/graph.service";
+import { GraphService } from "../services/graph.service";
+import { Edge, TaskNode } from "../models/task-graph";
+import { Network } from "vis-network";
+import {NetworkEvents} from "vis";
 
 @Component({
   selector: 'app-graph-editor',
-  templateUrl: './graph-editor.component.html',
-  styleUrls: ['./graph-editor.component.css']
+  template: `<div id="graph" style="width: 100%; height: 600px; border: 1px solid #ddd;"></div>`,
+  styles: [],
 })
 export class GraphEditorComponent implements OnInit {
-  @Input()  projectId!: string;
-  nodes: any[] = [];
-  links: any[] = [];
-  selectedNodes: any[] = [];
-  curve = shape.curveLinear;
-  graphLoaded: boolean = false;
+  nodes: TaskNode[] = [];
+  links: Edge[] = [];
+  @Input() projectId!: string;
 
-  constructor(private graphService: GraphService, private cdr: ChangeDetectorRef) {}
+  constructor(private http: HttpClient, private elRef: ElementRef, private graphService: GraphService) {}
 
   ngOnInit() {
-    this.fetchGraph();
+    this.fetchData();
   }
 
-  fetchGraph() {
-    this.graphService.getWorkflowByProject(this.projectId).subscribe({
-      next: (graph) => {
-        console.log("GRAPH: ", graph)
-        this.nodes = graph.nodes.map((node: any) => ({
-          id: node.id,
-          label: node.label,
-        }));
-
-        this.links = graph.edges.map((edge: any) => ({
-          source: edge.from,
-          target: edge.to,
-        }));
-
-        this.graphLoaded = true;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        console.error('Error fetching task graph:', err);
-      },
+  fetchData() {
+    this.graphService.getWorkflowByProject(this.projectId).subscribe((data) => {
+      this.nodes = data.nodes;
+      this.links = data.edges;
+      this.createGraph();
     });
   }
 
+  createGraph() {
+    const visNodes = this.nodes.map((node) => ({
+      id: node.id,
+      label: node.label,
+    }));
 
-  connectTasks() {
-    if (this.selectedNodes.length === 2) {
-      const [from, to] = this.selectedNodes;
-      if (!this.links.find(link => link.source === from && link.target === to)) {
-        this.links.push({ source: from, target: to, label: 'Depends on' });
-        console.log(`Connected ${from} -> ${to}`);
-      }
+    const visEdges = this.links.map((link) => ({
+      from: link.from,
+      to: link.to,
+    }));
 
-      this.selectedNodes = [];
-    }
+    const data = {
+      nodes: visNodes,
+      edges: visEdges,
+    };
+
+    const options = {
+      nodes: {
+        shape: 'dot',
+        size: 20,
+        font: { size: 14 },
+      },
+      edges: {
+        width: 2,
+        color: { color: '#aaa', hover: '#000' },
+        arrows: { to: { enabled: true } },
+      },
+      physics: {
+        enabled: true,
+        solver: 'forceAtlas2Based',
+        forceAtlas2Based: {
+          gravitationalConstant: -26,
+          centralGravity: 0.01,
+          springLength: 100,
+          springConstant: 0.08,
+        },
+        minVelocity: 0.75,
+      },
+      interaction: {
+        dragNodes: true,
+        dragView: true,
+        zoomView: true,
+      },
+      manipulation: {
+        enabled: true,
+        addEdge: (edgeData: any, callback: Function) => {
+
+          if (window.confirm("Do you want to connect these nodes?")) {
+            this.addEdgeToGraph(edgeData);
+            callback(edgeData);
+          } else {
+            callback(null);
+          }
+        },
+      },
+    };
+
+    const container = this.elRef.nativeElement.querySelector('#graph');
+    const network = new Network(container, data, options);
   }
 
-  onNodeClicked(node: any) {
-    if (this.selectedNodes.includes(node.id)) {
-      this.selectedNodes = this.selectedNodes.filter((id) => id !== node.id);
-    } else if (this.selectedNodes.length < 2) {
-      this.selectedNodes.push(node.id);
-    }
-    console.log('Selected Nodes:', this.selectedNodes);
-  }
+  addEdgeToGraph(edgeData: any) {
+    const taskID = edgeData.from;
+    const dependencyID = edgeData.to;
 
+    this.graphService.addDependency(taskID, dependencyID).subscribe({
+      next: () => {
+        console.log('Dependency added successfully');
+        this.links.push({ from: taskID, to: dependencyID });
+      },
+      error: (err) => {
+        console.error('Error adding dependency:', err);
+        alert("Failed to add dependency. Please try again.");
+      },
+    });
+  }
 
 }

@@ -101,6 +101,11 @@ func (tr *TaskRepository) Insert(task *model.Task) error {
 
 	insertOneCtx, insertOneSpan := tr.tracer.Start(ctx, "TaskRepository.Insert.InsertOne")
 	result, err := tasksCollection.InsertOne(insertOneCtx, task)
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		task.ID = oid
+	} else {
+		tr.logger.Println("Failed to convert InsertedID to ObjectID")
+	}
 	insertOneSpan.End()
 	if err != nil {
 		span.RecordError(err)

@@ -71,7 +71,8 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 }
 
 func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
-	userServiceURL := "https://user-server:8080/validate-token" // Use HTTPS for secure connection
+	linkToUserServer := os.Getenv("LINK_TO_USER_SERVICE")
+	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserServer) // Use HTTPS for secure connection
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -83,9 +84,9 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	tlsClient, err := createTLSClient()
+	c, err := createTLSClient()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create TLS tlsClient: %s", err)
+		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
 	}
 
 	circuitBreaker := gobreaker.NewCircuitBreaker(
@@ -113,7 +114,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -121,7 +122,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	var userID, role string
 	retryCount := 0
 
-	err = r.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		p.logger.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -134,7 +135,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			resp, err := tlsClient.Do(req)
+			resp, err := c.Do(req)
 			if err != nil {
 				return nil, err
 			}
@@ -420,13 +421,6 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.PostProject")
 	defer span.End()
-	patient := h.Context().Value(KeyProject{}).(*model.Project)
-	err := p.repo.Insert(patient)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return
-	}
 	// Retrieve project from context
 	project, ok := h.Context().Value(KeyProject{}).(*model.Project)
 	if !ok {
@@ -444,7 +438,7 @@ func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	}, "Received project for insertion")
 
 	// Insert project into repository
-	err = p.repo.Insert(project)
+	err := p.repo.Insert(project)
 	if err != nil {
 		http.Error(rw, "Database error", http.StatusInternalServerError)
 		p.logger.Printf("Error inserting project into database: %v", err)
@@ -705,7 +699,8 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 }
 
 func Conn() (*nats.Conn, error) {
-	conn, err := nats.Connect("nats://nats:4222")
+	connection := os.Getenv("NATS_URL")
+	conn, err := nats.Connect(connection)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -1000,12 +995,12 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	_, span := ph.tracer.Start(ctx, "ProjectsHandler.checkTasks")
 	defer span.End()
 
-	// Create the custom TLS tlsClient for secure communication
-	tlsClient, err := createTLSClient()
+	// Create the custom TLS client for secure communication
+	c, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		ph.logger.Printf("Error creating TLS tlsClient: %v\n", err)
+		ph.logger.Printf("Error creating TLS client: %v\n", err)
 		return false
 	}
 
@@ -1048,9 +1043,9 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 		},
 	)
 
-	// Set up the r with backoff strategy for retrying the request
+	// Set up the retryAgain with backoff strategy for retrying the request
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -1059,7 +1054,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	retryCount := 0
 
 	// Retry the task request if it fails (with circuit breaker)
-	err = r.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		ph.logger.Printf("Attempting task-service request, attempt #%d", retryCount)
 
@@ -1073,8 +1068,8 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 				taskReq.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			// Send the HTTP request using the TLS tlsClient
-			resp, err := tlsClient.Do(taskReq)
+			// Send the HTTP request using the TLS client
+			resp, err := c.Do(taskReq)
 			if err != nil {
 				return nil, err
 			}

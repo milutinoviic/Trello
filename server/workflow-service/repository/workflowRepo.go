@@ -7,10 +7,10 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"log"
+	"main.go/customLogger"
+	"main.go/model"
 	"os"
 	"time"
-	"workflow-service/customLogger"
-	"workflow-service/model"
 )
 
 type WorkflowRepo struct {
@@ -107,28 +107,28 @@ func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
 	ctx := context.Background()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
-	wf.logger.Printf("Query parameters: %+v\n", map[string]any{
-		"id":           task.ID,
-		"project_id":   task.ProjectID,
-		"name":         task.Name,
-		"description":  task.Description,
-		"status":       task.Status,
-		"created_at":   task.CreatedAt,
-		"updated_at":   task.UpdatedAt,
-		"user_ids":     task.UserIds,
-		"dependencies": task.Dependencies,
-		"blocked":      task.Blocked,
-	})
 
 	savedPerson, err := session.ExecuteWrite(ctx,
 		func(transaction neo4j.ManagedTransaction) (any, error) {
 			result, err := transaction.Run(ctx,
-				"CREATE (p:Task) SET p.id = $id, p.project_id = $project_id, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.user_ids = $user_ids, p.dependencies = $dependencies, p.blocked = $blocked  RETURN p.name + ', from node ' + id(p)",
-				map[string]any{"id": task.ID, "project_id": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "user_ids": task.UserIds, "dependencies": task.Dependencies, "blocked": task.Blocked})
+				"CREATE (p:Task) SET p.id = $id, p.projectId = $projectId, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.user_ids = $user_ids, p.dependencies = $dependencies, p.blocked = $blocked  RETURN p.name + ', from node ' + id(p)",
+				map[string]any{"id": task.ID, "projectId": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "user_ids": task.UserIds, "dependencies": task.Dependencies, "blocked": task.Blocked})
 			if err != nil {
 				return nil, err
 			}
 
+			wf.logger.Printf("Query parameters: %+v\n", map[string]any{
+				"id":           task.ID,
+				"project_id":   task.ProjectID,
+				"name":         task.Name,
+				"description":  task.Description,
+				"status":       task.Status,
+				"created_at":   task.CreatedAt,
+				"updated_at":   task.UpdatedAt,
+				"user_ids":     task.UserIds,
+				"dependencies": task.Dependencies,
+				"blocked":      task.Blocked,
+			})
 			if result.Next(ctx) {
 				return result.Record().Values[0], nil
 			}
@@ -152,7 +152,7 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 		query := `
 			MATCH (t:Task {id: $id})
 			OPTIONAL MATCH (t)-[:DEPENDS_ON]->(d:Task)
-			RETURN t.id AS id, t.project_id AS project_id, t.name AS name, 
+			RETURN t.id AS id, t.projectId AS projectId, t.name AS name, 
 			       t.description AS description, t.status AS status, 
 			       t.created_at AS created_at, 
 			       t.updated_at AS updated_at, 
@@ -206,13 +206,13 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 	return task.(*model.TaskGraph), nil
 }
 
-func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
+func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error {
 	ctx := context.Background()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
+	// TODO: Make a proper check for cycles, now this version only generated new connections
 	_, err := session.ExecuteWrite(ctx, func(transaction neo4j.ManagedTransaction) (any, error) {
-		//check if has cycle
 		checkQuery := `
 			MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
 			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
@@ -223,6 +223,16 @@ func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
 		if err != nil {
 			return nil, err
 		}
+		checkQuery2 := `
+			MATCH (t:Task {id: $dependencyID}), (d:Task {id:  $taskID})
+			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
+			OPTIONAL MATCH (t)-[r:DEPENDS_ON]->(d)
+			RETURN r IS NOT NULL AS hasCycle
+		`
+		checkResult2, err := transaction.Run(ctx, checkQuery2, checkParams)
+		if err != nil {
+			return nil, err
+		}
 
 		if checkResult.Next(ctx) {
 			hasCycle, _ := checkResult.Record().Get("hasCycle")
@@ -230,9 +240,32 @@ func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
 				return nil, errors.New("adding this dependency would create a cycle")
 			}
 		}
+		if checkResult2.Next(ctx) {
+			hasCycle, _ := checkResult2.Record().Get("hasCycle")
+			if hasCycle.(bool) {
+				return nil, errors.New("adding this dependency would create a cycle")
+			}
+		}
+		checkCycleQuery := `
+			MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
+			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
+			RETURN path IS NOT NULL AS hasCycle
+		`
+		checkCycleParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
+		checkCycleResult, err := transaction.Run(ctx, checkCycleQuery, checkCycleParams)
+		if err != nil {
+			return nil, err
+		}
+		if checkCycleResult.Next(ctx) {
+			hasCycle, _ := checkCycleResult.Record().Get("hasCycle")
+			if hasCycle.(bool) {
+				return nil, errors.New("adding this dependency would create a cycle")
+			}
+		}
+
 		updateQuery := `
-			MATCH (t:Task {id: $taskID})
-			SET t.dependencies = coalesce(t.dependencies, []) + $dependencyID
+			MATCH (t1:Task {id: $taskID}), (t2:Task {id: $dependencyID})
+			CREATE (t1)-[:DEPENDS_ON {created_at: datetime()}]->(t2);
 		`
 		updateParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
 		_, err = transaction.Run(ctx, updateQuery, updateParams)
@@ -317,12 +350,12 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 				edgeKey := taskIDStr + "->" + depID
 				if !edgesSet[edgeKey] {
 					edgesSet[edgeKey] = true
-					edges := graph["edges"].([]map[string]string)
-					edges = append(edges, map[string]string{
+					edges, _ := graph["edges"].([]map[string]string)
+					graph["edges"] = append(edges, map[string]string{
 						"from": taskIDStr,
 						"to":   depID,
 					})
-					graph["edges"] = edges
+
 				}
 
 				if _, exists := nodesMap[depID]; !exists {
@@ -360,29 +393,4 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 	span.SetStatus(codes.Ok, "Successfully retrieved task graph")
 	return result.(map[string]any), nil
 
-}
-
-func (wf *WorkflowRepo) createTaskIfNotExist(taskID, taskName, projectID string) error {
-	ctx := context.Background()
-	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
-	defer session.Close(ctx)
-
-	query := `
-        MERGE (task:Task {id: $taskID, project_id: $projectID})
-        ON CREATE SET task.name = $taskName
-        RETURN task
-    `
-	params := map[string]any{"taskID": taskID, "taskName": taskName, "projectID": projectID}
-	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
-		result, err := tx.Run(ctx, query, params)
-		if err != nil {
-			return nil, err
-		}
-		if result.Next(ctx) {
-			return nil, nil
-		}
-		return nil, result.Err()
-	})
-
-	return err
 }

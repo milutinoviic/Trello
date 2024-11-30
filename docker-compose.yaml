@@ -19,6 +19,7 @@ services:
       - USER_SERVICE_PORT=${PORT}
       - TASK_SERVICE_HOST=${TASK_SERVICE_HOST}
       - TASK_SERVICE_PORT=${PORT}
+      - LINK_TO_USER_SERVICE=${LINK_TO_USER_SERVICE}
     volumes:
       - ./server/project-service/app.log:/app.log
       - ./server/project-service/cert.crt:/app/cert.crt
@@ -277,6 +278,7 @@ services:
     ports:
       - ${NOTIFICATION_SERVER_PORT}
     environment:
+      - NATS_URL=${NATS_URL}
       - PORT=${PORT}
       - CASSANDRA_HOST=${CASSANDRA_HOST}
       - CASSANDRA_PORT=${CASSANDRA_PORT}
@@ -317,6 +319,8 @@ services:
 
   nats:
     image: 'nats:latest'
+    environment:
+      - NATS_URL=${NATS_URL}
     expose:
       - ${NATS_PORT}
     ports:

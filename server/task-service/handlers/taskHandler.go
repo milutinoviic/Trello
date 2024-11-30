@@ -66,6 +66,7 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 
 	// Ubacivanje Task-a u repozitorijum
 	err := t.repo.Insert(task)
+
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -77,13 +78,15 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 	}
 	span.SetStatus(codes.Ok, "Successfully created task")
 	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task created successfully")
+	t.custLogger.Info(logrus.Fields{"projectID": task.ProjectID}, "ProjectID")
 
+	taskIDStr := task.ID.Hex()
 	// Slanje odgovora
 	rw.WriteHeader(http.StatusCreated)
-	//response := map[string]string{"message": "Task created successfully"}
 	response := map[string]interface{}{
 		"message": "Task created successfully",
 		"task":    task,
+		"taskId":  taskIDStr,
 	}
 	err = json.NewEncoder(rw).Encode(response)
 	if err != nil {
@@ -219,10 +222,12 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 		dependencyMap[taskID] = true
 
 		// Fetch the task
+		t.custLogger.Debug(logrus.Fields{"taskID": taskID}, "Fetching dependencies for task")
 		relatedTasks, err := t.repo.GetDependenciesByTaskId(taskID)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching dependencies for task '%s': %v", taskID, err)
 		}
+		t.custLogger.Debug(logrus.Fields{"taskID": taskID, "dependencyCount": len(relatedTasks)}, "Fetched dependencies")
 
 		var allDependencies []model.Task
 		for _, depTask := range relatedTasks {
@@ -236,9 +241,11 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 			// Recursively fetch dependencies for each related task
 			subDeps, err := fetchDependencies(depTask.ID.Hex())
 			if err != nil {
-				return nil, err
+				t.custLogger.Warn(logrus.Fields{"taskID": depTask.ID}, "Skipping dependencies due to error: "+err.Error())
+				continue
 			}
 			allDependencies = append(allDependencies, subDeps...)
+
 		}
 		return allDependencies, nil
 	}

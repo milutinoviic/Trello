@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import {Observable} from "rxjs";
 
 @Injectable({
   providedIn: 'root'
@@ -43,12 +44,17 @@ export class ConfigService {
   private _get_workflow_by_project = this._workflow_api_url + "/workflow/project"
 
 
+
   get workflow_api_url(): string {
     return this._workflow_api_url;
   }
 
   getWorkflowByProject(id: string): string {
     return this._get_workflow_by_project + "/" + id
+  }
+
+  postDependency(taskId: string, dependencyID: string): string {
+    return this.workflow_api_url + "/"+ taskId + "/add/" + dependencyID
   }
 
   get get_role_url(): string {

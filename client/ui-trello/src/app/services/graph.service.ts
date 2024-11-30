@@ -15,4 +15,8 @@ export class GraphService {
   getWorkflowByProject(id: string): Observable<TaskGraph> {
     return this.http.get<TaskGraph>(this.config.getWorkflowByProject(id))
   }
+
+  addDependency(taskID: string, dependencyID: string): Observable<any> {
+      return this.http.post(this.config.postDependency(taskID, dependencyID), {})
+  }
 }
