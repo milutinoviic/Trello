@@ -76,8 +76,22 @@ func main() {
 	store.Ping()
 	userClient := initUserClient()
 
-	taskHandler := handlers.NewTasksHandler(logger, store, nc, tracer, userClient, custLogger)
-	// subscribe to "ProjectDeleted" events to delete tasks that belong to project
+	/*
+		hdfsAddress := "hdfs://namenode:8020" // Zameni sa adresom HDFS NameNode-a
+		hdfsClient, err := hdfs.NewHDFSClient(hdfsAddress)
+		if err != nil {
+			logger.Fatalf("Failed to initialize HDFS client: %v", err)
+		}
+	*/
+
+	taskDocStore, err := repositories.NewTaskDocumentRepository(timeoutContext, storeLogger, tracer)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	defer store.Disconnect(timeoutContext)
+
+	taskHandler := handlers.NewTasksHandler(logger, store, taskDocStore, nc, tracer, userClient, custLogger)
+
 	sub, err := nc.QueueSubscribe("ProjectDeleted", "task-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
 		taskHandler.HandleProjectDeleted(projectID)
@@ -108,6 +122,7 @@ func main() {
 	router.HandleFunc("/tasks/{taskId}/members/{action}/{userId}", taskHandler.LogTaskMemberChange).Methods("POST")
 	postPutRouter.Handle("/tasks/status", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleStatusUpdate))))
 	postPutRouter.Handle("/tasks/check", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleCheckingIfUserIsInTask))))
+	//postPutRouter.Handle("/tasks/upload", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.UploadTaskDocument))))
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

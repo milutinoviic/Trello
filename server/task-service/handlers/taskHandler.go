@@ -30,20 +30,29 @@ import (
 )
 
 type TasksHandler struct {
-	logger     *log.Logger
-	repo       *repositories.TaskRepository
-	natsConn   *nats.Conn
-	tracer     trace.Tracer
-	userClient client.UserClient
-	custLogger *customLogger.Logger
+	logger       *log.Logger
+	repo         *repositories.TaskRepository
+	documentRepo *repositories.TaskDocumentRepository
+	natsConn     *nats.Conn
+	tracer       trace.Tracer
+	userClient   client.UserClient
+	custLogger   *customLogger.Logger
 }
 
 type KeyTask struct{}
 type KeyId struct{}
 type KeyRole struct{}
 
-func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, natsConn *nats.Conn, tracer trace.Tracer, userClient client.UserClient, custLogger *customLogger.Logger) *TasksHandler {
-	return &TasksHandler{l, r, natsConn, tracer, userClient, custLogger}
+func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, docRepo *repositories.TaskDocumentRepository, natsConn *nats.Conn, tracer trace.Tracer, userClient client.UserClient, custLogger *customLogger.Logger) *TasksHandler {
+	return &TasksHandler{
+		logger:       l,
+		repo:         r,
+		documentRepo: docRepo,
+		natsConn:     natsConn,
+		tracer:       tracer,
+		userClient:   userClient,
+		custLogger:   custLogger,
+	}
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
@@ -943,3 +952,77 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 	}
 	span.SetStatus(codes.Ok, "Successfully checked user")
 }
+
+/*
+func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request) {
+	// Parsiranje multipart forme
+	err := r.ParseMultipartForm(10 << 20) // 10 MB
+	if err != nil {
+		http.Error(w, "Unable to parse form", http.StatusBadRequest)
+		return
+	}
+
+	// Preuzimanje fajla
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Unable to get file from form", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Preuzimanje taskId iz forme
+	taskId := r.FormValue("taskId")
+	if taskId == "" {
+		http.Error(w, "Missing taskId in form data", http.StatusBadRequest)
+		return
+	}
+
+	// Kreiranje privremenog fajla na lokalnom disku
+	tempDir := os.TempDir()
+	tempFilePath := filepath.Join(tempDir, uuid.New().String()+"_"+header.Filename)
+	tempFile, err := os.Create(tempFilePath)
+	if err != nil {
+		http.Error(w, "Unable to create temporary file", http.StatusInternalServerError)
+		return
+	}
+	defer tempFile.Close()
+
+	// Kopiranje sadržaja iz primljenog fajla u privremeni fajl
+	_, err = io.Copy(tempFile, file)
+	if err != nil {
+		http.Error(w, "Unable to save file", http.StatusInternalServerError)
+		return
+	}
+
+	// Generisanje putanje za HDFS
+	hdfsPath := fmt.Sprintf("/tasks/%s/%s", taskId, header.Filename)
+
+	// Čuvanje fajla na HDFS
+	err = h.hdfsClient.SaveFile(tempFilePath, hdfsPath)
+	if err != nil {
+		http.Error(w, "Unable to save file to HDFS", http.StatusInternalServerError)
+		return
+	}
+
+	// Kreiranje TaskDocument objekta
+	taskDocument := model.TaskDocument{
+		ID:         primitive.NewObjectID(),
+		TaskID:     taskId,
+		FileName:   header.Filename,
+		FileType:   header.Header.Get("Content-Type"),
+		FilePath:   hdfsPath,
+		UploadedAt: primitive.NewDateTimeFromTime(time.Now()),
+	}
+
+	// Čuvanje TaskDocument u bazi
+	err = h.documentRepo.SaveTaskDocument(&taskDocument)
+	if err != nil {
+		http.Error(w, "Unable to save task document to database", http.StatusInternalServerError)
+		return
+	}
+
+	// Uspešan odgovor
+	w.WriteHeader(http.StatusCreated)
+	w.Write([]byte("File uploaded successfully"))
+}
+*/

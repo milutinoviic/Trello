@@ -35,4 +35,13 @@ export class TaskService {
     return this.http.get<boolean>(url, { headers });
   }
 
+  uploadTaskDocument(taskId: string, file: File): Observable<any> {
+    const formData = new FormData();
+    formData.append('taskId', taskId);
+    formData.append('file', file);
+
+    const url = `${this.config.uploadTaskDocumentUrl}`;
+    return this.http.post<any>(url, formData);
+  }
+
 }

@@ -45,7 +45,7 @@
   <div class="modal-content" (click)="$event.stopPropagation()">
 
 
-    <div class="status-buttons" *ngIf="isUserInTask">
+    <div class="status-buttons" *ngIf="isUserInTask || isManager()">
       <button class="btn-status" (click)="changeStatus('Pending')">Pending</button>
       <button class="btn-status" (click)="changeStatus('In Progress')">In Progress</button>
       <button class="btn-status" (click)="changeStatus('Completed')">Completed</button>
@@ -69,6 +69,17 @@
         </div>
       </div>
 
+      <button (click)="fileInput.click()">Ubaci fajl</button>
+      <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
+
+      <div *ngIf="selectedFile">
+        <p>Izabrani fajl: {{ selectedFile.name }}</p>
+        <p>Veličina fajla: {{ selectedFile.size }} bajtova</p>
+        <button (click)="sendFile()">Pošalji fajl</button>
+      </div>
+
+
+
       <h5>Assigned Members:</h5>
       <ul>
         <li *ngFor="let member of taskMembers[selectedTask.id]">
@@ -76,21 +87,7 @@
           <button (click)="removeUserFromTask(selectedTask, member)">Remove</button>
         </li>
       </ul>
-<!--      <h5>Add Dependency:</h5>-->
-<!--      <div *ngIf="project != null">-->
-<!--        <div *ngIf="project?.tasks?.length > 0">-->
-
-<!--        <div *ngFor="let task of project.tasks">-->
-<!--              <span>{{ task.id }}</span>-->
-<!--              <button (click)="addDependencyToTask(selectedTask.id, task.id)">Add</button>-->
-
-<!--        </div>-->
-<!--      </div>-->
-<!--      </div>-->
     </div>
-
-
-
     <button (click)="closeTask()">Close</button>
   </div>
 </div>

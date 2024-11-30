@@ -98,6 +98,10 @@ export class ConfigService {
     return `${this._project_api_url}/projects/${projectId}/manager`;
   }
 
+  uploadTaskDocumentUrl(): string {
+    return `${this._task_api_url}/tasks/documentUpload`;
+  }
+
   getProjectByIdUrl(projectId: string): string {
     return `${this._project_api_url}/${projectId}`;
   }

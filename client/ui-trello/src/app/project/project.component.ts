@@ -345,4 +345,60 @@ export class ProjectComponent implements OnInit {
     });
 
   }
+
+  // onFileSelected1(event: Event): void {
+  //   const input = event.target as HTMLInputElement;
+  //
+  //   if (input.files && input.files.length > 0) {
+  //     const file = input.files[0];
+  //     console.log('Izabran fajl:', file.name);
+  //
+  //   }
+  // }
+  // onFileSelected(event: Event, taskId: string): void {
+  //   const input = event.target as HTMLInputElement;
+  //
+  //   if (input.files && input.files.length > 0) {
+  //     const file = input.files[0];
+  //
+  //     this.taskService.uploadTaskDocument(taskId, file).subscribe(
+  //       (response) => {
+  //         console.log('Upload successful:', response);
+  //       },
+  //       (error) => {
+  //         console.error('Error uploading file:', error);
+  //       }
+  //     );
+  //   }
+  // }
+
+  selectedFile: File | null = null;
+  taskId: string = '12345';
+
+  onFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+
+    if (input.files && input.files.length > 0) {
+      this.selectedFile = input.files[0];
+      console.log('Fajl je učitan:', this.selectedFile.name);
+    }
+  }
+
+  sendFile(): void {
+    if (!this.selectedFile) {
+      console.error('Nije izabran fajl za slanje.');
+      return;
+    }
+
+    this.taskService.uploadTaskDocument(this.taskId, this.selectedFile).subscribe(
+      (response) => {
+        console.log('Fajl uspešno poslat:', response);
+        this.selectedFile = null; // Resetovanje fajla nakon slanja
+      },
+      (error) => {
+        console.error('Greška prilikom slanja fajla:', error);
+      }
+    );
+  }
+
 }
