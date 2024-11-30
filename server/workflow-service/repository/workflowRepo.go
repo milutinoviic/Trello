@@ -257,12 +257,19 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 
 	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
 		query := `
-            MATCH (task:Task {project_id: $projectID})
-            OPTIONAL MATCH (task)-[:DEPENDS_ON]->(dep:Task)
-            RETURN
-                task.id AS id,
-                task.name AS name,
-                collect(dep.id) AS dependencies
+            MATCH (task:Task {projectId: $projectID})
+			OPTIONAL MATCH (task)-[:DEPENDS_ON]->(dep:Task)
+			RETURN 
+			    task.id AS id,
+    			task.name AS name,
+    			task.description AS description,
+    			task.status AS status,
+    			task.blocked AS blocked,
+    			task.user_ids AS user_ids,
+    			task.created_at AS created_at,
+    			task.updated_at AS updated_at,
+    			collect(dep.id) AS dependencies
+
         `
 		params := map[string]any{"projectID": projectID}
 		res, err := tx.Run(ctx, query, params)
@@ -274,63 +281,64 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 		}
 
 		graph := map[string]any{"nodes": []map[string]any{}, "edges": []map[string]string{}}
-		existingTasks := make(map[string]bool)
-
+		nodesMap := make(map[string]map[string]any)
+		edgesSet := make(map[string]bool)
+		wf.logger.Println("graph:", graph)
 		for res.Next(ctx) {
 			record := res.Record()
-			taskID, ok := record.Values[0].(string)
-			if !ok {
-				wf.logger.Println("Invalid task ID:", record.Values[0])
-				continue
-			}
-			taskName, ok := record.Values[1].(string)
-			if !ok {
-				wf.logger.Println("Invalid task name:", record.Values[1])
-				continue
-			}
-			dependencies, ok := record.Values[2].([]any)
-			if !ok {
-				wf.logger.Println("Invalid dependencies:", record.Values[2])
-				continue
-			}
+			taskID, _ := record.Get("id")
+			taskName, _ := record.Get("name")
+			dependencies, _ := record.Get("dependencies")
 
-			if !existingTasks[taskID] {
-				err := wf.createTaskIfNotExist(taskID, taskName, projectID)
-				if err != nil {
-					return nil, err
+			taskIDStr, ok := taskID.(string)
+			if !ok {
+				wf.logger.Println("Invalid task ID:", taskID)
+				continue
+			}
+			taskNameStr, ok := taskName.(string)
+			if !ok {
+				wf.logger.Println("Invalid task name:", taskName)
+				continue
+			}
+			dependenciesList, _ := dependencies.([]any)
+			if _, exists := nodesMap[taskIDStr]; !exists {
+				nodesMap[taskIDStr] = map[string]any{
+					"id":    taskIDStr,
+					"label": taskNameStr,
 				}
-				existingTasks[taskID] = true
 			}
-
-			nodes := graph["nodes"].([]map[string]any)
-			nodes = append(nodes, map[string]any{
-				"id":    taskID,
-				"label": taskName,
-			})
-			graph["nodes"] = nodes
-
-			for _, dep := range dependencies {
+			for _, dep := range dependenciesList {
 				depID, ok := dep.(string)
 				if !ok {
-					wf.logger.Println("Skipping invalid dependency:", dep)
+					wf.logger.Println("Invalid dependency ID:", dep)
 					continue
 				}
-				if !existingTasks[depID] {
-					err := wf.createTaskIfNotExist(depID, "Dependency Task", projectID)
-					if err != nil {
-						return nil, err
-					}
-					existingTasks[depID] = true
+
+				edgeKey := taskIDStr + "->" + depID
+				if !edgesSet[edgeKey] {
+					edgesSet[edgeKey] = true
+					edges := graph["edges"].([]map[string]string)
+					edges = append(edges, map[string]string{
+						"from": taskIDStr,
+						"to":   depID,
+					})
+					graph["edges"] = edges
 				}
 
-				edges := graph["edges"].([]map[string]string)
-				edges = append(edges, map[string]string{
-					"from": taskID,
-					"to":   depID,
-				})
-				graph["edges"] = edges
+				if _, exists := nodesMap[depID]; !exists {
+					nodesMap[depID] = map[string]any{
+						"id":    depID,
+						"label": "Dependency Task",
+					}
+				}
 			}
 		}
+
+		nodesSlice := make([]map[string]any, 0, len(nodesMap))
+		for _, node := range nodesMap {
+			nodesSlice = append(nodesSlice, node)
+		}
+		graph["nodes"] = nodesSlice
 
 		if err := res.Err(); err != nil {
 			wf.logger.Println("Error in query result:", err)
@@ -351,6 +359,7 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 
 	span.SetStatus(codes.Ok, "Successfully retrieved task graph")
 	return result.(map[string]any), nil
+
 }
 
 func (wf *WorkflowRepo) createTaskIfNotExist(taskID, taskName, projectID string) error {

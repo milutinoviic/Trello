@@ -25,7 +25,7 @@ export class GraphEditorComponent implements OnInit {
   fetchGraph() {
     this.graphService.getWorkflowByProject(this.projectId).subscribe({
       next: (graph) => {
-        console.log(graph)
+        console.log("GRAPH: ", graph)
         this.nodes = graph.nodes.map((node: any) => ({
           id: node.id,
           label: node.label,

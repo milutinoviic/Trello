@@ -135,5 +135,5 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 		return
 	}
 	span.SetStatus(codes.Ok, "Successfully fetched task graph")
-	rw.WriteHeader(http.StatusOK)
+	//rw.WriteHeader(http.StatusOK) // no need to set this when using .Encode, encode already sets statusOK
 }
