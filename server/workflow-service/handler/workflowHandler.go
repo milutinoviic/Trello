@@ -73,11 +73,13 @@ func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 
 func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
-	taskId, err := strconv.Atoi(vars["taskId"])
-	dependency, err := strconv.Atoi(vars["dependencyId"])
-	err = w.repo.AddDependency(taskId, dependency)
+	taskId := vars["taskId"]
+	dependency := vars["dependencyId"]
+	w.logger.Print("TaskId", taskId)
+	w.logger.Print("dependencyId", dependency)
+	err := w.repo.AddDependency(taskId, dependency)
 	if err != nil {
-		w.logger.Print("Database exception: ", err)
+		w.logger.Print("Database exception:", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}

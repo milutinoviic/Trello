@@ -205,13 +205,13 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 	return task.(*model.TaskGraph), nil
 }
 
-func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
+func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error {
 	ctx := context.Background()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
+	// TODO: Make a proper check for cycles, now this version only generated new connections
 	_, err := session.ExecuteWrite(ctx, func(transaction neo4j.ManagedTransaction) (any, error) {
-		//check for cycles
 		checkQuery := `
 			MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
 			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
@@ -222,6 +222,16 @@ func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
 		if err != nil {
 			return nil, err
 		}
+		checkQuery2 := `
+			MATCH (t:Task {id: $dependencyID}), (d:Task {id:  $taskID})
+			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
+			OPTIONAL MATCH (t)-[r:DEPENDS_ON]->(d)
+			RETURN r IS NOT NULL AS hasCycle
+		`
+		checkResult2, err := transaction.Run(ctx, checkQuery2, checkParams)
+		if err != nil {
+			return nil, err
+		}
 
 		if checkResult.Next(ctx) {
 			hasCycle, _ := checkResult.Record().Get("hasCycle")
@@ -229,6 +239,29 @@ func (wf *WorkflowRepo) AddDependency(taskID int, dependencyID int) error {
 				return nil, errors.New("adding this dependency would create a cycle")
 			}
 		}
+		if checkResult2.Next(ctx) {
+			hasCycle, _ := checkResult2.Record().Get("hasCycle")
+			if hasCycle.(bool) {
+				return nil, errors.New("adding this dependency would create a cycle")
+			}
+		}
+		checkCycleQuery := `
+			MATCH (t:Task {id: $taskID}), (d:Task {id: $dependencyID})
+			OPTIONAL MATCH path = (d)-[:DEPENDS_ON*]->(t)
+			RETURN path IS NOT NULL AS hasCycle
+		`
+		checkCycleParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
+		checkCycleResult, err := transaction.Run(ctx, checkCycleQuery, checkCycleParams)
+		if err != nil {
+			return nil, err
+		}
+		if checkCycleResult.Next(ctx) {
+			hasCycle, _ := checkCycleResult.Record().Get("hasCycle")
+			if hasCycle.(bool) {
+				return nil, errors.New("adding this dependency would create a cycle")
+			}
+		}
+
 		updateQuery := `
 			MATCH (t1:Task {id: $taskID}), (t2:Task {id: $dependencyID})
 			CREATE (t1)-[:DEPENDS_ON {created_at: datetime()}]->(t2);

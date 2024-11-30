@@ -324,10 +324,13 @@ export class ProjectComponent implements OnInit {
         console.log(`User added dependency successfully: ${dependecyId}`);
         if (this.projectId) {
           this.loadProjectDetails(this.projectId);
+          this.toastr.success("Succesfully created connection between tasks");
         }
       },
       error: (error) => {
-        console.error('Error updating task member:', error);
+        console.error('Error making task connection:', error);
+        this.toastr.success("Error making task connection:", error);
+
       }
     });
   }
