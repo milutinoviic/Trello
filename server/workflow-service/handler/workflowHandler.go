@@ -1,11 +1,15 @@
 package handler
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"io/ioutil"
 	"log"
@@ -13,7 +17,6 @@ import (
 	"main.go/model"
 	"main.go/repository"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -85,13 +88,12 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 	w.logger.Print("dependencyId", dependency)
 	err := w.repo.AddDependency(taskId, dependency)
 	if err != nil {
-		w.logger.Print("Database exception:", err)
+		w.logger.Print("Database exception: ", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	////TODO: call task server and change blocked to true for dependecyId
-	linkToTaskService := os.Getenv("LINK_TO_TASK_SERVICE")
-	taskServiceURL := fmt.Sprintf("%s/tasks/%s/block", linkToTaskService, dependency)
+	taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s/block", dependency)
 	w.logger.Printf("Block task at %s", taskServiceURL)
 
 	req, err := http.NewRequest("POST", taskServiceURL, strings.NewReader("{}"))
@@ -125,9 +127,7 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 		return
 	}
 
-	//call task server to add dependecyId to task
-	//linkToTaskService := os.Getenv("LINK_TO_TASK_SERVICE")
-	dependencyTaskServiceURL := fmt.Sprintf("%s/tasks/%s/dependency/%s", linkToTaskService, taskId, dependency)
+	dependencyTaskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s/dependency/%s", taskId, dependency)
 	w.logger.Printf("Add depenedency to task at %s", dependencyTaskServiceURL)
 
 	req2, err := http.NewRequest("POST", dependencyTaskServiceURL, strings.NewReader("{}"))
@@ -196,4 +196,44 @@ func createTLSClient() (*http.Client, error) {
 	}
 
 	return client, nil
+}
+
+func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.Request) {
+	vars := mux.Vars(h)
+	_, span := w.tracer.Start(context.Background(), "WorkflowHandler.GetTaskGraphByProject")
+	defer span.End()
+	projectID, ok := vars["project_id"]
+	if !ok {
+		span.RecordError(errors.New("Missing project_id"))
+		span.SetStatus(codes.Error, "Missing project_id")
+		http.Error(rw, "Missing project_id in route parameters", http.StatusBadRequest)
+		return
+	}
+
+	objectID, err := primitive.ObjectIDFromHex(projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Invalid project_id format", http.StatusBadRequest)
+		return
+	}
+
+	taskGraph, err := w.repo.GetTaskGraph(objectID.Hex())
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Error fetching task graph: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(rw).Encode(taskGraph)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "Error encoding response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	span.SetStatus(codes.Ok, "Successfully fetched task graph")
+	//rw.WriteHeader(http.StatusOK) // no need to set this when using .Encode, encode already sets statusOK
 }

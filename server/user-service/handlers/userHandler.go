@@ -1118,24 +1118,19 @@ func createTLSClient() (*http.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return nil, err
-	}
+	caCertPool.AppendCertsFromPEM(caCert)
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConns:        10,
-		MaxIdleConnsPerHost: 10,
-		MaxConnsPerHost:     10,
+		TLSClientConfig: tlsConfig,
 	}
 
 	client := &http.Client{
-		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
@@ -1185,29 +1180,4 @@ func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request
 	}
 	span.SetStatus(codes.Ok, " role found")
 
-}
-
-func executeRequest(ctx context.Context, client *http.Client, req *http.Request) (*http.Response, error) {
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode == http.StatusGatewayTimeout || resp.StatusCode == http.StatusServiceUnavailable {
-		return nil, domain.ErrRespTmp{
-			URL:        resp.Request.URL.String(),
-			Method:     resp.Request.Method,
-			StatusCode: resp.StatusCode,
-		}
-	}
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return nil, domain.ErrResp{
-			URL:        resp.Request.URL.String(),
-			Method:     resp.Request.Method,
-			StatusCode: resp.StatusCode,
-		}
-	}
-
-	return resp, nil
 }

@@ -9,6 +9,7 @@ import {Account} from "../models/account.model";
 import {UserDetails} from "../models/userDetails";
 import {HttpClient, HttpHeaders} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
+import {TaskNode} from "../models/task-graph";
 
 @Component({
   selector: 'app-project',
@@ -33,6 +34,7 @@ export class ProjectComponent implements OnInit {
   private allUsers!: UserDetails[];
   filteredUsers: { [taskId: string]: UserDetails[] } = {};
   taskMembers: { [taskId: string]: UserDetails[] } = {};
+
 
 
 
@@ -259,15 +261,22 @@ export class ProjectComponent implements OnInit {
   }
 
   addDependencyToTask(selectedTaskId: string, dependencyId: string) {
-
-    if(this.selectedTask!= null){
-      this.selectedTask.dependencies.push(dependencyId);
+    if (this.selectedTask == null) {
+      console.error("No selected task. Cannot add dependency.");
+      return;
     }
-    console.log(this.selectedTask);
 
-  this.addDependency(selectedTaskId, dependencyId);
+    if (!Array.isArray(this.selectedTask.dependencies)) {
+      this.selectedTask.dependencies = [];
+    }
 
+    this.selectedTask.dependencies.push(dependencyId); // Safe to push now
+    console.log("Updated selected task:", this.selectedTask);
+
+    this.addDependency(selectedTaskId, dependencyId);
   }
+
+
 
   removeUserFromTask(selectedTask: TaskDetails, member: UserDetails) {
     const assignedMembers = this.taskMembers[selectedTask.id] || [];

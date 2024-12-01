@@ -14,6 +14,7 @@ export class TaskService {
   getTasksByProjectId(projectId: string): Observable<Task[]> {
     return this.http.get<Task[]>(this.config.getTasksByProjectId(projectId)) }
 
+
   addTask(newTask: Task): Observable<{message: string, task: Task, taskId: string}> {
     return this.http.post<{ message: string, task: Task, taskId: string }>(`${this.config.new_task_url}/tasks`, newTask);
   }
