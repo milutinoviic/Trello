@@ -361,6 +361,7 @@ services:
       - ${WORKFLOW_SERVICE_PORT}
     environment:
       - PORT=${PORT}
+      - NATS_URL=${NATS_URL}
       - NEO4J_DB=${NEO4J_DB}
       - NEO4J_USERNAME=${NEO4J_USERNAME}
       - NEO4J_PASS=${NEO4J_PASS}

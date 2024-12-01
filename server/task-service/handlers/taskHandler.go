@@ -946,3 +946,103 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 	}
 	span.SetStatus(codes.Ok, "Successfully checked user")
 }
+
+func (th *TasksHandler) BlockTask(rw http.ResponseWriter, r *http.Request) {
+	th.logger.Println("Received request to block task")
+	th.custLogger.Info(nil, "Received request to block task")
+
+	vars := mux.Vars(r)
+	taskId := vars["taskId"]
+	task, err := th.repo.GetByID(taskId)
+	if err != nil {
+		th.logger.Print("Database exception:", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	err = th.repo.UpdateFlag(task)
+	if err != nil {
+		th.logger.Print("Database exception:", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+}
+
+func (th *TasksHandler) AddDependencyToTask(rw http.ResponseWriter, r *http.Request) {
+	th.logger.Println("Received request to add dependency to task")
+	th.custLogger.Info(nil, "Received request to add dependency to task")
+
+	vars := mux.Vars(r)
+	taskId := vars["taskId"]
+	task, err := th.repo.GetByID(taskId)
+	if err != nil {
+		th.logger.Print("Database exception:", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	dependencyId := vars["dependencyId"]
+	//dependency, err := th.repo.GetByID(dependencyId)
+	//if err != nil {
+	//	th.logger.Print("Database exception:", err)
+	//	rw.WriteHeader(http.StatusInternalServerError)
+	//	return
+	//}
+	th.logger.Println("dependencyId: ", dependencyId)
+	th.logger.Println("taskId: ", taskId)
+
+	err = th.repo.AddDependency(task, dependencyId)
+	if err != nil {
+		th.logger.Print("Database exception:", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+}
+
+// TODO: check this and make it work( it has to receive a nats request and block task)
+func (th *TasksHandler) listenForDependencyUpdates() {
+	nc, err := Conn()
+	if err != nil {
+		th.logger.Printf("Failed to connect to NATS: %v", err)
+		return
+	}
+	defer nc.Close()
+
+	_, err = nc.Subscribe("task.dependency.updated", func(msg *nats.Msg) {
+		th.logger.Printf("Message received: %s", string(msg.Data))
+		var event map[string]string
+		err := json.Unmarshal(msg.Data, &event)
+		if err != nil {
+			th.logger.Printf("Error unmarshalling event: %v", err)
+			return
+		}
+
+		taskID := event["taskID"]
+		dependencyID := event["dependencyID"]
+
+		th.logger.Printf("Processing dependency update for TaskID: %s, DependencyID: %s", taskID, dependencyID)
+		th.updateBlockedStatus(dependencyID)
+	})
+	if err != nil {
+		log.Fatalf("Error subscribing to NATS subject: %v", err)
+	}
+
+	select {}
+}
+
+func (th *TasksHandler) updateBlockedStatus(taskID string) {
+	th.custLogger.Info(nil, "Received nats request to change flag of task to blocked")
+	th.logger.Println("Received nats request to change flag of task to blocked")
+
+	task, err := th.repo.GetByID(taskID)
+	if err != nil {
+		th.custLogger.Info(nil, "Cannot find task by id")
+		return
+	}
+	task.Blocked = true
+	err = th.repo.UpdateFlag(task)
+	if err != nil {
+		th.custLogger.Info(nil, "Cannot find task by id")
+		return
+	}
+}

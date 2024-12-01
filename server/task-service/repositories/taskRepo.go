@@ -282,6 +282,57 @@ func (tr *TaskRepository) Update(task *model.Task) error {
 	return nil
 }
 
+func (tr *TaskRepository) UpdateFlag(task *model.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
+	defer span.End()
+
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": task.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"blocked":    true,
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := tasksCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully updated the task flag")
+	return nil
+}
+
+func (tr *TaskRepository) AddDependency(task *model.Task, dependencyID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateDependency")
+	defer span.End()
+	task.Dependencies = append(task.Dependencies, dependencyID)
+	tr.logger.Println("new dependencies: ", task.Dependencies)
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": task.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"dependencies": task.Dependencies,
+			"updated_at":   time.Now(),
+		},
+	}
+
+	_, err := tasksCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully updated the task flag")
+	return nil
+}
+
 func (tr *TaskRepository) InsertTaskMemberActivity(change *model.TaskMemberActivity) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

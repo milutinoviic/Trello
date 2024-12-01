@@ -252,7 +252,11 @@ func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error 
 		`
 		updateParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
 		_, err = transaction.Run(ctx, updateQuery, updateParams)
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+
+		return nil, nil
 
 	})
 
