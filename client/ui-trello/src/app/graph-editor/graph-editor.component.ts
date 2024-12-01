@@ -5,11 +5,21 @@ import { HttpClient } from '@angular/common/http';
 import { GraphService } from "../services/graph.service";
 import { Edge, TaskNode } from "../models/task-graph";
 import { Network } from "vis-network";
-import {NetworkEvents} from "vis";
 
 @Component({
   selector: 'app-graph-editor',
-  template: `<div id="graph" style="width: 100%; height: 600px; border: 1px solid #ddd;"></div>`,
+  template: `<div id="graph" style="width: 100%; height: 600px; border: 1px solid #ddd; position: relative;"></div>
+  <div id="tooltip" style="
+    position: absolute;
+    padding: 8px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    border-radius: 4px;
+    display: none;
+    pointer-events: none;
+    font-size: 12px;">
+  </div>
+  `,
   styles: [],
 })
 export class GraphEditorComponent implements OnInit {
@@ -35,6 +45,7 @@ export class GraphEditorComponent implements OnInit {
     const visNodes = this.nodes.map((node) => ({
       id: node.id,
       label: node.label,
+      description: node.description, // Include description
     }));
 
     const visEdges = this.links.map((link) => ({
@@ -73,39 +84,36 @@ export class GraphEditorComponent implements OnInit {
         dragNodes: true,
         dragView: true,
         zoomView: true,
-      },
-      manipulation: {
-        enabled: true,
-        addEdge: (edgeData: any, callback: Function) => {
-
-          if (window.confirm("Do you want to connect these nodes?")) {
-            this.addEdgeToGraph(edgeData);
-            callback(edgeData);
-          } else {
-            callback(null);
-          }
-        },
+        hover: true,
       },
     };
 
     const container = this.elRef.nativeElement.querySelector('#graph');
+    const tooltip = this.elRef.nativeElement.querySelector('#tooltip');
     const network = new Network(container, data, options);
-  }
 
-  addEdgeToGraph(edgeData: any) {
-    const taskID = edgeData.from;
-    const dependencyID = edgeData.to;
 
-    this.graphService.addDependency(taskID, dependencyID).subscribe({
-      next: () => {
-        console.log('Dependency added successfully');
-        this.links.push({ from: taskID, to: dependencyID });
-      },
-      error: (err) => {
-        console.error('Error adding dependency:', err);
-        alert("Failed to add dependency. Please try again.");
-      },
+    network.on('hoverNode', (params) => {
+      const nodeId = params.node;
+      const node = visNodes.find((n) => n.id === nodeId);
+
+      if (node) {
+        tooltip.style.display = 'block';
+        tooltip.innerText = node.description || 'No description available';
+      }
+    });
+
+
+    network.on('blurNode', () => {
+      tooltip.style.display = 'none';
+    });
+
+    container.addEventListener('mousemove', (event: MouseEvent) => {
+      tooltip.style.left = `${event.pageX + 10}px`;
+      tooltip.style.top = `${event.pageY + 10}px`;
     });
   }
+
+
 
 }

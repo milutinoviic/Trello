@@ -284,6 +284,7 @@ services:
       - CASSANDRA_PORT=${CASSANDRA_PORT}
       - CASSANDRA_KEYSPACE=${CASSANDRA_KEYSPACE}
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
+      - LINK_TO_USER_SERVICE=${LINK_TO_USER_SERVICE}
     depends_on:
       cassandra:
         condition: service_healthy
@@ -357,6 +358,7 @@ services:
       - NEO4J_DB=${NEO4J_DB}
       - NEO4J_USERNAME=${NEO4J_USERNAME}
       - NEO4J_PASS=${NEO4J_PASS}
+      - LINK_TO_USER_SERVICE=${LINK_TO_USER_SERVICE}
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
     depends_on:
       neo4j:

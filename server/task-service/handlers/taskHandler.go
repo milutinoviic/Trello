@@ -209,95 +209,23 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 	}
 	t.custLogger.Info(logrus.Fields{"projectID": projectID, "taskCount": len(tasks)}, "Tasks fetched successfully")
 
-	// Step 4: Prepare maps for dependency resolution and user IDs
-	dependencyMap := make(map[string]bool)
-	userIDSet := make(map[string]struct{})
-	var fetchDependencies func(taskID string) ([]model.Task, error)
+	// Step 4: Prepare a slice to store tasks with user details
+	var tasksWithUserDetails []client.TaskDetails
 
-	fetchDependencies = func(taskID string) ([]model.Task, error) {
-		if dependencyMap[taskID] {
-			// Skip already processed dependencies
-			return nil, nil
-		}
-		dependencyMap[taskID] = true
-
-		// Fetch the task
-		t.custLogger.Debug(logrus.Fields{"taskID": taskID}, "Fetching dependencies for task")
-		relatedTasks, err := t.repo.GetDependenciesByTaskId(taskID)
-		if err != nil {
-			return nil, fmt.Errorf("error fetching dependencies for task '%s': %v", taskID, err)
-		}
-		t.custLogger.Debug(logrus.Fields{"taskID": taskID, "dependencyCount": len(relatedTasks)}, "Fetched dependencies")
-
-		var allDependencies []model.Task
-		for _, depTask := range relatedTasks {
-			allDependencies = append(allDependencies, depTask)
-
-			// Add user IDs to set for batch fetch
-			for _, userID := range depTask.UserIDs {
-				userIDSet[userID] = struct{}{}
-			}
-
-			// Recursively fetch dependencies for each related task
-			subDeps, err := fetchDependencies(depTask.ID.Hex())
-			if err != nil {
-				t.custLogger.Warn(logrus.Fields{"taskID": depTask.ID}, "Skipping dependencies due to error: "+err.Error())
-				continue
-			}
-			allDependencies = append(allDependencies, subDeps...)
-
-		}
-		return allDependencies, nil
-	}
-
-	// Step 5: Fetch all user details
+	// Step 5: Fetch user details for each task
 	for _, task := range tasks {
-		for _, userID := range task.UserIDs {
-			userIDSet[userID] = struct{}{}
-		}
-
-		// Resolve dependencies
-		_, err := fetchDependencies(task.ID.Hex())
+		t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Fetching user details for task")
+		usersDetails, err := t.userClient.GetByIdsWithCookies(task.UserIDs, cookie)
 		if err != nil {
-			t.custLogger.Error(logrus.Fields{"taskID": task.ID}, "Failed to fetch dependencies: "+err.Error())
-			http.Error(rw, "Error resolving task dependencies", http.StatusInternalServerError)
+			errMsg := "Error fetching user details"
+			t.logger.Printf("%s for task ID '%s': %v", errMsg, task.ID, err)
+			t.custLogger.Error(logrus.Fields{"taskID": task.ID}, errMsg+": "+err.Error())
+			http.Error(rw, "Error fetching user details for tasks", http.StatusInternalServerError)
 			return
 		}
-	}
+		t.custLogger.Info(logrus.Fields{"taskID": task.ID, "userCount": len(usersDetails)}, "User details fetched successfully")
 
-	uniqueUserIDs := make([]string, 0, len(userIDSet))
-	for userID := range userIDSet {
-		uniqueUserIDs = append(uniqueUserIDs, userID)
-	}
-
-	usersDetails, err := t.userClient.GetByIdsWithCookies(uniqueUserIDs, cookie)
-	if err != nil {
-		t.custLogger.Error(nil, "Failed to fetch user details: "+err.Error())
-		http.Error(rw, "Error fetching user details", http.StatusInternalServerError)
-		return
-	}
-
-	// Step 6: Prepare the response
-	userMap := make(map[string]*client.UserDetails)
-	for _, user := range usersDetails {
-		userMap[user.ID.String()] = user
-	}
-
-	var tasksWithUserDetails []client.TaskDetails
-	for _, task := range tasks {
-		dependencies, _ := fetchDependencies(task.ID.Hex()) // Dependencies are already fetched
-
-		var users []*client.UserDetails
-		for _, userID := range task.UserIDs {
-			if user, ok := userMap[userID]; ok {
-				users = append(users, user)
-			}
-		}
-		var dependencyList []string
-		for _, dependency := range dependencies {
-			dependencyList = append(dependencyList, dependency.ID.Hex())
-		}
-
+		// Step 6: Map task to TaskDetails and include user details
 		taskDetails := client.TaskDetails{
 			ID:           task.ID,
 			ProjectID:    task.ProjectID,
@@ -307,12 +235,16 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 			CreatedAt:    task.CreatedAt,
 			UpdatedAt:    task.UpdatedAt,
 			UserIDs:      task.UserIDs,
-			Users:        users,
-			Dependencies: dependencyList,
+			Users:        usersDetails,
+			Dependencies: task.Dependencies,
 			Blocked:      task.Blocked,
 		}
+
+		// Add the task with user details to the result slice
 		tasksWithUserDetails = append(tasksWithUserDetails, taskDetails)
 	}
+
+	t.logger.Printf("Tasks with details is: %+v", tasksWithUserDetails)
 
 	// Step 7: Return the tasks with user details in the response
 	if err := json.NewEncoder(rw).Encode(tasksWithUserDetails); err != nil {

@@ -7,6 +7,7 @@ export interface TaskGraph {
 export interface TaskNode {
   id: string;
   label: string;
+  description: any;
 }
 
 export interface Edge {

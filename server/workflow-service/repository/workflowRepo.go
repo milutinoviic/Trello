@@ -309,6 +309,7 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 			record := res.Record()
 			taskID, _ := record.Get("id")
 			taskName, _ := record.Get("name")
+			taskDescription, _ := record.Get("description")
 			dependencies, _ := record.Get("dependencies")
 
 			taskIDStr, ok := taskID.(string)
@@ -321,11 +322,18 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 				wf.logger.Println("Invalid task name:", taskName)
 				continue
 			}
+			taskDescriptionStr, ok := taskDescription.(string)
+			if !ok {
+				wf.logger.Println("Invalid task description:", taskDescription)
+				continue
+			}
+
 			dependenciesList, _ := dependencies.([]any)
 			if _, exists := nodesMap[taskIDStr]; !exists {
 				nodesMap[taskIDStr] = map[string]any{
-					"id":    taskIDStr,
-					"label": taskNameStr,
+					"id":          taskIDStr,
+					"label":       taskNameStr,
+					"description": taskDescriptionStr,
 				}
 			}
 			for _, dep := range dependenciesList {
@@ -348,8 +356,9 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 
 				if _, exists := nodesMap[depID]; !exists {
 					nodesMap[depID] = map[string]any{
-						"id":    depID,
-						"label": "Dependency Task",
+						"id":          depID,
+						"label":       "Dependency Task",
+						"description": "Task Description",
 					}
 				}
 			}

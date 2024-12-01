@@ -34,6 +34,7 @@ export class ProjectComponent implements OnInit {
   private allUsers!: UserDetails[];
   filteredUsers: { [taskId: string]: UserDetails[] } = {};
   taskMembers: { [taskId: string]: UserDetails[] } = {};
+  tasks: TaskDetails[] = [];
 
 
 
@@ -68,6 +69,7 @@ export class ProjectComponent implements OnInit {
     this.projectService.getProjectDetailsById(projectId).subscribe({
       next: (data: ProjectDetails) => {
         this.project = data;
+        this.tasks = this.project.tasks;
         console.log(this.project);
         const userIds = this.project.user_ids;
         if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -174,18 +176,51 @@ export class ProjectComponent implements OnInit {
 
   changeStatus(newStatus: TaskStatus): void {
     if (this.selectedTask) {
-      const taskId = this.selectedTask.id; // Preuzmite ID trenutnog taska
+      const dependencies = this.getAllTaskDependencies(this.selectedTask);
+      console.log("All Dependencies:::" + JSON.stringify(dependencies));
+
+      const hasPendingDependencies = dependencies.some(dep => dep.status === 'Pending');
+      console.log("Has pending dependencies? " + hasPendingDependencies);
+
+      if (hasPendingDependencies) {
+        this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
+        return;
+      }
+
+      const taskId = this.selectedTask.id; // Get the ID of the selected task
       this.projectService.updateTaskStatus(taskId, newStatus).subscribe({
         next: () => {
-          this.selectedTask!.status = newStatus; // Ažurirajte status lokalno
+          this.selectedTask!.status = newStatus; // Update the status locally
           console.log(`Status successfully updated to: ${newStatus}`);
-          this.refreshTaskLists(); // Osvežavanje taskova po statusu
+          this.refreshTaskLists(); // Refresh tasks based on the new status
+          this.toastr.success("Successfully changed the status.");
         },
         error: (err) => {
           console.error('Failed to update task status:', err);
+          this.toastr.warning("You can't change the status at this time.");
         },
       });
     }
+  }
+
+
+  getAllTaskDependencies(task: TaskDetails): TaskDetails[] {
+    console.log("Fetching dependencies for task: " + JSON.stringify(task));
+
+
+    const dependencies: TaskDetails[] = this.tasks.filter(t => task.dependencies.includes(t.id));
+    console.log("Direct Dependencies: " + JSON.stringify(dependencies));
+
+
+    let allDependencies: TaskDetails[] = [...dependencies];
+    dependencies.forEach(dep => {
+      const subDependencies = this.getAllTaskDependencies(dep);
+      allDependencies = [...allDependencies, ...subDependencies];
+    });
+
+    console.log("All Dependencies including nested: " + JSON.stringify(allDependencies));
+
+    return allDependencies;
   }
 
   refreshTaskLists(): void {
@@ -361,5 +396,33 @@ export class ProjectComponent implements OnInit {
       }
     });
 
+  }
+
+  getTaskNameById(depId: string): string {
+    const name = this.tasks.find(t => t.id === depId)
+    if (!name) {
+      return ""
+    }
+    return name.name;
+
+  }
+
+  getAllTaskDependenciesRecursive(task: TaskDetails): TaskDetails[] {
+    const dependencies = this.tasks.filter(t => task.dependencies.includes(t.id));
+    const allDependencies = [...dependencies];
+
+    dependencies.forEach(dep => {
+      allDependencies.push(...this.getAllTaskDependenciesRecursive(dep));
+    });
+
+    return allDependencies;
+  }
+
+  getAvailableDependencies(): TaskDetails[] {
+    const allDependencies = this.getAllTaskDependenciesRecursive(this.selectedTask!);
+
+    return this.tasks.filter(task =>
+      task.id !== this.selectedTask!.id && !allDependencies.some(dep => dep.id === task.id)
+    );
   }
 }
