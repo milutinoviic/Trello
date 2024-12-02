@@ -40,6 +40,10 @@
   </div>
 </div>
 
+<div *ngIf="projectId && isManager()">
+  <app-graph-editor [projectId]="projectId"></app-graph-editor>
+</div>
+
 
 <div *ngIf="selectedTask" class="modal" (click)="closeTask()">
   <div class="modal-content" (click)="$event.stopPropagation()">
@@ -57,8 +61,10 @@
     <p><strong>Status:</strong> {{ selectedTask.status }}</p>
     <p><strong>Created At:</strong> {{ selectedTask.createdAt | date }}</p>
     <p><strong>Updated At:</strong> {{ selectedTask.updatedAt | date }}</p>
-    <p><strong>Users:</strong></p>
+    <p><strong>Blocked:</strong> {{selectedTask.blocked}}</p>
+
     <div *ngIf="isManager()" class="user-management">
+      <p><strong>Users:</strong></p>
       <label for="userSearch">Search Users:</label>
       <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
 
@@ -102,8 +108,28 @@
       </ng-template>
     </div>
     <button (click)="closeTask()">Close</button>
+
+
+      <div *ngIf="isManager()">
+        <h5>Add Dependency:</h5>
+        <div class="add-dependency">
+          <div *ngFor="let task of getAvailableDependencies()">
+            <span class="dependency-name">{{ task.name }}</span>
+            <button class="btn-add" (click)="addDependencyToTask(selectedTask.id, task.id)">Add</button>
+          </div>
+        </div>
+
+        <h5>Added Dependencies:</h5>
+        <div class="added-dependencies">
+          <div *ngFor="let depId of selectedTask.dependencies">
+            <span class="dependency-name">{{ getTaskNameById(depId) }}</span>
+          </div>
+        </div>
+      </div>
+
+      <button (click)="closeTask()">Close</button>
+    </div>
   </div>
-</div>
 
 
 <div class="modal" tabindex="-1" [class.show]="showAddMemberModal" [style.display]="showAddMemberModal ? 'block' : 'none'">
@@ -143,5 +169,7 @@
       </div>
     </div>
   </div>
-</div>
 
+
+
+</div>

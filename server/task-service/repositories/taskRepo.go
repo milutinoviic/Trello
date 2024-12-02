@@ -101,6 +101,11 @@ func (tr *TaskRepository) Insert(task *model.Task) error {
 
 	insertOneCtx, insertOneSpan := tr.tracer.Start(ctx, "TaskRepository.Insert.InsertOne")
 	result, err := tasksCollection.InsertOne(insertOneCtx, task)
+	if oid, ok := result.InsertedID.(primitive.ObjectID); ok {
+		task.ID = oid
+	} else {
+		tr.logger.Println("Failed to convert InsertedID to ObjectID")
+	}
 	insertOneSpan.End()
 	if err != nil {
 		span.RecordError(err)
@@ -139,6 +144,30 @@ func (tr *TaskRepository) GetAllTask() (model.Tasks, error) {
 	}
 	span.SetStatus(codes.Ok, "Successfully got all tasks")
 	return tasks, nil
+}
+
+func (tr *TaskRepository) GetDependenciesByTaskId(taskID string) ([]model.Task, error) {
+	var tasks []model.Task
+	filter := bson.M{"_id": taskID}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	tasksCollection := tr.getCollection()
+	tasksCursor, err := tasksCollection.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer tasksCursor.Close(ctx)
+
+	for tasksCursor.Next(ctx) {
+		var task model.Task
+		if err := tasksCursor.Decode(&task); err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, tasksCursor.Err()
 }
 
 func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, error) {
@@ -274,6 +303,57 @@ func (tr *TaskRepository) Update(task *model.Task) error {
 		return err
 	}
 	span.SetStatus(codes.Ok, "Successfully updated the task")
+	return nil
+}
+
+func (tr *TaskRepository) UpdateFlag(task *model.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
+	defer span.End()
+
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": task.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"blocked":    true,
+			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := tasksCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully updated the task flag")
+	return nil
+}
+
+func (tr *TaskRepository) AddDependency(task *model.Task, dependencyID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateDependency")
+	defer span.End()
+	task.Dependencies = append(task.Dependencies, dependencyID)
+	tr.logger.Println("new dependencies: ", task.Dependencies)
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": task.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"dependencies": task.Dependencies,
+			"updated_at":   time.Now(),
+		},
+	}
+
+	_, err := tasksCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully updated the task flag")
 	return nil
 }
 

@@ -7,9 +7,10 @@ import {Task, TaskStatus} from "../models/task";
 import {TaskService} from "../services/task.service";
 import {Account} from "../models/account.model";
 import {UserDetails} from "../models/userDetails";
-import {HttpClient} from "@angular/common/http";
+import {HttpClient, HttpHeaders} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
 import {TaskDocumentDetails} from "../models/taskDocumentDetails.model";
+import {TaskNode} from "../models/task-graph";
 
 @Component({
   selector: 'app-project',
@@ -34,6 +35,8 @@ export class ProjectComponent implements OnInit {
   private allUsers!: UserDetails[];
   filteredUsers: { [taskId: string]: UserDetails[] } = {};
   taskMembers: { [taskId: string]: UserDetails[] } = {};
+  tasks: TaskDetails[] = [];
+
 
   taskDocumentDetails: TaskDocumentDetails[] = [];
 
@@ -69,6 +72,7 @@ export class ProjectComponent implements OnInit {
     this.projectService.getProjectDetailsById(projectId).subscribe({
       next: (data: ProjectDetails) => {
         this.project = data;
+        this.tasks = this.project.tasks;
         console.log(this.project);
         const userIds = this.project.user_ids;
         if (!Array.isArray(userIds) || userIds.length === 0) {
@@ -119,11 +123,6 @@ export class ProjectComponent implements OnInit {
 
   openTask(task: TaskDetails): void {
     console.log(task);
-    if (this.project == null) {
-      console.log("tasksssssss is NULLLLLL");
-    } else {
-      console.log("tasksssssss", this.project);
-    }
 
     this.selectedTask = task;
 
@@ -179,18 +178,51 @@ export class ProjectComponent implements OnInit {
 
   changeStatus(newStatus: TaskStatus): void {
     if (this.selectedTask) {
-      const taskId = this.selectedTask.id; // Preuzmite ID trenutnog taska
+      const dependencies = this.getAllTaskDependencies(this.selectedTask);
+      console.log("All Dependencies:::" + JSON.stringify(dependencies));
+
+      const hasPendingDependencies = dependencies.some(dep => dep.status === 'Pending');
+      console.log("Has pending dependencies? " + hasPendingDependencies);
+
+      if (hasPendingDependencies) {
+        this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
+        return;
+      }
+
+      const taskId = this.selectedTask.id; // Get the ID of the selected task
       this.projectService.updateTaskStatus(taskId, newStatus).subscribe({
         next: () => {
-          this.selectedTask!.status = newStatus; // Ažurirajte status lokalno
+          this.selectedTask!.status = newStatus; // Update the status locally
           console.log(`Status successfully updated to: ${newStatus}`);
-          this.refreshTaskLists(); // Osvežavanje taskova po statusu
+          this.refreshTaskLists(); // Refresh tasks based on the new status
+          this.toastr.success("Successfully changed the status.");
         },
         error: (err) => {
           console.error('Failed to update task status:', err);
+          this.toastr.warning("You can't change the status at this time.");
         },
       });
     }
+  }
+
+
+  getAllTaskDependencies(task: TaskDetails): TaskDetails[] {
+    console.log("Fetching dependencies for task: " + JSON.stringify(task));
+
+
+    const dependencies: TaskDetails[] = this.tasks.filter(t => task.dependencies.includes(t.id));
+    console.log("Direct Dependencies: " + JSON.stringify(dependencies));
+
+
+    let allDependencies: TaskDetails[] = [...dependencies];
+    dependencies.forEach(dep => {
+      const subDependencies = this.getAllTaskDependencies(dep);
+      allDependencies = [...allDependencies, ...subDependencies];
+    });
+
+    console.log("All Dependencies including nested: " + JSON.stringify(allDependencies));
+
+    return allDependencies;
   }
 
   refreshTaskLists(): void {
@@ -265,16 +297,23 @@ export class ProjectComponent implements OnInit {
     this.filterUsers(selectedTask.id)
   }
 
-  // addDependencyToTask(selectedTaskId: string, dependencyId: string) {
-  //
-  //   if(this.selectedTask!= null){
-  //     this.selectedTask.dependencies.push(dependencyId);
-  //   }
-  //   console.log(this.selectedTask);
-  //
-  // this.addDependency(selectedTaskId, dependencyId);
-  //
-  // }
+  addDependencyToTask(selectedTaskId: string, dependencyId: string) {
+    if (this.selectedTask == null) {
+      console.error("No selected task. Cannot add dependency.");
+      return;
+    }
+
+    if (!Array.isArray(this.selectedTask.dependencies)) {
+      this.selectedTask.dependencies = [];
+    }
+
+    this.selectedTask.dependencies.push(dependencyId); // Safe to push now
+    console.log("Updated selected task:", this.selectedTask);
+
+    this.addDependency(selectedTaskId, dependencyId);
+  }
+
+
 
   removeUserFromTask(selectedTask: TaskDetails, member: UserDetails) {
     const assignedMembers = this.taskMembers[selectedTask.id] || [];
@@ -313,27 +352,40 @@ export class ProjectComponent implements OnInit {
 
   }
 
-  // private addDependency(id: string, dependecyId: string) {
-  //   const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
-  //
-  //   this.http.post(url, {}).subscribe({
-  //     next: () => {
-  //       console.log(`User added dependency successfully: ${dependecyId}`);
-  //       if (this.projectId) {
-  //         this.loadProjectDetails(this.projectId);
-  //       }
-  //     },
-  //     error: (error) => {
-  //       console.error('Error updating task member:', error);
-  //     }
-  //   });
-  //
-  // }
+  private addDependency(id: string, dependecyId: string) {
+    const url = `/api/workflow-server/workflow/${id}/add/${dependecyId}`;
+
+    if(id == dependecyId){
+      this.toastr.error("Task cannot be dependent on itself.");
+      return;
+    }
+
+    console.log("task id: ", id);
+    console.log("dependecy id: ", dependecyId);
+    console.log("URL id: ", url);
+    const headers = new HttpHeaders({ 'Content-Type': 'application/json' });
+
+    this.http.post(url, {}, { headers }).subscribe({
+      next: () => {
+        console.log(`User added dependency successfully: ${dependecyId}`);
+        if (this.projectId) {
+          this.loadProjectDetails(this.projectId);
+          this.toastr.success("Succesfully created connection between tasks");
+        }
+      },
+      error: (error) => {
+        console.error('Error making task dependecy:', error);
+        this.toastr.error("This dependecy will cause cycles.");
+
+      }
+    });
+  }
 
 
   private craeteWorkflowTask(task: Task) {
     const url = `/api/workflow-server/workflow`;
 
+    // TODO: find out why it always returns 201 when it doesnt create dependency
     this.http.post(url, task).subscribe({
       next: () => {
         console.log(`Workflow created successfully: `);
@@ -455,5 +507,32 @@ export class ProjectComponent implements OnInit {
     });
   }
 
+  getTaskNameById(depId: string): string {
+    const name = this.tasks.find(t => t.id === depId)
+    if (!name) {
+      return ""
+    }
+    return name.name;
+
+  }
+
+  getAllTaskDependenciesRecursive(task: TaskDetails): TaskDetails[] {
+    const dependencies = this.tasks.filter(t => task.dependencies.includes(t.id));
+    const allDependencies = [...dependencies];
+
+    dependencies.forEach(dep => {
+      allDependencies.push(...this.getAllTaskDependenciesRecursive(dep));
+    });
+
+    return allDependencies;
+  }
+
+  getAvailableDependencies(): TaskDetails[] {
+    const allDependencies = this.getAllTaskDependenciesRecursive(this.selectedTask!);
+
+    return this.tasks.filter(task =>
+      task.id !== this.selectedTask!.id && !allDependencies.some(dep => dep.id === task.id)
+    );
+  }
 }
 

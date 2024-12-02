@@ -36,6 +36,18 @@
   background-color: #f0f0f0;
 }
 
+.modal-content {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  width: 600px; /* Increased width */
+  max-width: 90%; /* Percentage of screen width */
+  min-width: 500px; /* Minimum width */
+  max-height: 80vh; /* Set max height to 80% of the viewport height */
+  overflow-y: auto; /* Enable vertical scrolling */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
 .modal {
   position: fixed;
   top: 0;
@@ -46,18 +58,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  z-index: 1050; /* Ensure modal stays on top */
 }
-
-.modal-content {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 8px;
-  width: 600px; /* Povećana širina */
-  max-width: 90%; /* Procenat ekrana koji modal može zauzeti */
-  min-width: 500px; /* Minimalna širina */
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
 
 button {
   background-color: #007bff;
@@ -116,6 +118,7 @@ button:hover {
   outline: none;
   box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
+
 
 
 

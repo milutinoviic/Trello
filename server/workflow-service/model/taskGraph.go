@@ -16,7 +16,7 @@ const (
 
 type TaskGraph struct {
 	ID           string     `json:"id"`
-	ProjectID    string     `json:"project_id"`
+	ProjectID    string     `json:"projectId"`
 	Name         string     `json:"name"`
 	Description  string     `json:"description"`
 	Status       TaskStatus `json:"status"`

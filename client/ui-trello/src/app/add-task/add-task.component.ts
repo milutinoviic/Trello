@@ -102,8 +102,8 @@ export class AddTaskComponent implements OnInit {
             this.taskMembers[task.id] = task.user_ids.map(userId =>
               this.allUsers.find(user => user.id === userId)
             ).filter(user => user !== undefined) as User[];
-          this.filteredUsers[task.id] = this.allUsers.filter(user =>
-            !this.taskMembers[task.id].some(member => member.id === user.id))
+            this.filteredUsers[task.id] = this.allUsers.filter(user =>
+              !this.taskMembers[task.id].some(member => member.id === user.id))
           });
           console.log('Data fetched successfully:', this.tasks);
         },
@@ -133,6 +133,7 @@ export class AddTaskComponent implements OnInit {
           console.log('Task created successfully');
           this.fetchTasks(this.projectId);
           this.toastr.success("Task successfully created");
+          console.log("The task is created: " + JSON.stringify(response.task))
           this.createWorkflowTask(response.task);
           this.taskForm.reset();
         },

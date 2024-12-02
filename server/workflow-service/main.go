@@ -51,13 +51,12 @@ func main() {
 
 	router := mux.NewRouter()
 
-	//router.Use(workflowHandler.MiddlewareContentTypeSet)
-
 	//TODO: add authorization to every route
 	//router.Handle("/workflow/{limit}", workflowHandler.MiddlewareExtractUserFromCookie(workflowHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(workflowHandler.GetAllTasks)))).Methods(http.MethodGet)
 	router.Handle("/workflow/{limit}", http.HandlerFunc(workflowHandler.GetAllTasks)).Methods(http.MethodGet)
 	router.Handle("/workflow", http.HandlerFunc(workflowHandler.PostTask)).Methods(http.MethodPost)
-	router.Handle("/workflow/{taskId}/add/{addTaskId}", http.HandlerFunc(workflowHandler.AddTaskAsDependency)).Methods(http.MethodPost)
+	router.Handle("/workflow/{taskId}/add/{dependencyId}", http.HandlerFunc(workflowHandler.AddTaskAsDependency)).Methods(http.MethodPost)
+	router.Handle("/workflow/project/{project_id}", http.HandlerFunc(workflowHandler.GetTaskGraphByProject)).Methods(http.MethodGet)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -66,11 +65,11 @@ func main() {
 		AllowCredentials: true,
 	})
 
-	handler := corsHandler.Handler(router)
+	h := corsHandler.Handler(router)
 
 	server := http.Server{
 		Addr:         config["address"],
-		Handler:      handler,
+		Handler:      h,
 		IdleTimeout:  120 * time.Second,
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -117,7 +116,7 @@ func newTraceProvider(exp sdktrace.SpanExporter) *sdktrace.TracerProvider {
 		resource.Default(),
 		resource.NewWithAttributes(
 			semconv.SchemaURL,
-			semconv.ServiceNameKey.String("user-service"),
+			semconv.ServiceNameKey.String("workflow-service"),
 		),
 	)
 	if err != nil {

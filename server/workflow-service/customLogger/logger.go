@@ -1,13 +1,12 @@
 package customLogger
 
 import (
-	"os"
-	"time"
-
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
+	"os"
 	"sync"
+	"time"
 )
 
 // Logger structure encapsulates the logger instance and configuration
@@ -42,13 +41,10 @@ func GetLogger() *Logger {
 			})
 			defer logFile.Close() // Ensure the file is closed properly
 		}
-
 		// Set JSON formatter for structured logging
 		logInstance.SetFormatter(&logrus.JSONFormatter{})
-
 		// Set log level
 		logInstance.SetLevel(logrus.InfoLevel)
-
 		loggerInstance = &Logger{
 			instance: logInstance,
 		}

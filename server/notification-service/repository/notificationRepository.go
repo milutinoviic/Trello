@@ -47,7 +47,7 @@ func New(logger *log.Logger, tracer trace.Tracer) (*NotificationRepo, error) {
 	}
 
 	err = session.Query(fmt.Sprintf(`CREATE KEYSPACE IF NOT EXISTS notifications
-				WITH replication = {'class' : 'SimpleStrategy', 'replication_factor' : 1}`)).Exec()
+				WITH replication = {'class' : 'SimpleStrategy', 'replication_factor' : 3}`)).Exec()
 	if err != nil {
 		logger.Println("Error creating keyspace:", err)
 		return nil, err
