@@ -118,11 +118,18 @@ func main() {
 
 	postPutRouter := router.Methods(http.MethodPost, http.MethodPut).Subrouter()
 	postPutRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(taskHandler.PostTask))))
+
 	postPutRouter.Use(taskHandler.MiddlewareTaskDeserialization)
 	router.HandleFunc("/tasks/{taskId}/members/{action}/{userId}", taskHandler.LogTaskMemberChange).Methods("POST")
 	postPutRouter.Handle("/tasks/status", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleStatusUpdate))))
 	postPutRouter.Handle("/tasks/check", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleCheckingIfUserIsInTask))))
-	//postPutRouter.Handle("/tasks/upload", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.UploadTaskDocument))))
+
+	documentRouter := router.Methods(http.MethodPost).Subrouter()
+	documentRouter.Handle("/tasks/upload", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.UploadTaskDocument))))
+
+	documentGetRouter := router.Methods(http.MethodGet).Subrouter()
+	documentGetRouter.Handle("/tasks/getUploads/{taskId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetTaskDocumentsByTaskID))))
+	documentGetRouter.Handle("/tasks/download/{taskDocumentId}", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.DownloadTaskDocument))))
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

@@ -135,3 +135,29 @@ func (tdr *TaskDocumentRepository) DeleteTaskDocument(docID primitive.ObjectID) 
 	span.SetStatus(codes.Ok, "Successfully deleted task document")
 	return nil
 }
+
+func (tdr *TaskDocumentRepository) GetTaskDocumentByID(docID primitive.ObjectID) (*model.TaskDocument, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ctx, span := tdr.tracer.Start(ctx, "TaskDocumentRepository.GetTaskDocumentByID")
+	defer span.End()
+
+	collection := tdr.getCollection()
+	filter := bson.M{"_id": docID}
+
+	var document model.TaskDocument
+	err := collection.FindOne(ctx, filter).Decode(&document)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			tdr.logger.Printf("Task document with ID %s not found", docID.Hex())
+			span.SetStatus(codes.Ok, "No document found")
+			return nil, nil // Ako želite da vratite grešku, vratite fmt.Errorf("document not found")
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		tdr.logger.Printf("Failed to find task document: %v", err)
+		return nil, err
+	}
+	span.SetStatus(codes.Ok, "Successfully fetched task document")
+	return &document, nil
+}

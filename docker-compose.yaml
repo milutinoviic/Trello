@@ -114,6 +114,7 @@ services:
       - MONGO_DB_URI=${MONGO_DB_URI_TASK}
       - USER_SERVICE_HOST=${USER_SERVICE_HOST}
       - USER_SERVICE_PORT=${PORT}
+      - HDFS_ADDRESS=hdfs://namenode:9000
     env_file: ".env"
     volumes:
       - ./server/task-service/app.log:/app.log
@@ -124,8 +125,13 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+      namenode:
+        condition: service_started
+      datanode:
+        condition: service_started
     networks:
       - network
+
 
   mongo-task:
     image: mongo
@@ -400,6 +406,35 @@ services:
     networks:
       - network
 
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - "9870:9870" # Web UI port
+      - "9000:9000" # RPC port
+    environment:
+      - CLUSTER_NAME=test
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    networks:
+      - network
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    depends_on:
+      - namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    networks:
+      - network
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+
+
+
 volumes:
   mongo_project_store:
   mongo_user_store:
@@ -410,6 +445,8 @@ volumes:
   cassandra_data:
   mongo_task_express_data:
   neo4j_data:
+  namenode_data:
+  datanode_data:
 
 networks:
   network:

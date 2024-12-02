@@ -7,17 +7,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/colinmarc/hdfs/v2"
 	"github.com/eapache/go-resiliency/retrier"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -953,7 +958,60 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 	span.SetStatus(codes.Ok, "Successfully checked user")
 }
 
-/*
+func (h *TasksHandler) saveFileToHDFS(localFilePath, hdfsDirPath, hdfsFileName string) error {
+	hdfsAddress := "namenode:9000"
+
+	// Kreiranje HDFS klijenta
+	hdfsClient, err := hdfs.New(hdfsAddress)
+	if err != nil {
+		return fmt.Errorf("failed to initialize HDFS client: %w", err)
+	}
+
+	// Kreiranje direktorijuma u HDFS (ako ne postoji)
+	err = hdfsClient.MkdirAll(hdfsDirPath, 0755)
+	if err != nil {
+		return fmt.Errorf("failed to create directory in HDFS: %w", err)
+	}
+
+	// Putanja do fajla u HDFS
+	hdfsFilePath := filepath.Join(hdfsDirPath, hdfsFileName)
+
+	// Provera da li fajl postoji i brisanje ako postoji
+	_, err = hdfsClient.Stat(hdfsFilePath)
+	if err == nil {
+		log.Printf("File exists in HDFS. Deleting: %s\n", hdfsFilePath)
+		err = hdfsClient.Remove(hdfsFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to delete existing file in HDFS: %w", err)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check if file exists in HDFS: %w", err)
+	}
+
+	// Otvaranje lokalnog fajla za čitanje
+	localFile, err := os.Open(localFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open local file: %w", err)
+	}
+	defer localFile.Close()
+
+	// Kreiranje fajla u HDFS
+	hdfsFile, err := hdfsClient.Create(hdfsFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file in HDFS: %w", err)
+	}
+	defer hdfsFile.Close()
+
+	// Kopiranje sadržaja iz lokalnog fajla u HDFS fajl
+	_, err = io.Copy(hdfsFile, localFile)
+	if err != nil {
+		return fmt.Errorf("failed to write to HDFS file: %w", err)
+	}
+
+	log.Printf("File successfully written to HDFS: %s\n", hdfsFilePath)
+	return nil
+}
+
 func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request) {
 	// Parsiranje multipart forme
 	err := r.ParseMultipartForm(10 << 20) // 10 MB
@@ -961,6 +1019,7 @@ func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Unable to parse form", http.StatusBadRequest)
 		return
 	}
+	h.logger.Println("DEBUG::parsed form")
 
 	// Preuzimanje fajla
 	file, header, err := r.FormFile("file")
@@ -969,6 +1028,7 @@ func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer file.Close()
+	h.logger.Println("DEBUG::Got file from form")
 
 	// Preuzimanje taskId iz forme
 	taskId := r.FormValue("taskId")
@@ -976,6 +1036,7 @@ func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Missing taskId in form data", http.StatusBadRequest)
 		return
 	}
+	h.logger.Println("DEBUG::TaskId is found")
 
 	// Kreiranje privremenog fajla na lokalnom disku
 	tempDir := os.TempDir()
@@ -987,22 +1048,26 @@ func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request
 	}
 	defer tempFile.Close()
 
+	h.logger.Println("DEBUG::Created temp file")
+
 	// Kopiranje sadržaja iz primljenog fajla u privremeni fajl
 	_, err = io.Copy(tempFile, file)
 	if err != nil {
 		http.Error(w, "Unable to save file", http.StatusInternalServerError)
 		return
 	}
+	h.logger.Println("DEBUG::Saved temp file")
 
-	// Generisanje putanje za HDFS
-	hdfsPath := fmt.Sprintf("/tasks/%s/%s", taskId, header.Filename)
-
-	// Čuvanje fajla na HDFS
-	err = h.hdfsClient.SaveFile(tempFilePath, hdfsPath)
+	// Sačuvajte fajl u HDFS koristeći izdvojenu funkciju
+	hdfsDirPath := "/example/"
+	hdfsFileName := uuid.New().String() + "_" + header.Filename //header.Filename					//da ime bude bez uuid
+	err = h.saveFileToHDFS(tempFilePath, hdfsDirPath, hdfsFileName)
 	if err != nil {
-		http.Error(w, "Unable to save file to HDFS", http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to save file to HDFS: %v", err), http.StatusInternalServerError)
 		return
 	}
+
+	h.logger.Println("DEBUG::File saved to HDFS")
 
 	// Kreiranje TaskDocument objekta
 	taskDocument := model.TaskDocument{
@@ -1010,19 +1075,122 @@ func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request
 		TaskID:     taskId,
 		FileName:   header.Filename,
 		FileType:   header.Header.Get("Content-Type"),
-		FilePath:   hdfsPath,
+		FilePath:   filepath.Join(hdfsDirPath, hdfsFileName),
 		UploadedAt: primitive.NewDateTimeFromTime(time.Now()),
 	}
 
-	// Čuvanje TaskDocument u bazi
 	err = h.documentRepo.SaveTaskDocument(&taskDocument)
 	if err != nil {
 		http.Error(w, "Unable to save task document to database", http.StatusInternalServerError)
 		return
 	}
 
+	h.logger.Println("DEBUG::Saved task document to database")
+
 	// Uspešan odgovor
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte("File uploaded successfully"))
 }
-*/
+
+func (h *TasksHandler) GetTaskDocumentsByTaskID(w http.ResponseWriter, r *http.Request) {
+	// Preuzimanje taskId iz query parametra
+	vars := mux.Vars(r)
+	taskID := vars["taskId"]
+
+	h.logger.Printf("Fetching documents for taskId: %s", taskID)
+
+	// Pozivanje metode iz repozitorijuma da se dobiju task dokumenti
+	documents, err := h.documentRepo.GetTaskDocumentsByTaskID(taskID)
+	if err != nil {
+		h.logger.Printf("Error fetching documents for taskId %s: %v", taskID, err)
+		http.Error(w, "Unable to fetch task documents", http.StatusInternalServerError)
+		return
+	}
+
+	// Vraćanje rezultata kao JSON
+	w.Header().Set("Content-Type", "application/json")
+	err = json.NewEncoder(w).Encode(documents)
+	if err != nil {
+		h.logger.Printf("Error encoding documents for taskId %s: %v", taskID, err)
+		http.Error(w, "Unable to encode task documents", http.StatusInternalServerError)
+		return
+	}
+
+	h.logger.Printf("Successfully fetched %d documents for taskId %s", len(documents), taskID)
+}
+
+func (h *TasksHandler) getFileFromHDFS(hdfsFilePath string) ([]byte, error) {
+	hdfsAddress := "namenode:9000"
+
+	// Kreiranje HDFS klijenta
+	hdfsClient, err := hdfs.New(hdfsAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize HDFS client: %w", err)
+	}
+
+	// Otvaranje fajla iz HDFS-a
+	hdfsFile, err := hdfsClient.Open(hdfsFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open HDFS file: %w", err)
+	}
+	defer hdfsFile.Close()
+
+	// Čitanje sadržaja fajla
+	fileContent, err := io.ReadAll(hdfsFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read HDFS file: %w", err)
+	}
+
+	return fileContent, nil
+}
+
+func (h *TasksHandler) DownloadTaskDocument(w http.ResponseWriter, r *http.Request) {
+
+	vars := mux.Vars(r)
+	taskDocumentId, ok := vars["taskDocumentId"]
+	if !ok || taskDocumentId == "" {
+		http.Error(w, "Missing taskDocumentId in path parameters", http.StatusBadRequest)
+		return
+	}
+
+	docID, err := primitive.ObjectIDFromHex(taskDocumentId)
+	if err != nil {
+		http.Error(w, "Invalid taskDocumentId format", http.StatusBadRequest)
+		return
+	}
+
+	// Preuzimanje TaskDocument iz repozitorijuma
+	taskDocument, err := h.documentRepo.GetTaskDocumentByID(docID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to fetch task document: %v", err), http.StatusInternalServerError)
+		return
+	}
+	if taskDocument == nil {
+		http.Error(w, "Task document not found", http.StatusNotFound)
+		return
+	}
+
+	hdfsFilePath := taskDocument.FilePath
+
+	// Preuzimanje fajla iz HDFS-a
+	fileContent, err := h.getFileFromHDFS(hdfsFilePath)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to get file from HDFS: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	// Postavljanje zaglavlja HTTP odgovora
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", hdfsFilePath))
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(fileContent)))
+
+	// Slanje sadržaja fajla kao HTTP odgovor
+	_, err = w.Write(fileContent)
+	if err != nil {
+		http.Error(w, "Failed to send file content", http.StatusInternalServerError)
+		return
+	}
+	h.logger.Println("----------------------------------------------------------------------")
+	h.logger.Println("DEBUG::File sent successfully:", hdfsFilePath)
+	h.logger.Println("----------------------------------------------------------------------")
+}

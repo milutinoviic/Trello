@@ -11,7 +11,7 @@ type TaskDocument struct {
 	TaskID     string             `bson:"task_id" json:"taskId"`
 	FileName   string             `bson:"file_name" json:"fileName"`
 	FileType   string             `bson:"file_type" json:"fileType"`
-	FilePath   string             `bson:"file_path" json:"filePath"` // Putanja na HDFS-u
+	FilePath   string             `bson:"file_path" json:"filePath"`
 	UploadedAt primitive.DateTime `bson:"uploaded_at" json:"uploadedAt"`
 }
 

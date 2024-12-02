@@ -9,6 +9,7 @@ import {Account} from "../models/account.model";
 import {UserDetails} from "../models/userDetails";
 import {HttpClient} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
+import {TaskDocumentDetails} from "../models/taskDocumentDetails.model";
 
 @Component({
   selector: 'app-project',
@@ -33,6 +34,8 @@ export class ProjectComponent implements OnInit {
   private allUsers!: UserDetails[];
   filteredUsers: { [taskId: string]: UserDetails[] } = {};
   taskMembers: { [taskId: string]: UserDetails[] } = {};
+
+  taskDocumentDetails: TaskDocumentDetails[] = [];
 
 
 
@@ -122,14 +125,12 @@ export class ProjectComponent implements OnInit {
       console.log("tasksssssss", this.project);
     }
 
-
     this.selectedTask = task;
-
 
     console.log(this.selectedTask.users);
 
     console.log(this.selectedTask.userIds);
-    console.log(this.selectedTask.user_ids)
+    console.log(this.selectedTask.user_ids);
 
     this.taskMembers[task.id] = task.user_ids.map(userId =>
       this.allUsers.find(user => user.id === userId)
@@ -139,11 +140,12 @@ export class ProjectComponent implements OnInit {
       !this.taskMembers[task.id].some(member => member.id === user.id)
     );
 
-
-
     this.checkIfUserInTask();
+    this.getTaskDocumentsForTask();
 
   }
+
+
 
   showAddMemberModal = false;
 
@@ -373,9 +375,10 @@ export class ProjectComponent implements OnInit {
   // }
 
   selectedFile: File | null = null;
-  taskId: string = '12345';
 
   onFileSelected(event: Event): void {
+
+
     const input = event.target as HTMLInputElement;
 
     if (input.files && input.files.length > 0) {
@@ -389,16 +392,68 @@ export class ProjectComponent implements OnInit {
       console.error('Nije izabran fajl za slanje.');
       return;
     }
+    const taskId = this.selectedTask?.id!;
 
-    this.taskService.uploadTaskDocument(this.taskId, this.selectedFile).subscribe(
+    this.taskService.uploadTaskDocument(taskId, this.selectedFile).subscribe(
       (response) => {
         console.log('Fajl uspešno poslat:', response);
+
         this.selectedFile = null; // Resetovanje fajla nakon slanja
       },
       (error) => {
         console.error('Greška prilikom slanja fajla:', error);
+
+        this.selectedFile = null;
       }
     );
   }
 
+  getTaskDocumentsForTask(): void {
+    if (this.selectedTask) {
+      this.taskService.getAllDocumentsForThisTask(this.selectedTask.id).subscribe(
+        (response: TaskDocumentDetails[]) => {
+          this.taskDocumentDetails = response;
+          console.log('Task documents:', this.taskDocumentDetails);
+        },
+        (error) => {
+          console.error('Error fetching task documents:', error);
+        }
+      );
+    } else {
+      console.warn('No task ID selected for fetching documents.');
+    }
+  }
+
+
+  downloadFile1(doc: TaskDocumentDetails): void {
+    const url = ''; //`${this.config.downloadTaskDocumentUrl()}/${doc.id}`;
+    this.http.get(url, { responseType: 'blob' }).subscribe((blob) => {
+      const a = document.createElement('a');
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
+      a.download = doc.fileName;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    });
+  }
+
+  downloadFile(doc: TaskDocumentDetails): void {
+    const url = `/api/task-server/tasks/download/${doc.id}`//  `${this.config.downloadTaskDocumentUrl()}/${doc.fileName}`; // Backend endpoint URL
+
+    this.http.get(url, { responseType: 'blob' }).subscribe({
+      next: (blob) => {
+        const a = document.createElement('a');
+        const objectUrl = URL.createObjectURL(blob);
+        a.href = objectUrl;
+        a.download = doc.fileName; // Ime fajla koji korisnik preuzima
+        a.click();
+        URL.revokeObjectURL(objectUrl); // Oslobađanje memorije
+      },
+      error: (err) => {
+        console.error('Failed to download file', err);
+      },
+    });
+  }
+
 }
+

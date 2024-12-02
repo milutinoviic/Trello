@@ -1,5 +1,6 @@
 package service
 
+/*
 import (
 	"fmt"
 	"github.com/colinmarc/hdfs"
@@ -50,3 +51,4 @@ func UploadToHDFS(client *hdfs.Client, repo *repositories.TaskRepository, localF
 
 	return nil
 }
+*/

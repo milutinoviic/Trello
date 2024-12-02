@@ -99,7 +99,11 @@ export class ConfigService {
   }
 
   uploadTaskDocumentUrl(): string {
-    return `${this._task_api_url}/tasks/documentUpload`;
+    return `${this._task_api_url}/tasks/upload`;
+  }
+
+  getForTaskAllDocumentUrl(taskId: string): string {
+    return `${this._task_api_url}/tasks/getUploads/${taskId}`;
   }
 
   getProjectByIdUrl(projectId: string): string {
