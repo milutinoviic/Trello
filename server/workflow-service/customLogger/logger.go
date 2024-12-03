@@ -23,6 +23,7 @@ var (
 func GetLogger() *Logger {
 	once.Do(func() {
 		logInstance := logrus.New()
+
 		// Attempt to open the log file with restricted permissions
 		logFile, err := os.OpenFile("app.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 		if err != nil {

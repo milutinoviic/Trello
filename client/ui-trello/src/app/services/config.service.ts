@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import {Observable} from "rxjs";
 
 @Injectable({
   providedIn: 'root'
@@ -22,6 +23,8 @@ export class ConfigService {
 
   private _task_api_url = '/api/task-server';
 
+  private _workflow_api_url = '/api/workflow-server';
+
   private _register_url = this._api_url + "/register"
 
   private _users_url = this._api_url + "/members"
@@ -40,6 +43,21 @@ export class ConfigService {
 
   private _get_role_url = this._api_url + "/role"
 
+  private _get_workflow_by_project = this._workflow_api_url + "/workflow/project"
+
+
+
+  get workflow_api_url(): string {
+    return this._workflow_api_url;
+  }
+
+  getWorkflowByProject(id: string): string {
+    return this._get_workflow_by_project + "/" + id
+  }
+
+  postDependency(taskId: string, dependencyID: string): string {
+    return this.workflow_api_url + "/"+ taskId + "/add/" + dependencyID
+  }
 
   get get_role_url(): string {
     return this._get_role_url;
@@ -98,6 +116,14 @@ export class ConfigService {
 
   checkManagerUrl(projectId: string): string {
     return `${this._project_api_url}/projects/${projectId}/manager`;
+  }
+
+  uploadTaskDocumentUrl(): string {
+    return `${this._task_api_url}/tasks/upload`;
+  }
+
+  getForTaskAllDocumentUrl(taskId: string): string {
+    return `${this._task_api_url}/tasks/getUploads/${taskId}`;
   }
 
   getProjectByIdUrl(projectId: string): string {

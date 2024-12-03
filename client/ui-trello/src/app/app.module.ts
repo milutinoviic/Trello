@@ -27,6 +27,10 @@ import { ForbiddenComponent } from './forbidden/forbidden.component';
 import {AccountService} from "./services/account.service";
 import { ProjectComponent } from './project/project.component';
 import { ProjectHistoryComponent } from './project-history/project-history.component';
+import { GraphEditorComponent } from './graph-editor/graph-editor.component';
+
+
+
 
 function initTokenVerification(accountService: AccountService) {
   return () => {
@@ -55,6 +59,7 @@ function initTokenVerification(accountService: AccountService) {
     ForbiddenComponent,
     ProjectComponent,
     ProjectHistoryComponent,
+    GraphEditorComponent,
   ],
   imports: [
     BrowserModule,
