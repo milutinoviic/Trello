@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -14,9 +15,9 @@ import (
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"project-service/client"
 	"project-service/customLogger"
 	"project-service/domain"
@@ -28,6 +29,7 @@ import (
 )
 
 type KeyProject struct{}
+type KeyUser struct{}
 type KeyRole struct{}
 
 type ProjectsHandler struct {
@@ -61,7 +63,7 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 			return
 		}
 
-		ctx := context.WithValue(h.Context(), KeyProject{}, userID)
+		ctx := context.WithValue(h.Context(), KeyUser{}, userID)
 		ctx = context.WithValue(ctx, KeyRole{}, role)
 
 		h = h.WithContext(ctx)
@@ -71,7 +73,8 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 }
 
 func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
-	userServiceURL := "https://user-server:8080/validate-token" // Use HTTPS for secure connection
+	linkToUserServer := os.Getenv("LINK_TO_USER_SERVICE")
+	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserServer) // Use HTTPS for secure connection
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -83,7 +86,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client, err := createTLSClient()
+	c, err := createTLSClient()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
 	}
@@ -113,7 +116,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -121,7 +124,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	var userID, role string
 	retryCount := 0
 
-	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		p.logger.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -134,7 +137,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			resp, err := client.Do(req)
+			resp, err := c.Do(req)
 			if err != nil {
 				return nil, err
 			}
@@ -183,27 +186,33 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 }
 
 func createTLSClient() (*http.Client, error) {
-	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	caCert, err := os.ReadFile("/app/cert.crt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read certificate: %w", err)
 	}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append certs to the pool")
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 
-	client := &http.Client{
+	c := &http.Client{
+		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
-	return client, nil
+	return c, nil
 }
 
 func NewProjectsHandler(l *log.Logger, custLogger *customLogger.Logger, r *repositories.ProjectRepo, tracer trace.Tracer, userClient client.UserClient, taskClient client.TaskClient) *ProjectsHandler {
@@ -249,7 +258,7 @@ func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.R
 	}
 
 	// Retrieve user ID from context
-	userId, ok := h.Context().Value(KeyProject{}).(string)
+	userId, ok := h.Context().Value(KeyUser{}).(string)
 	if !ok {
 		span.RecordError(errors.New("No role found in context"))
 		span.SetStatus(codes.Error, errors.New("No rule found").Error())
@@ -414,13 +423,6 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.PostProject")
 	defer span.End()
-	patient := h.Context().Value(KeyProject{}).(*model.Project)
-	err := p.repo.Insert(patient)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return
-	}
 	// Retrieve project from context
 	project, ok := h.Context().Value(KeyProject{}).(*model.Project)
 	if !ok {
@@ -438,7 +440,7 @@ func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	}, "Received project for insertion")
 
 	// Insert project into repository
-	err = p.repo.Insert(project)
+	err := p.repo.Insert(project)
 	if err != nil {
 		http.Error(rw, "Database error", http.StatusInternalServerError)
 		p.logger.Printf("Error inserting project into database: %v", err)
@@ -498,7 +500,6 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		http.Error(rw, "Unable to decode json", http.StatusBadRequest)
 		http.Error(rw, "Unable to decode JSON", http.StatusBadRequest)
 		p.logger.Println("Error decoding JSON:", err)
 		p.custLogger.Warn(logrus.Fields{
@@ -524,7 +525,7 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 	}
 
 	// Retrieve user ID from context
-	userId, ok := h.Context().Value(KeyProject{}).(string)
+	userId, ok := h.Context().Value(KeyUser{}).(string)
 	if !ok {
 		span.RecordError(errors.New("Unable to get user id"))
 		span.SetStatus(codes.Error, "Unable to get user id")
@@ -630,21 +631,6 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	// Publish messages to NATS
-	nc, err := Conn()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		log.Println("Error connecting to NATS:", err)
-		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
-		p.logger.Println("Error connecting to NATS:", err)
-		p.custLogger.Error(logrus.Fields{
-			"error": err.Error(),
-		}, "Failed to connect to NATS")
-		return
-	}
-	defer nc.Close()
-
 	for _, uid := range userIds {
 		subject := "project.joined"
 		message := struct {
@@ -660,34 +646,26 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 			return
 		}
 
-		jsonMessage, err := json.Marshal(message)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			log.Println("Error marshalling message:", err)
-			p.logger.Println("Error marshalling message:", err)
-			p.custLogger.Error(logrus.Fields{
-				"user_id": uid,
-				"project": project.Name,
-				"error":   err.Error(),
-			}, "Error marshalling message for NATS")
-			continue
+		currentTime := time.Now().Add(1 * time.Hour)
+		formattedTime := currentTime.Format(time.RFC3339)
+
+		event := map[string]interface{}{
+			"type": "MemberAdded",
+			"time": formattedTime,
+			"event": map[string]interface{}{
+				"memberId":  uid,
+				"projectId": projectId,
+			},
+			"projectId": projectId,
 		}
 
-		err = nc.Publish(subject, jsonMessage)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			log.Println("Error publishing message to NATS:", err)
-			p.logger.Println("Error publishing message to NATS:", err)
-			p.custLogger.Error(logrus.Fields{
-				"user_id": uid,
-				"project": project.Name,
-				"error":   err.Error(),
-			}, "Error publishing message to NATS")
+		if err := p.sendEventToAnalyticsService(event); err != nil {
+			http.Error(rw, "Error sending event to analytics service", http.StatusInternalServerError)
+			return
 		}
 	}
 	p.logger.Println("Messages sent to NATS for project:", projectId)
+
 	p.custLogger.Info(logrus.Fields{
 		"project_id": projectId,
 		"user_ids":   userIds,
@@ -699,7 +677,8 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 }
 
 func Conn() (*nats.Conn, error) {
-	conn, err := nats.Connect("nats://nats:4222")
+	connection := os.Getenv("NATS_URL")
+	conn, err := nats.Connect(connection)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -779,21 +758,6 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 		return
 	}
 
-	// Publish removal event to NATS
-	nc, err := Conn()
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		log.Println("Error connecting to NATS:", err)
-		http.Error(rw, "Failed to connect to message broker", http.StatusInternalServerError)
-		p.logger.Println("Error connecting to NATS:", err)
-		p.custLogger.Error(logrus.Fields{
-			"error": err.Error(),
-		}, "Failed to connect to NATS")
-		return
-	}
-	defer nc.Close()
-
 	subject := "project.removed"
 	message := struct {
 		UserID      string `json:"userId"`
@@ -808,31 +772,22 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 		return
 	}
 
-	jsonMessage, err := json.Marshal(message)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		log.Println("Error marshalling message:", err)
-		p.logger.Println("Error marshalling message:", err)
-		p.custLogger.Error(logrus.Fields{
-			"user_id": userId,
-			"project": project.Name,
-			"error":   err.Error(),
-		}, "Error marshalling message for NATS")
-		return
+	currentTime := time.Now().Add(1 * time.Hour)
+	formattedTime := currentTime.Format(time.RFC3339)
+
+	event := map[string]interface{}{
+		"type": "MemberRemoved",
+		"time": formattedTime,
+		"event": map[string]interface{}{
+			"memberId":  userId,
+			"projectId": projectId,
+		},
+		"projectId": projectId,
 	}
 
-	err = nc.Publish(subject, jsonMessage)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		log.Println("Error publishing message to NATS:", err)
-		p.logger.Println("Error publishing message to NATS:", err)
-		p.custLogger.Error(logrus.Fields{
-			"user_id": userId,
-			"project": project.Name,
-			"error":   err.Error(),
-		}, "Error publishing message to NATS")
+	// Send the event to the analytic service
+	if err := p.sendEventToAnalyticsService(event); err != nil {
+		http.Error(rw, "Failed to send event to analytics service", http.StatusInternalServerError)
 		return
 	}
 
@@ -844,6 +799,46 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 
 	rw.WriteHeader(http.StatusOK)
 	span.SetStatus(codes.Ok, "Successfully removed user from project")
+}
+
+func (p *ProjectsHandler) sendEventToAnalyticsService(event interface{}) error {
+
+	linkToUserServer := os.Getenv("LINK_TO_ANALYTIC_SERVICE")
+	analyticsServiceURL := fmt.Sprintf("%s/event/append", linkToUserServer)
+
+	eventData, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("Error marshalling event: %v", err)
+		return err
+	}
+
+	req, err := http.NewRequest("POST", analyticsServiceURL, bytes.NewBuffer(eventData))
+	if err != nil {
+		log.Printf("Error creating request: %v", err)
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v", err)
+		return fmt.Errorf("failed to create TLS client: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error sending request to analytics service: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to send event to analytics service: %s", resp.Status)
+		return fmt.Errorf("failed to send event to analytics service: %s", resp.Status)
+	}
+
+	return nil
 }
 
 func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request) {
@@ -979,6 +974,7 @@ func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
 
 	p.logger.Printf("Successfully deleted project %s", projectID)
 }
+
 func (p *ProjectsHandler) HandleTasksDeletedRollback(projectID string) {
 	err := p.repo.PendingDeletion(projectID, false)
 	if err != nil {
@@ -995,7 +991,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	defer span.End()
 
 	// Create the custom TLS client for secure communication
-	client, err := createTLSClient()
+	c, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1042,9 +1038,9 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 		},
 	)
 
-	// Set up the retrier with backoff strategy for retrying the request
+	// Set up the retryAgain with backoff strategy for retrying the request
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -1053,7 +1049,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	retryCount := 0
 
 	// Retry the task request if it fails (with circuit breaker)
-	err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		ph.logger.Printf("Attempting task-service request, attempt #%d", retryCount)
 
@@ -1068,7 +1064,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 			}
 
 			// Send the HTTP request using the TLS client
-			resp, err := client.Do(taskReq)
+			resp, err := c.Do(taskReq)
 			if err != nil {
 				return nil, err
 			}
@@ -1222,7 +1218,7 @@ func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.R
 		return
 	}
 
-	userId, ok := h.Context().Value(KeyProject{}).(string)
+	userId, ok := h.Context().Value(KeyUser{}).(string)
 	if !ok {
 		span.RecordError(errors.New("User not found in context"))
 		span.SetStatus(codes.Error, "User not found in context")
@@ -1258,23 +1254,35 @@ func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.R
 }
 
 func (p *ProjectsHandler) sendNotification(subject string, message interface{}) error {
+	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.AddUsersToProject")
+	defer span.End()
 	nc, err := Conn()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Println("Error connecting to NATS:", err)
-		return fmt.Errorf("failed to connect to message broker: %w", err)
+		p.logger.Println("Error connecting to NATS:", err)
+		p.custLogger.Error(logrus.Fields{
+			"error": err.Error(),
+		}, "Failed to connect to NATS")
 	}
 	defer nc.Close()
 
 	jsonMessage, err := json.Marshal(message)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Println("Error marshalling message:", err)
-		return fmt.Errorf("error marshalling message: %w", err)
+		p.logger.Println("Error marshalling message:", err)
+
 	}
 
 	err = nc.Publish(subject, jsonMessage)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Println("Error publishing message to NATS:", err)
-		return fmt.Errorf("error publishing message to NATS: %w", err)
+		p.logger.Println("Error publishing message to NATS:", err)
 	}
 
 	p.logger.Println("Notification sent:", subject)
@@ -1318,7 +1326,7 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 	// Step 5: Fetch the tasks associated with the project
 	tasksDetails, err := p.taskClient.GetTasksByProjectId(id, cookie)
 	if err != nil {
-		http.Error(rw, "Error fetching task details", http.StatusInternalServerError)
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

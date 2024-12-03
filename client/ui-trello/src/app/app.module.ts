@@ -26,6 +26,7 @@ import { ForbiddenComponent } from './forbidden/forbidden.component';
 
 import {AccountService} from "./services/account.service";
 import { ProjectComponent } from './project/project.component';
+import { ProjectHistoryComponent } from './project-history/project-history.component';
 
 function initTokenVerification(accountService: AccountService) {
   return () => {
@@ -53,6 +54,7 @@ function initTokenVerification(accountService: AccountService) {
     MagicLinkComponent,
     ForbiddenComponent,
     ProjectComponent,
+    ProjectHistoryComponent,
   ],
   imports: [
     BrowserModule,

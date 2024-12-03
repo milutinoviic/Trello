@@ -1,7 +1,7 @@
 import {Component, OnInit} from '@angular/core';
 import {ProjectDetails} from "../models/projectDetails";
 import {ProjectServiceService} from "../services/project-service.service";
-import {ActivatedRoute} from "@angular/router";
+import {ActivatedRoute, Router} from "@angular/router";
 import {TaskDetails} from "../models/taskDetails";
 import {Task, TaskStatus} from "../models/task";
 import {TaskService} from "../services/task.service";
@@ -36,7 +36,7 @@ export class ProjectComponent implements OnInit {
 
 
 
-  constructor(private projectService: ProjectServiceService, private route: ActivatedRoute,private taskService: TaskService, private http: HttpClient, private toastr: ToastrService) {}
+  constructor(private projectService: ProjectServiceService,private router: Router ,private route: ActivatedRoute,private taskService: TaskService, private http: HttpClient, private toastr: ToastrService) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -296,5 +296,9 @@ export class ProjectComponent implements OnInit {
       }
     });
 
+  }
+
+  navigateToHistory(projectId: string | null ) {
+    this.router.navigate(['/history/' + projectId]);
   }
 }

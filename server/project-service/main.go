@@ -23,10 +23,10 @@ import (
 )
 
 func initUserClient() client.UserClient {
-	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("PORT"))
 }
 func initTaskClient() client.TaskClient {
-	return client.NewTaskClient(os.Getenv("TASK_SERVICE_HOST"), os.Getenv("TASK_SERVICE_PORT"))
+	return client.NewTaskClient(os.Getenv("TASK_SERVICE_HOST"), os.Getenv("PORT"))
 }
 
 func main() {
@@ -69,6 +69,7 @@ func main() {
 	taskClient := initTaskClient()
 
 	projectsHandler := handlers.NewProjectsHandler(logger, custLogger, store, tracer, userClient, taskClient)
+	projectsHandler.SubscribeToEvent()
 
 	router := mux.NewRouter()
 

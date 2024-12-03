@@ -24,7 +24,7 @@ import (
 )
 
 func initUserClient() client.UserClient {
-	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("PORT"))
 }
 
 func main() {
@@ -105,8 +105,8 @@ func main() {
 	postPutRouter := router.Methods(http.MethodPost, http.MethodPut).Subrouter()
 	postPutRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(taskHandler.PostTask))))
 	postPutRouter.Use(taskHandler.MiddlewareTaskDeserialization)
+	router.Handle("/tasks/status", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleStatusUpdate)))).Methods("PUT")
 	router.HandleFunc("/tasks/{taskId}/members/{action}/{userId}", taskHandler.LogTaskMemberChange).Methods("POST")
-	postPutRouter.Handle("/tasks/status", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleStatusUpdate))))
 	postPutRouter.Handle("/tasks/check", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleCheckingIfUserIsInTask))))
 
 	corsHandler := cors.New(cors.Options{

@@ -16,6 +16,8 @@ export class ConfigService {
 
   private _project_api_url = '/api/project-server'; // same a below, it will be redirected to api-gateway, then to project-server
 
+  private _analytics_api_url = '/api/analytic-server';
+
   private _notifications_api_url = '/api/notification-server';
 
   private _task_api_url = '/api/task-server';
@@ -110,6 +112,9 @@ export class ConfigService {
     return `${this.task_api_url}/tasks/status`;
   }
 
+  getHistoryByProjectId(projectId: string): string {
+    return `${this._analytics_api_url}/events/${projectId}`;
+  }
 
   get users_url() {
     return this._users_url;
