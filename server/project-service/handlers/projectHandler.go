@@ -86,9 +86,9 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	c, err := createTLSClient()
+	tlsClient, err := createTLSClient()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
+		return "", "", fmt.Errorf("failed to create TLS tlsClient: %s", err)
 	}
 
 	circuitBreaker := gobreaker.NewCircuitBreaker(
@@ -116,7 +116,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -124,7 +124,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	var userID, role string
 	retryCount := 0
 
-	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = r.RunCtx(reqCtx, func(ctx context.Context) error {
 		retryCount++
 		p.logger.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -137,7 +137,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 				req.Header.Add("Timeout", strconv.Itoa(int(timeout.Milliseconds())))
 			}
 
-			resp, err := c.Do(req)
+			resp, err := tlsClient.Do(req)
 			if err != nil {
 				return nil, err
 			}
@@ -207,12 +207,12 @@ func createTLSClient() (*http.Client, error) {
 		MaxConnsPerHost:     10,
 	}
 
-	c := &http.Client{
+	client := &http.Client{
 		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
-	return c, nil
+	return client, nil
 }
 
 func NewProjectsHandler(l *log.Logger, custLogger *customLogger.Logger, r *repositories.ProjectRepo, tracer trace.Tracer, userClient client.UserClient, taskClient client.TaskClient) *ProjectsHandler {
@@ -1038,7 +1038,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 		},
 	)
 
-	// Set up the retryAgain with backoff strategy for retrying the request
+	// Set up the retrier with backoff strategy for retrying the request
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
 	retryAgain := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 

@@ -13,7 +13,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"io"
-	"io/ioutil"
 	"log"
 	"main.go/customLogger"
 	"main.go/data"
@@ -21,6 +20,7 @@ import (
 	"main.go/repository"
 	"main.go/service"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 )
@@ -270,12 +270,12 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 	}
 	req.AddCookie(authTokenCookie)
 
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), retrier.WhitelistClassifier{domain.ErrRespTmp{}})
+	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), retrier.WhitelistClassifier{domain.ErrRespTmp{}})
 
 	var resp *http.Response
 	retryCount := 0
 
-	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
+	err = r.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		uh.logger.Printf("Attempting project service request, attempt #%d", retryCount)
 
@@ -391,7 +391,7 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	for _, project := range projects {
 		taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s", project.ID)
@@ -411,7 +411,7 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 		var taskResp *http.Response
 		retryCount := 0
 
-		err = retrier.RunCtx(reqCtx, func(ctx context.Context) error {
+		err = r.RunCtx(reqCtx, func(ctx context.Context) error {
 			retryCount++
 			uh.logger.Printf("Attempting task service request, attempt #%d", retryCount)
 
@@ -1112,28 +1112,35 @@ func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
 }
 
 func createTLSClient() (*http.Client, error) {
-	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	caCert, err := os.ReadFile("/app/cert.crt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read certificate: %w", err)
 	}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append certs to the pool")
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 
 	client := &http.Client{
+		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
 	return client, nil
 }
+
 func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request) {
 	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleGettingRole")
 	defer span.End()

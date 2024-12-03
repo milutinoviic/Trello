@@ -14,12 +14,12 @@ import (
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"notification-service/domain"
 	"notification-service/model"
 	"notification-service/repository"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -196,23 +196,29 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 }
 
 func createTLSClient() (*http.Client, error) {
-	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	caCert, err := os.ReadFile("/app/cert.crt")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read certificate: %w", err)
 	}
 
 	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
+	if !caCertPool.AppendCertsFromPEM(caCert) {
+		return nil, fmt.Errorf("failed to append certs to the pool")
+	}
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig: tlsConfig,
+		TLSClientConfig:     tlsConfig,
+		MaxIdleConns:        10,
+		MaxIdleConnsPerHost: 10,
+		MaxConnsPerHost:     10,
 	}
 
 	client := &http.Client{
+		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 

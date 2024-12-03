@@ -78,6 +78,17 @@
           <button (click)="removeUserFromTask(selectedTask, member)">Remove</button>
         </li>
       </ul>
+      <!--      <h5>Add Dependency:</h5>-->
+      <!--      <div *ngIf="project != null">-->
+      <!--        <div *ngIf="project?.tasks?.length > 0">-->
+
+      <!--        <div *ngFor="let task of project.tasks">-->
+      <!--              <span>{{ task.id }}</span>-->
+      <!--              <button (click)="addDependencyToTask(selectedTask.id, task.id)">Add</button>-->
+
+      <!--        </div>-->
+      <!--      </div>-->
+      <!--      </div>-->
     </div>
     <button (click)="closeTask()">Close</button>
   </div>
@@ -122,6 +133,4 @@
     </div>
   </div>
 </div>
-
-
 
