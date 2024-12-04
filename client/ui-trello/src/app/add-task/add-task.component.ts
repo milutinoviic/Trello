@@ -61,6 +61,13 @@ export class AddTaskComponent implements OnInit {
       next: (project: Project) => {
         console.log('Project:', project);
         const userIds = project.user_ids || [];
+
+        if (userIds.length === 0) {
+          console.warn('No userIds provided. Skipping fetch for user details.');
+          this.fetchTasks(this.projectId); // Still fetch tasks regardless of user details
+          return;
+        }
+
         fetch('/api/user-server/users/details', {
           method: 'POST',
           headers: {
