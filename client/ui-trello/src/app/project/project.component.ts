@@ -42,7 +42,7 @@ export class ProjectComponent implements OnInit {
 
 
 
-  constructor(private projectService: ProjectServiceService,private router: Router ,private route: ActivatedRoute,private taskService: TaskService, private http: HttpClient, private toastr: ToastrService) {}
+  constructor(private projectService: ProjectServiceService, private router: Router, private route: ActivatedRoute,private taskService: TaskService, private http: HttpClient, private toastr: ToastrService) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -60,6 +60,10 @@ export class ProjectComponent implements OnInit {
         console.error('Project ID nije prisutan u URL-u!');
       }
     });
+  }
+
+  navigateToHistory(projectId: string | null ) {
+    this.router.navigate(['/history/' + projectId]);
   }
 
   isManager(): boolean {
@@ -400,10 +404,6 @@ export class ProjectComponent implements OnInit {
 
   }
 
-  navigateToHistory(projectId: string | null ) {
-    this.router.navigate(['/history/' + projectId]);
-  }
-
   // onFileSelected1(event: Event): void {
   //   const input = event.target as HTMLInputElement;
   //
@@ -539,4 +539,3 @@ export class ProjectComponent implements OnInit {
     );
   }
 }
-

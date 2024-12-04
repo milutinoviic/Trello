@@ -14,12 +14,12 @@ import (
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"notification-service/domain"
 	"notification-service/model"
 	"notification-service/repository"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -67,8 +67,8 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	_, span := n.tracer.Start(ctx, "NotificationHandler.verifyTokenWithUserService")
 	defer span.End()
-	linkToUserService := os.Getenv("LINK_TO_USER_SERVICE")
-	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserService)
+
+	userServiceURL := "https://user-server:8080/validate-token"
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -115,7 +115,7 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -123,7 +123,7 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 	var resp *http.Response
 	retryCount := 0
 
-	err = r.RunCtx(ctx, func(ctx context.Context) error {
+	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		n.logger.Printf("Attempting user-service request, attempt #%d", retryCount)
 
@@ -196,29 +196,23 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 }
 
 func createTLSClient() (*http.Client, error) {
-	caCert, err := os.ReadFile("/app/cert.crt")
+	caCert, err := ioutil.ReadFile("/app/cert.crt")
 	if err != nil {
-		return nil, fmt.Errorf("failed to read certificate: %w", err)
+		return nil, err
 	}
 
 	caCertPool := x509.NewCertPool()
-	if !caCertPool.AppendCertsFromPEM(caCert) {
-		return nil, fmt.Errorf("failed to append certs to the pool")
-	}
+	caCertPool.AppendCertsFromPEM(caCert)
 
 	tlsConfig := &tls.Config{
 		RootCAs: caCertPool,
 	}
 
 	transport := &http.Transport{
-		TLSClientConfig:     tlsConfig,
-		MaxIdleConns:        10,
-		MaxIdleConnsPerHost: 10,
-		MaxConnsPerHost:     10,
+		TLSClientConfig: tlsConfig,
 	}
 
 	client := &http.Client{
-		Timeout:   10 * time.Second,
 		Transport: transport,
 	}
 
@@ -605,8 +599,7 @@ func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
 }
 
 func Conn() (*nats.Conn, error) {
-	connection := os.Getenv("NATS_URL")
-	conn, err := nats.Connect(connection)
+	conn, err := nats.Connect("nats://nats:4222")
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
