@@ -67,8 +67,8 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	_, span := n.tracer.Start(ctx, "NotificationHandler.verifyTokenWithUserService")
 	defer span.End()
-
-	userServiceURL := "https://user-server:8080/validate-token"
+	linkToUserService := os.Getenv("LINK_TO_USER_SERVICE")
+	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserService)
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -115,7 +115,7 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 	)
 
 	classifier := retrier.WhitelistClassifier{domain.ErrRespTmp{}}
-	retrier := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
+	r := retrier.New(retrier.ConstantBackoff(3, 1000*time.Millisecond), classifier)
 
 	var timeout time.Duration
 	deadline, reqHasDeadline := ctx.Deadline()
@@ -123,7 +123,7 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 	var resp *http.Response
 	retryCount := 0
 
-	err = retrier.RunCtx(ctx, func(ctx context.Context) error {
+	err = r.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		n.logger.Printf("Attempting user-service request, attempt #%d", retryCount)
 
@@ -605,7 +605,8 @@ func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
 }
 
 func Conn() (*nats.Conn, error) {
-	conn, err := nats.Connect("nats://nats:4222")
+	connection := os.Getenv("NATS_URL")
+	conn, err := nats.Connect(connection)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err

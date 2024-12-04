@@ -133,6 +133,7 @@ export class AddTaskComponent implements OnInit {
           console.log('Task created successfully');
           this.fetchTasks(this.projectId);
           this.toastr.success("Task successfully created");
+          console.log("The task is created: " + JSON.stringify(response.task))
           this.createWorkflowTask(response.task);
           this.taskForm.reset();
         },

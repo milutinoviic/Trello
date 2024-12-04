@@ -102,7 +102,7 @@ func (uc *UserCache) Login(user *data.LoginCredentials, token string) error {
 	// For testing purposes TTL is set to 5 minutes.
 
 	// In more realistic situations, it should be set to 30 minutes minimally.
-	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 5*time.Minute).Err()
+	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 50*time.Minute).Err()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

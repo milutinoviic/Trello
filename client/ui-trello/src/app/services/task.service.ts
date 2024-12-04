@@ -14,8 +14,9 @@ export class TaskService {
   getTasksByProjectId(projectId: string): Observable<Task[]> {
     return this.http.get<Task[]>(this.config.getTasksByProjectId(projectId)) }
 
-  addTask(newTask: Task): Observable<{message: string, task: Task}> {
-    return this.http.post<{ message: string, task: Task }>(`${this.config.new_task_url}/tasks`, newTask);
+
+  addTask(newTask: Task): Observable<{message: string, task: Task, taskId: string}> {
+    return this.http.post<{ message: string, task: Task, taskId: string }>(`${this.config.new_task_url}/tasks`, newTask);
   }
 
 
@@ -34,5 +35,21 @@ export class TaskService {
     const url = `${this.config.checkManagerUrl(projectId)}`;
     return this.http.get<boolean>(url, { headers });
   }
+
+  uploadTaskDocument(taskId: string, file: File): Observable<string> {
+    const formData = new FormData();
+    formData.append('taskId', taskId);
+    formData.append('file', file);
+
+    const url = `${this.config.uploadTaskDocumentUrl()}`;
+    return this.http.post<any>(url, formData );
+  }
+
+  getAllDocumentsForThisTask(taskId: string): Observable<any> {
+    const url = `${this.config.getForTaskAllDocumentUrl(taskId)}`;
+    return this.http.get<any>(url);
+  }
+
+
 
 }
