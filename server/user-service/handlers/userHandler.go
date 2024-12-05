@@ -10,7 +10,9 @@ import (
 	"github.com/eapache/go-resiliency/retrier"
 	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"io"
 	"io/ioutil"
@@ -44,6 +46,13 @@ type TaskStatus string
 
 func NewUserHandler(logger *log.Logger, service *service.UserService, tracer trace.Tracer, custLogger *customLogger.Logger) *UserHandler {
 	return &UserHandler{logger, service, tracer, custLogger}
+}
+
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
@@ -261,6 +270,8 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
 	authTokenCookie, err := h.Cookie("auth_token")
 	if err != nil {
 		span.RecordError(err)
@@ -407,6 +418,8 @@ func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Projec
 			uh.logger.Printf("Failed to create request to task-service for project %s: %v", project.ID, err)
 			continue
 		}
+
+		otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(taskReq.Header))
 		taskReq.Header.Set("Content-Type", "application/json")
 		taskReq.AddCookie(authTokenCookie)
 

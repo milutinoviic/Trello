@@ -110,6 +110,7 @@ func main() {
 	router := mux.NewRouter()
 
 	router.Use(taskHandler.MiddlewareContentTypeSet)
+	router.Use(handlers.ExtractTraceInfoMiddleware)
 
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetAllTask))))

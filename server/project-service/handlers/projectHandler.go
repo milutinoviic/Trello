@@ -13,7 +13,9 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
@@ -72,6 +74,13 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 	})
 }
 
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	linkToUserServer := os.Getenv("LINK_TO_USER_SERVICE")
 	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserServer) // Use HTTPS for secure connection
@@ -85,7 +94,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	c, err := createTLSClient()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
@@ -819,7 +828,7 @@ func (p *ProjectsHandler) sendEventToAnalyticsService(event interface{}) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(context.Background(), propagation.HeaderCarrier(req.Header))
 	client, err := createTLSClient()
 	if err != nil {
 		log.Printf("Error creating TLS client: %v", err)
@@ -1010,6 +1019,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 		ph.logger.Println("Failed to create request to task-service:", err)
 		return false
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(taskReq.Header))
 	taskReq.Header.Set("Content-Type", "application/json")
 	taskReq.AddCookie(authTokenCookie)
 

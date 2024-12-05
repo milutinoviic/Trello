@@ -16,7 +16,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"io"
 	"io/ioutil"
@@ -59,6 +61,13 @@ func NewTasksHandler(l *log.Logger, r *repositories.TaskRepository, docRepo *rep
 		userClient:   userClient,
 		custLogger:   custLogger,
 	}
+}
+
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
@@ -423,7 +432,7 @@ func (p *TasksHandler) verifyTokenWithUserService(ctx context.Context, token str
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	clientToDo, err := createTLSClient()
 	if err != nil {
 		log.Printf("Error creating TLS client: %v\n", err)
@@ -849,7 +858,7 @@ func remove(slice []string, item string) []string {
 }
 
 func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
-	_, span := t.tracer.Start(context.Background(), "TaskHandler.isUserInProject")
+	ctx, span := t.tracer.Start(context.Background(), "TaskHandler.isUserInProject")
 	defer span.End()
 
 	linkToProjectService := os.Getenv("LINK_TO_PROJECT_SERVICE")
@@ -870,6 +879,7 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 		t.logger.Println("Error making GET request:", err)
 		return false
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(resp.Header))
 	defer resp.Body.Close()
 	t.logger.Println("Response code: " + resp.Status)
 	switch resp.StatusCode {
@@ -996,7 +1006,7 @@ func (p *TasksHandler) sendEventToAnalyticsService(event interface{}) error {
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(context.Background(), propagation.HeaderCarrier(req.Header))
 	client, err := createTLSClient()
 	if err != nil {
 		log.Printf("Error creating TLS client: %v", err)

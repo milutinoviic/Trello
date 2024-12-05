@@ -349,11 +349,17 @@ services:
     ports:
       - "${UDP_PORT}:${UDP_PORT}/udp"
       - "${JAEGER_UI_PORT}:${JAEGER_UI_PORT}"
-      - "${JAEGER_THRIFT_PORT}:${JAEGER_THRIFT_PORT}"
-      - "${OTLP}:${OTLP}"
     environment:
       - COLLECTOR_ZIPKIN_HTTP_PORT=${COLLECTOR_ZIPKIN_HTTP_PORT}
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
+    networks:
+      - network
+
+  collector:
+    image: otel/opentelemetry-collector:0.69.0
+    command: [ "--config=/etc/otel-collector-config.yaml" ]
+    volumes:
+      - ./api-gateway/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     networks:
       - network
 

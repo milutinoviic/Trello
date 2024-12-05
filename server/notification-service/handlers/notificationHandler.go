@@ -12,7 +12,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
@@ -64,6 +66,13 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 	})
 }
 
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
 	_, span := n.tracer.Start(ctx, "NotificationHandler.verifyTokenWithUserService")
 	defer span.End()
@@ -81,7 +90,7 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	client, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)

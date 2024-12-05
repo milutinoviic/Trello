@@ -1,9 +1,12 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"io"
 	"log"
 	"net/http"
@@ -41,6 +44,7 @@ func (client TaskClient) GetTasksByProjectId(projectId string, cookie *http.Cook
 		log.Printf("Error sending request: %v", err)
 		return nil, errors.New("error while sending the request")
 	}
+	otel.GetTextMapPropagator().Inject(context.Background(), propagation.HeaderCarrier(httpReq.Header))
 	defer res.Body.Close()
 
 	// Check if the status code is OK (200)
