@@ -73,10 +73,14 @@ export class ProjectComponent implements OnInit {
       next: (data: ProjectDetails) => {
         this.project = data;
         this.tasks = this.project.tasks;
-        console.log(this.project);
+
+        console.log('Project:', this.project);
+
+        // Skip fetch if userIds is empty
         const userIds = this.project.user_ids;
         if (!Array.isArray(userIds) || userIds.length === 0) {
-          console.error('Invalid userIds:', userIds);
+          console.warn('No userIds provided, skipping fetch.');
+          this.organizeTasksByStatus(this.project.tasks);
           return;
         }
 
@@ -89,23 +93,23 @@ export class ProjectComponent implements OnInit {
         })
           .then(response => response.json())
           .then(data => {
-            console.log("DATA: " + JSON.stringify(data));
+            console.log('User data:', data);
             this.allUsers = data;
           })
           .catch(error => {
-            console.error('Error:', error);
+            console.error('Error fetching user details:', error);
           });
 
         if (this.project && this.project.tasks) {
-
           this.organizeTasksByStatus(this.project.tasks);
         }
       },
       error: (err) => {
-        console.error('Greška pri učitavanju podataka o projektu', err);
+        console.error('Error loading project details:', err);
       }
     });
   }
+
 
   filterUsers(taskId: string) {
     this.filteredUsers[taskId] = this.allUsers
@@ -125,24 +129,32 @@ export class ProjectComponent implements OnInit {
     console.log(task);
 
     this.selectedTask = task;
+    this.getTaskDocumentsForTask();
 
     console.log(this.selectedTask.users);
-
     console.log(this.selectedTask.userIds);
     console.log(this.selectedTask.user_ids);
 
-    this.taskMembers[task.id] = task.user_ids.map(userId =>
-      this.allUsers.find(user => user.id === userId)
-    ).filter(user => user !== undefined) as UserDetails[];
+    this.taskMembers[task.id] = (task.user_ids || [])
+      .map(userId => this.allUsers.find(user => user.id === userId))
+      .filter(user => user !== undefined) as UserDetails[];
+
+    if (!this.taskMembers[task.id]) {
+      this.taskMembers[task.id] = [];
+    }
 
     this.filteredUsers[task.id] = this.allUsers.filter(user =>
-      !this.taskMembers[task.id].some(member => member.id === user.id)
+      !(this.taskMembers[task.id]?.some(member => member.id === user.id))
     );
 
+    if (!this.filteredUsers[task.id]) {
+      this.filteredUsers[task.id] = [];
+    }
+
     this.checkIfUserInTask();
-    this.getTaskDocumentsForTask();
 
   }
+
 
 
 

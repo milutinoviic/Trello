@@ -113,10 +113,11 @@ services:
       - MONGO_DB_URI=${MONGO_DB_URI_TASK}
       - USER_SERVICE_HOST=${USER_SERVICE_HOST}
       - USER_SERVICE_PORT=${PORT}
+      - HDFS_ADDRESS=hdfs://namenode:9000
       - LINK_TO_PROJECT_SERVICE=${LINK_TO_PROJECT_SERVICE}
       - LINK_TO_TASK_SERVICE=${LINK_TO_TASK_SERVICE}
       - LINK_TO_USER_SERVICE=${LINK_TO_USER_SERVICE}
-      - LINK_TO_ANALYTIC_SERVICE=${LINK_TO_ANALYTIC_SERVICE}
+    env_file: ".env"
     volumes:
       - ./server/task-service/app.log:/app.log
       - ./server/task-service/cert.crt:/app/cert.crt
@@ -126,8 +127,13 @@ services:
         condition: service_healthy
       nats:
         condition: service_started
+      namenode:
+        condition: service_started
+      datanode:
+        condition: service_started
     networks:
       - network
+
 
   mongo-task:
     image: mongo
@@ -259,6 +265,7 @@ services:
       - task-server
       - notification-server
       - workflow-server
+      - analytic-service
     entrypoint: [ "/bin/bash", "-c", "while ! curl -s user-server:8080; do sleep 1; done; nginx -g 'daemon off;'" ]
     networks:
       - network
@@ -283,6 +290,7 @@ services:
     ports:
       - ${NOTIFICATION_SERVER_PORT}
     environment:
+      - NATS_URL=${NATS_URL}
       - PORT=${PORT}
       - CASSANDRA_HOST=${CASSANDRA_HOST}
       - CASSANDRA_PORT=${CASSANDRA_PORT}
@@ -326,6 +334,8 @@ services:
 
   nats:
     image: 'nats:latest'
+    environment:
+      - NATS_URL=${NATS_URL}
     expose:
       - ${NATS_PORT}
     ports:
@@ -449,6 +459,35 @@ services:
       - network
 
 
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    ports:
+      - "9870:9870" # Web UI port
+      - "9000:9000" # RPC port
+    environment:
+      - CLUSTER_NAME=test
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    networks:
+      - network
+    volumes:
+      - namenode_data:/hadoop/dfs/name
+
+  datanode:
+    image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
+    container_name: datanode
+    depends_on:
+      - namenode
+    environment:
+      - CORE_CONF_fs_defaultFS=hdfs://namenode:9000
+    networks:
+      - network
+    volumes:
+      - datanode_data:/hadoop/dfs/data
+
+
+
 volumes:
   mongo_project_store:
   mongo_user_store:
@@ -460,6 +499,9 @@ volumes:
   mongo_task_express_data:
   neo4j_data:
   eventstore_data:
+  namenode_data:
+  datanode_data:
+
 
 networks:
   network:
