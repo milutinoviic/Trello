@@ -455,3 +455,56 @@ func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
 
 	return nil
 }
+
+func (tr *TaskRepository) UnblockDependencies(task *model.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.UnblockDependencies")
+	defer span.End()
+
+	tasksCollection := tr.getCollection()
+
+	if len(task.Dependencies) == 0 {
+		span.SetStatus(codes.Ok, "No dependencies to update")
+		return nil
+	}
+
+	var dependencyIDs []primitive.ObjectID
+	for _, dep := range task.Dependencies {
+		objectID, err := primitive.ObjectIDFromHex(dep)
+		if err != nil {
+			tr.logger.Printf("Invalid dependency ID: %s", dep)
+			continue
+		}
+		dependencyIDs = append(dependencyIDs, objectID)
+	}
+	dependencyFilter := bson.M{"_id": bson.M{"$in": dependencyIDs}}
+	dependencyUpdate := bson.M{
+		"$set": bson.M{
+			"blocked":    false,
+			"updated_at": time.Now(),
+		},
+	}
+	tr.logger.Println("Successfully updated dependencies")
+	tr.logger.Printf("Filter: %v, Update: %v", dependencyFilter, dependencyUpdate)
+
+	updateResult, err := tasksCollection.UpdateMany(ctx, dependencyFilter, dependencyUpdate)
+	if err != nil {
+		tr.logger.Println("failed to update dependencies: %v", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return fmt.Errorf("failed to update dependencies: %v", err)
+	}
+
+	if updateResult.MatchedCount == 0 {
+		span.SetStatus(codes.Error, "no dependencies found")
+		tr.logger.Println("no dependencies found to update")
+
+		return fmt.Errorf("no dependencies found to update")
+	}
+	tr.logger.Println("Successfully unblocked dependencies")
+
+	span.SetStatus(codes.Ok, "Successfully unblocked dependencies")
+	return nil
+
+}

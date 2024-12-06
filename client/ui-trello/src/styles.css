@@ -5,16 +5,29 @@ body{
 }
 
 :root {
-  /*--primary-color: #183446;*/
-  /*--hover-background-color: white;*/
-  /*--secondary-color: #0090C1;*/
-  /*--tercial-color: #046E8F;*/
-
-
-  --primary-color: #136F63;
+  --primary-color: #046E8F;
   --hover-background-color: white;
-  --secondary-color: #22AAA1;
-  --tercial-color: #041B15;
+  --secondary-color: #0090C1;
+  --tercial-color: #183446;
+
+
+
+  /*--primary-color: #826C7F;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #A88FAC;*/
+  /*--tercial-color: #5D4E60;*/
+
+
+  /*--primary-color: #372772;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #3A2449;*/
+  /*--tercial-color: #372772;*/
+
+
+  /*--primary-color: #136F63;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #22AAA1;*/
+  /*--tercial-color: #041B15;*/
   --red-primary-color: #F15946;
   --red-secondary-color: #ED6A5A;
 }
@@ -56,5 +69,5 @@ body{
   background-color: #ff9800 !important;
   color: var(--hover-background-color) !important;
   border-radius: 5px;
-
+  padding: 20px;
 }

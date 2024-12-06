@@ -8,7 +8,7 @@ import { Network } from "vis-network";
 
 @Component({
   selector: 'app-graph-editor',
-  template: `<div id="graph" style="width: 100%; height: 600px; border: 1px solid #ddd; position: relative;"></div>
+  template: `<div id="graph" style="width: 100%; height: 600px; border: 2px solid #ddd; position: relative;"></div>
   <div id="tooltip" style="
     position: absolute;
     padding: 8px;
@@ -63,10 +63,22 @@ export class GraphEditorComponent implements OnInit {
         shape: 'dot',
         size: 20,
         font: { size: 14 },
+        color: {
+          background: '#F2BB05',
+          border: '#fff',
+          highlight: {
+            background: '#F2BB05',
+            border: '#fff',
+          },
+          hover: {
+            background: '#FBC823',
+            border: '#fff',
+          },
+        },
       },
       edges: {
         width: 2,
-        color: { color: '#aaa', hover: '#000' },
+        color: { color: '#fff', hover: '#fff' },
         arrows: { to: { enabled: true } },
       },
       physics: {

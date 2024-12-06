@@ -4,12 +4,72 @@
   margin-top: 20px;
 }
 
+.navbar-buttons{
+  margin-left: 5%;
+  margin-right: 5%;
+}
+
 .column {
   width: 30%;
   background-color: #f4f4f4;
   padding: 10px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+
+.column-text {
+  width: 95%;
+  background-color: #f4f4f4;
+  color: var(--tercial-color);
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+}
+
+
+.column-text-file {
+  width: 40%;
+  background-color: var(--primary-color);
+  color: var(--hover-background-color);
+  padding: 10px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+}
+
+.button-container {
+  display: flex;
+  flex-wrap: wrap;
+  /*gap: 10px;*/
+}
+
+.button-container > div {
+  flex: 0 0 calc(50% - 10px);
+  box-sizing: border-box;
+}
+
+.margin-top-small{
+  margin-top: 2%;
+}
+
+.download-icon {
+  margin-left: 10px;
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+}
+
+.download-icon:hover {
+  opacity: 0.8;
+}
+
+.description-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  vertical-align: middle;
 }
 
 .column h2 {
@@ -40,12 +100,17 @@
   background-color: #fff;
   padding: 20px;
   border-radius: 8px;
-  width: 600px; /* Increased width */
-  max-width: 90%; /* Percentage of screen width */
-  min-width: 500px; /* Minimum width */
-  max-height: 80vh; /* Set max height to 80% of the viewport height */
-  overflow-y: auto; /* Enable vertical scrolling */
+  width: 700px;
+  max-width: 90%;
+  min-width: 500px;
+  max-height: 80vh;
+  overflow-y: scroll;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.modal-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .modal {
@@ -58,11 +123,11 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1050; /* Ensure modal stays on top */
+  z-index: 1050;
 }
 
 button {
-  background-color: #007bff;
+  background-color: var(--primary-color);
   color: white;
   border: none;
   padding: 10px;
@@ -73,7 +138,8 @@ button {
 }
 
 button:hover {
-  background-color: #0056b3;
+  background-color: white;
+  color: var(--primary-color);
 }
 
 .btn-close {
@@ -104,22 +170,47 @@ button:hover {
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  background-color: #007bff;
+  background-color: var(--primary-color);
   color: white;
   font-size: 14px;
   transition: background-color 0.3s ease;
 }
 
 .btn-status:hover {
-  background-color: #0056b3;
+  background-color: var(--primary-color);
 }
 
 .btn-status:focus {
   outline: none;
-  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+  box-shadow: 0 0 5px var(--secondary-color);
 }
 
+.title{
+  padding: 20px;
+  font-weight: bold;
+}
 
+.task-with-img{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 18px;
+}
 
+.details-icon {
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  margin-right: 8px;
+  vertical-align: middle;
+}
 
+.task-with-img:hover .details-icon {
+  opacity: 1;
+}
+
+.blocked-task {
+  opacity: 0.5;
+  pointer-events: none;
+}
 

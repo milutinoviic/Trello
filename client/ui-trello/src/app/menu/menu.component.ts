@@ -98,4 +98,10 @@ export class MenuComponent implements OnInit {
   ngOnInit(): void {
     this.fetchUnreadNotificationCount();
   }
+
+  isManager(): boolean {
+    const role = localStorage.getItem('role');
+    return role === 'manager';
+  }
+  
 }

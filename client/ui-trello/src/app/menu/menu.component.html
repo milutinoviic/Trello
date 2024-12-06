@@ -8,13 +8,16 @@
       Change Password
     </button>
 
+    <div *ngIf="!isManager()">
     <button
       class="btn btn-outline-light me-2"
       (click)="notifications()"
+
     >
       Notifications
       <span *ngIf="unreadNotifications > 0" class="badge bg-danger ms-2">{{ unreadNotifications }}</span>
     </button>
+    </div>
     <div class="d-flex ms-auto">
       <button class="btn btn-outline-light me-2" (click)="logout()">
         Logout

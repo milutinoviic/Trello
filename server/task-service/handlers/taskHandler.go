@@ -840,7 +840,7 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 	if !ok || task == nil {
 		span.RecordError(errors.New("cannot get task from context"))
 		span.SetStatus(codes.Error, "cannot get task from context")
-		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
+		//http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
 		th.logger.Println("Error retrieving task from context")
 		errMsg := "Task data is missing or invalid"
 		th.logger.Println(errMsg)
@@ -850,6 +850,23 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 	}
 	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task extracted from context successfully")
 
+	if task.Blocked == true {
+		th.logger.Println("Task is blocked and cannot change status!")
+		th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status, "blocked": task.Blocked}, "Task Is blocked and cannot change status")
+		http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
+		return
+	}
+
+	if strings.TrimSpace(string(task.Status)) == "Completed" {
+		th.logger.Println("Completed == true")
+
+		err := th.repo.UnblockDependencies(task)
+		if err != nil {
+			th.logger.Println("Error updating blocked flag of dependent tasks:", err)
+			http.Error(rw, "Failed to update blocked flag of dependent tasks", http.StatusInternalServerError)
+			return
+		}
+	}
 	// Ažuriranje statusa zadatka
 	err := th.repo.UpdateStatus(task)
 	if err != nil {

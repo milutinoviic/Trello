@@ -11,6 +11,7 @@ import {HttpClient, HttpHeaders} from "@angular/common/http";
 import {ToastrService} from "ngx-toastr";
 import {TaskDocumentDetails} from "../models/taskDocumentDetails.model";
 import {TaskNode} from "../models/task-graph";
+import { CdkDragDrop, transferArrayItem } from '@angular/cdk/drag-drop';
 
 @Component({
   selector: 'app-project',
@@ -27,7 +28,7 @@ export class ProjectComponent implements OnInit {
   completedTasks: TaskDetails[] = [];
 
   selectedTask: TaskDetails | null = null;
-
+  isDragging = false;
   isUserInTask: boolean = false;
 
   showAddTaskModal: boolean = false;
@@ -122,25 +123,28 @@ export class ProjectComponent implements OnInit {
   }
 
   openTask(task: TaskDetails): void {
-    console.log(task);
 
-    this.selectedTask = task;
+    if (!this.isDragging) {
+      console.log(task);
 
-    console.log(this.selectedTask.users);
+      this.selectedTask = task;
 
-    console.log(this.selectedTask.userIds);
-    console.log(this.selectedTask.user_ids);
+      console.log(this.selectedTask.users);
 
-    this.taskMembers[task.id] = task.user_ids.map(userId =>
-      this.allUsers.find(user => user.id === userId)
-    ).filter(user => user !== undefined) as UserDetails[];
+      console.log(this.selectedTask.userIds);
+      console.log(this.selectedTask.user_ids);
 
-    this.filteredUsers[task.id] = this.allUsers.filter(user =>
-      !this.taskMembers[task.id].some(member => member.id === user.id)
-    );
+      this.taskMembers[task.id] = task.user_ids.map(userId =>
+        this.allUsers.find(user => user.id === userId)
+      ).filter(user => user !== undefined) as UserDetails[];
 
-    this.checkIfUserInTask();
-    this.getTaskDocumentsForTask();
+      this.filteredUsers[task.id] = this.allUsers.filter(user =>
+        !this.taskMembers[task.id].some(member => member.id === user.id)
+      );
+
+      this.checkIfUserInTask();
+      this.getTaskDocumentsForTask();
+    }
 
   }
 
@@ -181,15 +185,8 @@ export class ProjectComponent implements OnInit {
       const dependencies = this.getAllTaskDependencies(this.selectedTask);
       console.log("All Dependencies:::" + JSON.stringify(dependencies));
 
-      const hasPendingDependencies = dependencies.some(dep => dep.status === 'Pending');
-      console.log("Has pending dependencies? " + hasPendingDependencies);
 
-      if (hasPendingDependencies) {
-        this.toastr.warning("Cannot change status: One or more dependencies are still pending.");
-        return;
-      }
-
-      const taskId = this.selectedTask.id; // Get the ID of the selected task
+      const taskId = this.selectedTask.id;
       this.projectService.updateTaskStatus(taskId, newStatus).subscribe({
         next: () => {
           this.selectedTask!.status = newStatus; // Update the status locally
@@ -279,6 +276,9 @@ export class ProjectComponent implements OnInit {
 
   closeTaskAdditionModal(): void {
     this.showAddTaskModal = false;
+    if(this.projectId != null){
+      this.loadProjectDetails(this.projectId);
+    }
   }
 
 
@@ -525,6 +525,61 @@ export class ProjectComponent implements OnInit {
     });
 
     return allDependencies;
+  }
+
+
+  onDragStart() {
+    this.isDragging = true;
+  }
+
+  onDragEnd(): void {
+    setTimeout(() => {
+      this.isDragging = false;
+    }, 0);
+  }
+
+  onPointerDown(event: PointerEvent): void {
+    if (this.isDragging) {
+      event.preventDefault();
+    }
+  }
+
+  onDrop(event: CdkDragDrop<any[]>) { //TODO: fix this to not openTasks
+    if (event.previousContainer !== event.container) {
+      console.log('Dropped item:', event.item.data);
+      console.log('Previous container:', event.previousContainer.id);
+      console.log('Current container:', event.container.id);
+      console.log('Current container:', event.container.id);
+      const draggedTask = event.item.data;
+      this.selectedTask = draggedTask
+      let newStatus: TaskStatus = <"Pending" | "In Progress" | "Completed">"";
+      if (event.container.id === 'cdk-drop-list-1') {
+        newStatus = 'Pending';
+      } else if (event.container.id === 'cdk-drop-list-2') {
+        newStatus = 'In Progress';
+      } else if (event.container.id === 'cdk-drop-list-3') {
+        newStatus = 'Completed';
+      }
+      console.log('New status:', newStatus);
+
+
+      if (newStatus && draggedTask.status !== newStatus) {
+        if(draggedTask.blocked == true){
+          this.toastr.error("Cannot change status: This Task is blocked.");
+          return;
+        }
+
+        this.changeStatus(newStatus);
+      }
+
+
+      transferArrayItem(
+        event.previousContainer.data,
+        event.container.data,
+        event.previousIndex,
+        event.currentIndex
+      );
+    }
   }
 
   getAvailableDependencies(): TaskDetails[] {
