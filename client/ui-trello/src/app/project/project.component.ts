@@ -497,6 +497,7 @@ export class ProjectComponent implements OnInit {
         console.error('Greška prilikom slanja fajla:', error);
 
         this.selectedFile = null;
+        this.getTaskDocumentsForTask();
       }
     );
   }
