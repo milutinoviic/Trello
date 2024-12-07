@@ -16,6 +16,7 @@ import {ForbiddenComponent} from "./forbidden/forbidden.component";
 import {loginGuard} from "./guards/login.guard";
 import {ProjectComponent} from "./project/project.component";
 import {ProjectHistoryComponent} from "./project-history/project-history.component";
+import {AccountVerificationComponent} from "./account-verification/account-verification.component";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent, canActivate:[loginGuard]},
@@ -33,6 +34,7 @@ export const routes: Routes = [
   { path: 'forbidden', component: ForbiddenComponent },
   { path: 'project/:projectId', component: ProjectComponent },
   { path: 'history/:projectId', component: ProjectHistoryComponent },
+  { path: 'verify/account/:email', component: AccountVerificationComponent }
 ];
 
 @NgModule({

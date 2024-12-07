@@ -14,8 +14,10 @@ import (
 	"log"
 	"main.go/data"
 	"main.go/utils"
+	"net/mail"
 	"net/smtp"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -27,12 +29,14 @@ type UserCache struct {
 }
 
 const (
-	cacheRequestConstruct = "requests:%s"
-	cacheUserConstruct    = "activeUser:%s"
-	cacheMagicConstruct   = "magic:%s"
-	cacheMagic            = "magic"
-	cacheRequests         = "requests"
-	cacheUser             = "activeUser"
+	cacheRequestConstruct  = "requests:%s"
+	cacheUserConstruct     = "activeUser:%s"
+	cacheMagicConstruct    = "magic:%s"
+	cacheRegisterConstruct = "register:%s"
+	cacheMagic             = "magic"
+	cacheRequests          = "requests"
+	cacheUser              = "activeUser"
+	cacheRegister          = "register"
 )
 
 func constructKeyForRequest(id string) string {
@@ -46,6 +50,8 @@ func constructKeyForUser(id string) string {
 func constructKeyForMagic(email string) string {
 	return fmt.Sprintf(cacheMagicConstruct, email)
 }
+
+func constructKeyForRegister(email string) string { return fmt.Sprintf(cacheRegister, email) }
 
 func NewCache(logger *log.Logger, repo *UserRepository, trace trace.Tracer) (*UserCache, error) {
 	redisHost := os.Getenv("REDIS_HOST")
@@ -353,4 +359,164 @@ func (uc *UserCache) GetRoleFromToken(ctx context.Context, token string) (string
 	span.SetStatus(codes.Error, "Invalid token")
 
 	return "", errors.New("role not found in token")
+}
+
+func (uc *UserCache) Register(ctx context.Context, request *data.AccountRequest) error {
+	ctx, span := uc.tracer.Start(ctx, "UserRepository.Registration")
+	defer span.End()
+
+	var existingAccount data.Account
+	err := uc.userRepository.getAccountCollection().FindOne(ctx, bson.M{"email": request.Email}).Decode(&existingAccount)
+	if err == nil {
+		span.SetStatus(codes.Error, "Account already exists.")
+		return errors.New("account already exists")
+	}
+
+	construct := constructKeyForRegister(request.Email)
+	_, err = uc.cli.Get(construct).Result()
+	if errors.Is(err, redis.Nil) {
+		span.AddEvent("Redis key not found, proceeding with registration")
+	} else if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	} else {
+		span.SetStatus(codes.Error, "Registration already in progress")
+		return errors.New("registration already in progress")
+	}
+
+	if _, err = mail.ParseAddress(request.Email); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if len(request.FirstName) == 0 {
+		return errors.New("first name is empty")
+	}
+	if len(request.LastName) == 0 {
+		return errors.New("last name is empty")
+	}
+	if len(request.Role) == 0 {
+		return errors.New("role is empty")
+	}
+	if err = ValidatePassword(request.Password); err != nil {
+		return err
+	}
+
+	hashedPassword, err := hashPassword(request.Password)
+	if err != nil {
+		return err
+	}
+
+	account := &data.Account{
+		Email:     request.Email,
+		FirstName: request.FirstName,
+		LastName:  request.LastName,
+		Password:  hashedPassword,
+		Role:      request.Role,
+	}
+
+	// Serialize the account to JSON
+	accountJSON, err := json.Marshal(account)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to serialize account")
+		return err
+	}
+
+	// Store the serialized account in Redis
+	err = uc.cli.Set(construct, accountJSON, 5*time.Minute).Err()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	// Send verification email
+	err = sendEmail(account.Email)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "Registration successful")
+	return nil
+}
+
+func (uc *UserCache) VerifyAccount(ctx context.Context, email string) error {
+	ctx, span := uc.tracer.Start(ctx, "UserRepository.VerifyAccount")
+	defer span.End()
+
+	construct := constructKeyForRegister(email)
+
+	val, err := uc.cli.Get(construct).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return fmt.Errorf("account verification key not found in Redis for email: %s", email)
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("Redis error: %v", err))
+		return fmt.Errorf("failed to get account verification data from Redis: %w", err)
+	}
+
+	var account data.Account
+	err = json.Unmarshal([]byte(val), &account)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("JSON unmarshal error: %v", err))
+		return fmt.Errorf("failed to unmarshal account data for email: %s, error: %w", email, err)
+	}
+
+	existingAccount := data.Account{}
+	err = uc.userRepository.getAccountCollection().FindOne(ctx, bson.M{"email": account.Email}).Decode(&existingAccount)
+	if err == nil {
+		span.RecordError(errors.New("Account already exists in the database"))
+		span.SetStatus(codes.Error, "Account already exists")
+		return fmt.Errorf("account already exists for email: %s", account.Email)
+	}
+
+	_, err = uc.userRepository.getAccountCollection().InsertOne(ctx, account)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("Database insert error: %v", err))
+		return fmt.Errorf("failed to insert account into the database: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "Account verified successfully")
+	return nil
+}
+
+func ValidatePassword(password string) error {
+	rules := map[string]string{
+		"length":      `.{8,}`,
+		"uppercase":   `[A-Z]`,
+		"lowercase":   `[a-z]`,
+		"number":      `[0-9]`,
+		"specialChar": `[!@#$%^&*()]`,
+	}
+
+	messages := map[string]string{
+		"length":      "Password must be at least 8 characters long.",
+		"uppercase":   "Password must contain at least one uppercase letter.",
+		"lowercase":   "Password must contain at least one lowercase letter.",
+		"number":      "Password must contain at least one number.",
+		"specialChar": "Password must contain at least one special character.",
+	}
+
+	var validationErrors []string
+
+	for rule, pattern := range rules {
+		matched, err := regexp.MatchString(pattern, password)
+		if err != nil {
+			return fmt.Errorf("error validating password for rule %s: %w", rule, err)
+		}
+		if !matched {
+			validationErrors = append(validationErrors, messages[rule])
+		}
+	}
+	if len(validationErrors) > 0 {
+		return errors.New(fmt.Sprintf("Password validation failed:\n%s", validationErrors))
+	}
+	return nil
 }

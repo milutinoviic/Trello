@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/eapache/go-resiliency/retrier"
+	"github.com/gorilla/mux"
 	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/otel"
@@ -1190,5 +1191,30 @@ func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 	}
 	span.SetStatus(codes.Ok, " role found")
+
+}
+
+func (uh *UserHandler) HandleAccountVerification(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.HandleAccountVerification")
+	defer span.End()
+
+	email := mux.Vars(h)["email"]
+	if len(email) == 0 {
+		span.RecordError(errors.New("email is required"))
+		span.SetStatus(codes.Error, "Email is required")
+		http.Error(rw, "Email is required", http.StatusBadRequest)
+		return
+	}
+
+	err := uh.service.VerifyAccount(ctx, email)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		http.Error(rw, "There has been an error", http.StatusInternalServerError)
+		return
+	}
+
+	span.SetStatus(codes.Ok, " account verification successful ")
+	rw.WriteHeader(http.StatusOK)
 
 }

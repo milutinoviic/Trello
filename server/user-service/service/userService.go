@@ -30,7 +30,7 @@ func NewUserService(user *repository.UserRepository, cache *repository.UserCache
 func (s *UserService) Registration(ctx context.Context, request *data.AccountRequest) error {
 	ctx, span := s.tracer.Start(ctx, "UserService.Registration")
 	defer span.End()
-	err := s.user.Registration(ctx, request)
+	err := s.cache.Register(ctx, request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -269,4 +269,12 @@ func (us *UserService) GetRoleByEmail(ctx context.Context, email string) (string
 		return "", err
 	}
 	return role, nil
+}
+
+func (us *UserService) VerifyAccount(ctx context.Context, email string) error {
+	err := us.cache.VerifyAccount(ctx, email)
+	if err != nil {
+		return err
+	}
+	return nil
 }

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -66,59 +65,59 @@ func (ur *UserRepository) Disconnect(ctx context.Context) error {
 	return nil
 }
 
-func (ur *UserRepository) Registration(ctx context.Context, request *data.AccountRequest) error {
-	ctx, span := ur.tracer.Start(ctx, "UserRepository.Registration")
-	defer span.End()
-
-	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "Database not available")
-		return fmt.Errorf("database not available: %w", err)
-	}
-
-	var existingAccount data.Account
-	err := ur.getAccountCollection().FindOne(ctx, bson.M{"email": request.Email}).Decode(&existingAccount)
-
-	if err == nil {
-		span.SetStatus(codes.Error, "Email already exists")
-		ur.logger.Println("TraceID:", span.SpanContext().TraceID().String(), "Email already exists")
-		return data.ErrEmailAlreadyExists()
-	}
-	uuidPassword := uuid.New().String()
-	hashedPassword, err := hashPassword(uuidPassword)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "Failed to hash password")
-		return fmt.Errorf("failed to hash password: %w", err)
-	}
-
-	account := &data.Account{
-		Email:     request.Email,
-		FirstName: request.FirstName,
-		LastName:  request.LastName,
-		Password:  hashedPassword,
-		Role:      request.Role,
-	}
-	_, err = ur.getAccountCollection().InsertOne(ctx, account)
-
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "Failed to insert account")
-		return fmt.Errorf("failed to insert account: %w", err)
-	}
-
-	err = sendEmail(account, uuidPassword)
-
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "Failed to send email")
-		return fmt.Errorf("failed to send email: %w", err)
-	}
-
-	span.SetStatus(codes.Ok, "Account successfully created")
-	ur.logger.Println("Account created successfully")
-	return nil
-}
+//func (ur *UserRepository) Registration(ctx context.Context, request *data.AccountRequest) error {
+//	ctx, span := ur.tracer.Start(ctx, "UserRepository.Registration")
+//	defer span.End()
+//
+//	if err := ur.cli.Ping(ctx, readpref.Primary()); err != nil {
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, "Database not available")
+//		return fmt.Errorf("database not available: %w", err)
+//	}
+//
+//	var existingAccount data.Account
+//	err := ur.getAccountCollection().FindOne(ctx, bson.M{"email": request.Email}).Decode(&existingAccount)
+//
+//	if err == nil {
+//		span.SetStatus(codes.Error, "Email already exists")
+//		ur.logger.Println("TraceID:", span.SpanContext().TraceID().String(), "Email already exists")
+//		return data.ErrEmailAlreadyExists()
+//	}
+//	uuidPassword := uuid.New().String()
+//	hashedPassword, err := hashPassword(uuidPassword)
+//	if err != nil {
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, "Failed to hash password")
+//		return fmt.Errorf("failed to hash password: %w", err)
+//	}
+//
+//	account := &data.Account{
+//		Email:     request.Email,
+//		FirstName: request.FirstName,
+//		LastName:  request.LastName,
+//		Password:  hashedPassword,
+//		Role:      request.Role,
+//	}
+//	_, err = ur.getAccountCollection().InsertOne(ctx, account)
+//
+//	if err != nil {
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, "Failed to insert account")
+//		return fmt.Errorf("failed to insert account: %w", err)
+//	}
+//
+//	err = sendEmail(account, uuidPassword)
+//
+//	if err != nil {
+//		span.RecordError(err)
+//		span.SetStatus(codes.Error, "Failed to send email")
+//		return fmt.Errorf("failed to send email: %w", err)
+//	}
+//
+//	span.SetStatus(codes.Ok, "Account successfully created")
+//	ur.logger.Println("Account created successfully")
+//	return nil
+//}
 
 func hashPassword(password string) (string, error) {
 	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -134,21 +133,19 @@ func (ur *UserRepository) getAccountCollection() *mongo.Collection {
 	return userCollection
 }
 
-func sendEmail(request *data.Account, uuidPassword string) error {
-	// err := godotenv.Load()
-	// if err != nil {
-	//     return fmt.Errorf("error loading .env file")
-	// }
-
+func sendEmail(email string) error {
 	from := os.Getenv("SMTP_EMAIL")
 	password := os.Getenv("SMTP_PASSWORD")
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")
+	userService := os.Getenv("HTTPS_LINK_TO_USER")
+
+	verificationLink := fmt.Sprintf("%s/%s", userService, email)
 
 	plainTextBody := "Welcome to our service!\n\n" +
-		"Hello " + request.FirstName + ",\n" +
-		"Thank you for joining us. Your temporary password is: " + uuidPassword + "\n" +
-		"Please log in and change it as soon as possible.\n\n" +
+		"Thank you for joining our platform. Please verify your email address by clicking the link below:\n" +
+		verificationLink + "\n\n" +
+		"The link will expire in 10 minutes.\n\n" +
 		"Best regards,\nThe Team"
 
 	htmlBody := `<!DOCTYPE html>
@@ -159,6 +156,16 @@ func sendEmail(request *data.Account, uuidPassword string) error {
 			.container { padding: 20px; border: 1px solid #ddd; }
 			.header { font-size: 24px; font-weight: bold; color: #4CAF50; }
 			.content { margin-top: 10px; }
+			.button {
+				display: inline-block;
+				padding: 10px 20px;
+				font-size: 16px;
+				color: #fff;
+				background-color: #4CAF50;
+				text-decoration: none;
+				border-radius: 5px;
+				margin-top: 10px;
+			}
 			.footer { margin-top: 20px; font-size: 12px; color: #888; }
 		</style>
 	</head>
@@ -166,10 +173,9 @@ func sendEmail(request *data.Account, uuidPassword string) error {
 		<div class="container">
 			<div class="header">Welcome to Our Service!</div>
 			<div class="content">
-				<p>Hello ` + request.FirstName + `,</p>
-				<p>Thank you for joining our platform. We’re excited to have you on board!</p>
-				<p>Your temporary password is: <strong>` + uuidPassword + `</strong></p>
-				<p>Please log in and change it as soon as possible.</p>
+				<p>Thank you for joining our platform. Please verify your email address by clicking the button below:</p>
+				<a href="` + verificationLink + `" class="button">Verify Email</a>
+				<p>This link will expire in 10 minutes.</p>
 			</div>
 			<div class="footer">
 				<p>Best regards,<br>The Team</p>
@@ -180,9 +186,9 @@ func sendEmail(request *data.Account, uuidPassword string) error {
 
 	message := []byte("MIME-Version: 1.0\r\n" +
 		"Content-Type: multipart/alternative; boundary=\"fancy-boundary\"\r\n" +
-		"Subject: Welcome to our service!\r\n" +
+		"Subject: Verify Your Email Address\r\n" +
 		"From: " + from + "\r\n" +
-		"To: " + request.Email + "\r\n" +
+		"To: " + email + "\r\n" +
 		"\r\n" +
 		"--fancy-boundary\r\n" +
 		"Content-Type: text/plain; charset=\"utf-8\"\r\n" +
@@ -195,9 +201,9 @@ func sendEmail(request *data.Account, uuidPassword string) error {
 		"--fancy-boundary--")
 
 	auth := smtp.PlainAuth("", from, password, smtpHost)
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{request.Email}, message)
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{email}, message)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to send email: %w", err)
 	}
 
 	return nil
@@ -492,17 +498,27 @@ func (ur *UserRepository) HandleRecoveryRequest(ctx context.Context, email strin
 func (ur *UserRepository) ResetPassword(ctx context.Context, email string, password string) error {
 	ctx, span := ur.tracer.Start(ctx, "UserRepository.ResetPassword")
 	defer span.End()
+
 	accountCollection := ur.getAccountCollection()
 	var existingAccount data.Account
 
+	// Attempt to find the account by email
 	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 
 	if err != nil {
+		if errors.Is(err, mongo.ErrNoDocuments) {
+			span.RecordError(errors.New("Account not found"))
+			span.SetStatus(codes.Error, "Account not found")
+			ur.logger.Println("Error: Account not found for email:", email)
+			return errors.New("Account not found")
+		}
+
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		ur.logger.Println("Error finding account:", err)
 		return err
 	}
+
 	err = ForbidPassword(password)
 	if err != nil {
 		span.RecordError(err)
@@ -532,9 +548,9 @@ func (ur *UserRepository) ResetPassword(ctx context.Context, email string, passw
 		ur.logger.Println("Error updating account:", err)
 		return err
 	}
+
 	span.SetStatus(codes.Ok, "Successfully changed password")
 	return nil
-
 }
 
 func ForbidPassword(password string) error {

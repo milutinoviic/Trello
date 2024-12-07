@@ -200,6 +200,7 @@ services:
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
       - LINK_TO_PROJECT_SERVICE=${LINK_TO_PROJECT_SERVICE}
       - LINK_TO_TASK_SERVICE=${LINK_TO_TASK_SERVICE}
+      - HTTPS_LINK_TO_USER=${HTTPS_LINK_TO_USER}
     depends_on:
       mongo-user:
         condition: service_healthy
