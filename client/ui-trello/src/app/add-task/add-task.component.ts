@@ -1,4 +1,4 @@
-import {Component, Input, OnInit} from '@angular/core';
+import {Component, Input, OnInit, ViewChild} from '@angular/core';
 import {FormBuilder, FormGroup, Validators} from "@angular/forms";
 import {ActivatedRoute} from "@angular/router";
 import {Task, TaskStatus} from "../models/task";
@@ -10,6 +10,7 @@ import {firstValueFrom} from "rxjs";
 import {Project} from "../models/project.model";
 import {UserResponse} from "../member-addition/member-addition.component";
 import {ProjectServiceService} from "../services/project-service.service";
+import {GraphEditorComponent} from "../graph-editor/graph-editor.component";
 interface User {
   id: string;
   email: string;
@@ -21,7 +22,7 @@ interface User {
   styleUrls: ['./add-task.component.css']
 })
 export class AddTaskComponent implements OnInit {
-
+  @ViewChild(GraphEditorComponent) graphEditor!: GraphEditorComponent;
   taskForm!: FormGroup;
   @Input()  projectId!: string;
   tasks: Task[] = [];
@@ -61,6 +62,17 @@ export class AddTaskComponent implements OnInit {
       next: (project: Project) => {
         console.log('Project:', project);
         const userIds = project.user_ids || [];
+
+        if (userIds.length === 0) {
+          console.warn('No userIds provided. Skipping fetch for user details.');
+          this.fetchTasks(this.projectId); // Still fetch tasks regardless of user details
+          if (this.graphEditor) {
+            this.graphEditor.fetchData();
+          }
+
+          return;
+        }
+
         fetch('/api/user-server/users/details', {
           method: 'POST',
           headers: {

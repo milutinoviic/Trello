@@ -36,8 +36,10 @@ export class ProjectServiceService {
   }
 
   updateTaskStatus(taskId: string, status: string): Observable<void> {
-    const body = { id: taskId, status };
-    return this.http.put<void>(this.config.changeTaskStatus(), body);
+    const body = { id: taskId, status: status };
+    return this.http.put<void>(this.config.changeTaskStatus(), body, {
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 
 

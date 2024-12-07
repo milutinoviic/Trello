@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
@@ -93,6 +94,25 @@ func (t *TasksHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 	span.SetStatus(codes.Ok, "Successfully created task")
 	t.custLogger.Info(logrus.Fields{"taskID": task.ID}, "Task created successfully")
 	t.custLogger.Info(logrus.Fields{"projectID": task.ProjectID}, "ProjectID")
+
+	currentTime := time.Now().Add(1 * time.Hour)
+	formattedTime := currentTime.Format(time.RFC3339)
+
+	event := map[string]interface{}{
+		"type": "TaskCreated",
+		"time": formattedTime,
+		"event": map[string]interface{}{
+			"taskId":    task.ID,
+			"projectId": task.ProjectID,
+		},
+		"projectId": task.ProjectID,
+	}
+
+	// Send the event to the analytic service
+	if err := t.sendEventToAnalyticsService(event); err != nil {
+		http.Error(rw, "Failed to send event to analytics service", http.StatusInternalServerError)
+		return
+	}
 
 	taskIDStr := task.ID.Hex()
 	// Slanje odgovora
@@ -653,6 +673,24 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 			log.Println("Error publishing message to NATS:", err)
 		}
 
+		currentTime := time.Now().Add(1 * time.Hour)
+		formattedTime := currentTime.Format(time.RFC3339)
+
+		event := map[string]interface{}{
+			"type": "MemberAddedTask",
+			"time": formattedTime,
+			"event": map[string]interface{}{
+				"memberId": userID,
+				"taskId":   task.ID,
+			},
+			"projectId": task.ProjectID,
+		}
+
+		if err := t.sendEventToAnalyticsService(event); err != nil {
+			http.Error(rw, "Failed to send event to analytics service", http.StatusInternalServerError)
+			return
+		}
+
 		t.logger.Println("a message has been sent")
 	} else {
 		task.UserIDs = remove(task.UserIDs, userID)
@@ -689,6 +727,24 @@ func (t *TasksHandler) LogTaskMemberChange(rw http.ResponseWriter, h *http.Reque
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			log.Println("Error publishing message to NATS:", err)
+		}
+
+		currentTime := time.Now().Add(1 * time.Hour)
+		formattedTime := currentTime.Format(time.RFC3339)
+
+		event := map[string]interface{}{
+			"type": "MemberRemovedTask",
+			"time": formattedTime,
+			"event": map[string]interface{}{
+				"memberId": userID,
+				"taskId":   task.ID,
+			},
+			"projectId": task.ProjectID,
+		}
+
+		if err := t.sendEventToAnalyticsService(event); err != nil {
+			http.Error(rw, "Failed to send event to analytics service", http.StatusInternalServerError)
+			return
 		}
 
 		t.logger.Println("a message has been sent")
@@ -832,24 +888,33 @@ func (t *TasksHandler) isUserInProject(projectID, userID string) bool {
 func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Request) {
 	_, span := th.tracer.Start(context.Background(), "TaskHandler.HandleStatusUpdate")
 	defer span.End()
+
 	th.logger.Println("Received request to update task status")
 	th.custLogger.Info(nil, "Received request to update task status")
 
-	// Ekstrakcija task-a iz konteksta
-	task, ok := req.Context().Value(KeyTask{}).(*model.Task)
-	if !ok || task == nil {
-		span.RecordError(errors.New("cannot get task from context"))
-		span.SetStatus(codes.Error, "cannot get task from context")
-		//http.Error(rw, "Task data is missing or invalid", http.StatusBadRequest)
-		th.logger.Println("Error retrieving task from context")
-		errMsg := "Task data is missing or invalid"
-		th.logger.Println(errMsg)
-		th.custLogger.Error(nil, errMsg)
-		http.Error(rw, errMsg, http.StatusBadRequest)
+	var requestBody struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	err := json.NewDecoder(req.Body).Decode(&requestBody)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Invalid request body")
+		http.Error(rw, "Invalid request body", http.StatusBadRequest)
+		th.logger.Println("Failed to parse request body:", err)
+		th.custLogger.Error(nil, "Invalid request body: "+err.Error())
 		return
 	}
-	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task extracted from context successfully")
 
+	task, err := th.repo.GetByID(requestBody.ID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to find task")
+		http.Error(rw, "Task not found", http.StatusNotFound)
+		th.logger.Println("Task not found:", err)
+		th.custLogger.Error(nil, "Task not found: "+err.Error())
+		return
+	}
 	if task.Blocked == true {
 		th.logger.Println("Task is blocked and cannot change status!")
 		th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status, "blocked": task.Blocked}, "Task Is blocked and cannot change status")
@@ -867,8 +932,10 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 			return
 		}
 	}
-	// Ažuriranje statusa zadatka
-	err := th.repo.UpdateStatus(task)
+
+	task.Status = model.TaskStatus(requestBody.Status)
+
+	err = th.repo.UpdateStatus(task)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -877,10 +944,30 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 		errMsg := "Failed to update task status"
 		th.logger.Println(errMsg, err)
 		th.custLogger.Error(logrus.Fields{"taskID": task.ID, "status": task.Status}, errMsg+": "+err.Error())
-		http.Error(rw, errMsg, http.StatusInternalServerError)
 		return
 	}
+
 	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task status updated successfully")
+
+	if string(task.Status) == "Completed" {
+		for _, id := range task.Dependencies {
+			dependentTask, err := th.repo.GetByID(id)
+			if err != nil {
+				th.logger.Println("Error fetching dependent task with ID", id, ":", err)
+				http.Error(rw, "Error updating blocked flag for task", http.StatusInternalServerError)
+				return
+			}
+			th.repo.UpdateFlag(dependentTask, false)
+			if err != nil {
+				th.logger.Println("Error updating blocked flag for task ID", id, ":", err)
+				http.Error(rw, "Error updating blocked flag for task", http.StatusInternalServerError)
+				return
+			}
+			th.logger.Println("Successfully Updated blocked flag to false!")
+
+		}
+
+	}
 
 	err = th.publishStatusUpdate(task)
 	if err != nil {
@@ -889,10 +976,82 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 		return
 	}
 
+	currentTime := time.Now().Add(1 * time.Hour)
+	formattedTime := currentTime.Format(time.RFC3339)
+	id, ok := req.Context().Value(KeyId{}).(string)
+	if !ok || id == "" {
+		span.RecordError(errors.New("User ID is missing or invalid"))
+		span.SetStatus(codes.Error, "User ID is missing or invalid")
+		http.Error(rw, "User ID is missing or invalid", http.StatusUnauthorized)
+		th.logger.Println("Error retrieving user ID from context")
+		errMsg := "User ID is missing or invalid"
+		th.logger.Println(errMsg)
+		th.custLogger.Error(nil, errMsg)
+		http.Error(rw, errMsg, http.StatusUnauthorized)
+		return
+	}
+
+	event := map[string]interface{}{
+		"type": "TaskStatusChanged",
+		"time": formattedTime,
+		"event": map[string]interface{}{
+			"taskId":    task.ID,
+			"projectId": task.ProjectID,
+			"status":    task.Status,
+			"changedBy": id,
+		},
+		"projectId": task.ProjectID,
+	}
+
+	if err := th.sendEventToAnalyticsService(event); err != nil {
+		http.Error(rw, "Failed to send event to analytics service", http.StatusInternalServerError)
+		return
+	}
+
 	rw.WriteHeader(http.StatusOK)
 	th.logger.Println("Task status updated successfully")
 	span.SetStatus(codes.Ok, "Successfully updated task")
 	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Response sent successfully")
+}
+
+func (p *TasksHandler) sendEventToAnalyticsService(event interface{}) error {
+
+	linkToUserServer := os.Getenv("LINK_TO_ANALYTIC_SERVICE")
+	analyticsServiceURL := fmt.Sprintf("%s/event/append", linkToUserServer)
+
+	eventData, err := json.Marshal(event)
+	if err != nil {
+		log.Printf("Error marshalling event: %v", err)
+		return err
+	}
+
+	req, err := http.NewRequest("POST", analyticsServiceURL, bytes.NewBuffer(eventData))
+	if err != nil {
+		log.Printf("Error creating request: %v", err)
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v", err)
+		return fmt.Errorf("failed to create TLS client: %v", err)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("Error sending request to analytics service: %v", err)
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to send event to analytics service: %s", resp.Status)
+		return fmt.Errorf("failed to send event to analytics service: %s", resp.Status)
+	}
+
+	return nil
 }
 
 func (t *TasksHandler) publishStatusUpdate(task *model.Task) error {
@@ -1229,7 +1388,7 @@ func (th *TasksHandler) BlockTask(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = th.repo.UpdateFlag(task)
+	err = th.repo.UpdateFlag(task, true)
 	if err != nil {
 		th.logger.Print("Database exception:", err)
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -1310,7 +1469,7 @@ func (th *TasksHandler) updateBlockedStatus(taskID string) {
 		return
 	}
 	task.Blocked = true
-	err = th.repo.UpdateFlag(task)
+	err = th.repo.UpdateFlag(task, true)
 	if err != nil {
 		th.custLogger.Info(nil, "Cannot find task by id")
 		return

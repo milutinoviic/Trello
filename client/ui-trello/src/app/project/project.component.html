@@ -5,9 +5,11 @@
 
     <button class="btn btn-primary me-2" *ngIf="isManager()" (click)="openMemberAdditionModal(projectId)">Add Member to Project</button>
     <button
-      class="btn btn-primary"
+      class="btn btn-primary me-2"
       *ngIf="isManager()" (click)="openAddTaskModal(projectId)">Add Task to Project</button>
-
+    <button
+      class="btn btn-primary"
+      *ngIf="isManager()" (click)="navigateToHistory(projectId)">View History</button>
 
   </div>
 </div>
@@ -34,7 +36,7 @@
   <div class="column" cdkDropList #inProgress="cdkDropList" [cdkDropListConnectedTo]="['pending', 'completed']" [cdkDropListData]="inProgressTasks" (cdkDropListDropped)="onDrop($event)" id="cdk-drop-list-2">
     <h2>In Progress</h2>
     <div *ngFor="let task of inProgressTasks" class="task" (click)="openTask(task)" cdkDrag [cdkDragData]="task" (pointerdown)="$event.stopPropagation()" (cdkDragEnded)="onDragEnd()" (cdkDragStarted)="onDragStart()" >
-      <h3 class="task-with-img">{{ task.name }} <img
+      <h3 [ngClass]="{ 'blocked-task': task.blocked }" class="task-with-img">{{ task.name }} <img
       src="assets/icons/details.svg"
       alt="Description"
       class="details-icon" /></h3>
@@ -206,3 +208,4 @@
 
 
 </div>
+

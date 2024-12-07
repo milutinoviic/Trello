@@ -24,7 +24,7 @@ import (
 )
 
 func initUserClient() client.UserClient {
-	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("USER_SERVICE_PORT"))
+	return client.NewUserClient(os.Getenv("USER_SERVICE_HOST"), os.Getenv("PORT"))
 }
 
 func main() {
@@ -120,8 +120,8 @@ func main() {
 	postPutRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(taskHandler.PostTask))))
 
 	postPutRouter.Use(taskHandler.MiddlewareTaskDeserialization)
+	router.Handle("/tasks/status", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleStatusUpdate)))).Methods("PUT")
 	router.HandleFunc("/tasks/{taskId}/members/{action}/{userId}", taskHandler.LogTaskMemberChange).Methods("POST")
-	postPutRouter.Handle("/tasks/status", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleStatusUpdate))))
 	postPutRouter.Handle("/tasks/check", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.HandleCheckingIfUserIsInTask))))
 	postPutRouter.Handle("/tasks/{taskId}/block", http.HandlerFunc(taskHandler.BlockTask)).Methods(http.MethodPost)
 	postPutRouter.Handle("/tasks/{taskId}/dependency/{dependencyId}", http.HandlerFunc(taskHandler.AddDependencyToTask)).Methods(http.MethodPost)
@@ -146,8 +146,8 @@ func main() {
 		Addr:         ":" + port,
 		Handler:      handler,
 		IdleTimeout:  120 * time.Second,
-		ReadTimeout:  1 * time.Second,
-		WriteTimeout: 1 * time.Second,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
 	}
 
 	go func() {

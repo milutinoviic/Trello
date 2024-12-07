@@ -306,7 +306,7 @@ func (tr *TaskRepository) Update(task *model.Task) error {
 	return nil
 }
 
-func (tr *TaskRepository) UpdateFlag(task *model.Task) error {
+func (tr *TaskRepository) UpdateFlag(task *model.Task, blocked bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
@@ -316,7 +316,7 @@ func (tr *TaskRepository) UpdateFlag(task *model.Task) error {
 	filter := bson.M{"_id": task.ID}
 	update := bson.M{
 		"$set": bson.M{
-			"blocked":    true,
+			"blocked":    blocked,
 			"updated_at": time.Now(),
 		},
 	}

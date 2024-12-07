@@ -593,6 +593,7 @@ func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
 			CreatedAt: time.Now(),
 			Status:    model.Unread,
 		}
+		n.logger.Println("MEMBERI SU " + memberID)
 
 		if err := n.repo.Create(&notification); err != nil {
 			n.logger.Printf("Error inserting notification for user %s: %v", memberID, err)

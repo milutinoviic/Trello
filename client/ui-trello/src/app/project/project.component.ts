@@ -1,7 +1,7 @@
-import {Component, OnInit} from '@angular/core';
+import {Component, OnInit, ViewChild} from '@angular/core';
 import {ProjectDetails} from "../models/projectDetails";
 import {ProjectServiceService} from "../services/project-service.service";
-import {ActivatedRoute} from "@angular/router";
+import {ActivatedRoute, Router} from "@angular/router";
 import {TaskDetails} from "../models/taskDetails";
 import {Task, TaskStatus} from "../models/task";
 import {TaskService} from "../services/task.service";
@@ -12,6 +12,7 @@ import {ToastrService} from "ngx-toastr";
 import {TaskDocumentDetails} from "../models/taskDocumentDetails.model";
 import {TaskNode} from "../models/task-graph";
 import { CdkDragDrop, transferArrayItem } from '@angular/cdk/drag-drop';
+import {GraphEditorComponent} from "../graph-editor/graph-editor.component";
 
 @Component({
   selector: 'app-project',
@@ -19,6 +20,7 @@ import { CdkDragDrop, transferArrayItem } from '@angular/cdk/drag-drop';
   styleUrl: './project.component.css'
 })
 export class ProjectComponent implements OnInit {
+  @ViewChild(GraphEditorComponent) graphEditor!: GraphEditorComponent;
 
   project: ProjectDetails | null = null;
   projectId: string | null = null;
@@ -43,7 +45,7 @@ export class ProjectComponent implements OnInit {
 
 
 
-  constructor(private projectService: ProjectServiceService, private route: ActivatedRoute,private taskService: TaskService, private http: HttpClient, private toastr: ToastrService) {}
+  constructor(private projectService: ProjectServiceService,private router: Router ,private route: ActivatedRoute,private taskService: TaskService, private http: HttpClient, private toastr: ToastrService) {}
 
   ngOnInit(): void {
     this.route.paramMap.subscribe(params => {
@@ -74,10 +76,14 @@ export class ProjectComponent implements OnInit {
       next: (data: ProjectDetails) => {
         this.project = data;
         this.tasks = this.project.tasks;
-        console.log(this.project);
+
+        console.log('Project:', this.project);
+
+        // Skip fetch if userIds is empty
         const userIds = this.project.user_ids;
         if (!Array.isArray(userIds) || userIds.length === 0) {
-          console.error('Invalid userIds:', userIds);
+          console.warn('No userIds provided, skipping fetch.');
+          this.organizeTasksByStatus(this.project.tasks);
           return;
         }
 
@@ -90,23 +96,26 @@ export class ProjectComponent implements OnInit {
         })
           .then(response => response.json())
           .then(data => {
-            console.log("DATA: " + JSON.stringify(data));
+            console.log('User data:', data);
             this.allUsers = data;
+            if (this.graphEditor) {
+              this.graphEditor.fetchData();
+            }
           })
           .catch(error => {
-            console.error('Error:', error);
+            console.error('Error fetching user details:', error);
           });
 
         if (this.project && this.project.tasks) {
-
           this.organizeTasksByStatus(this.project.tasks);
         }
       },
       error: (err) => {
-        console.error('Greška pri učitavanju podataka o projektu', err);
+        console.error('Error loading project details:', err);
       }
     });
   }
+
 
   filterUsers(taskId: string) {
     this.filteredUsers[taskId] = this.allUsers
@@ -124,6 +133,7 @@ export class ProjectComponent implements OnInit {
 
   openTask(task: TaskDetails): void {
 
+// <<<<<<< HEAD
     if (!this.isDragging) {
       console.log(task);
 
@@ -145,8 +155,35 @@ export class ProjectComponent implements OnInit {
       this.checkIfUserInTask();
       this.getTaskDocumentsForTask();
     }
+// // =======
+//     this.selectedTask = task;
+//     this.getTaskDocumentsForTask();
+//
+//     console.log(this.selectedTask.users);
+//     console.log(this.selectedTask.userIds);
+//     console.log(this.selectedTask.user_ids);
+//
+//     this.taskMembers[task.id] = (task.user_ids || [])
+//       .map(userId => this.allUsers.find(user => user.id === userId))
+//       .filter(user => user !== undefined) as UserDetails[];
+//
+//     if (!this.taskMembers[task.id]) {
+//       this.taskMembers[task.id] = [];
+//     }
+//
+//     this.filteredUsers[task.id] = this.allUsers.filter(user =>
+//       !(this.taskMembers[task.id]?.some(member => member.id === user.id))
+//     );
+//
+//     if (!this.filteredUsers[task.id]) {
+//       this.filteredUsers[task.id] = [];
+//     }
+//
+//     this.checkIfUserInTask();
+// // >>>>>>> 701ed926e96cddba2666f90bd009235a6daad719
 
   }
+
 
 
 
@@ -400,6 +437,10 @@ export class ProjectComponent implements OnInit {
 
   }
 
+  navigateToHistory(projectId: string | null ) {
+    this.router.navigate(['/history/' + projectId]);
+  }
+
   // onFileSelected1(event: Event): void {
   //   const input = event.target as HTMLInputElement;
   //
@@ -570,6 +611,9 @@ export class ProjectComponent implements OnInit {
         }
 
         this.changeStatus(newStatus);
+        if(this.projectId != null){
+            this.loadProjectDetails(this.projectId);
+        }
       }
 
 
