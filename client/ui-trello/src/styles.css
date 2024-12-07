@@ -5,12 +5,24 @@ body{
 }
 
 :root {
+  /*--primary-color: #046E8F;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #0090C1;*/
+  /*--tercial-color: #183446;*/
+
+
   --primary-color: #046E8F;
   --hover-background-color: white;
-  --secondary-color: #0090C1;
-  --tercial-color: #183446;
+  --secondary-color: #E9F1F7;
+  /*--secondary-color: #F2F4F3;*/
+  --tercial-color: #131B23;
+  /*--tercial-color: #0A0908;*/
 
 
+  /*--primary-color: #5E503F;*/
+  /*--hover-background-color: #F2F4F3;*/
+  /*--secondary-color: #A9927D;*/
+  /*--tercial-color: #0A0908;*/
 
   /*--primary-color: #826C7F;*/
   /*--hover-background-color: white;*/
