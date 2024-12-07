@@ -65,51 +65,74 @@
     <p><strong>Updated At:</strong> {{ selectedTask.updatedAt | date }}</p>
     <p><strong>Blocked:</strong> {{selectedTask.blocked}}</p>
 
-    <div *ngIf="isManager()" class="user-management">
-      <p><strong>Users:</strong></p>
-      <label for="userSearch">Search Users:</label>
-      <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
+    <div  class="user-management">
+      <div *ngIf="isManager()">
 
-      <div class="filtered-users">
+        <p><strong>Users:</strong></p>
+        <label for="userSearch">Search Users:</label>
+        <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
+
+      </div>
+
+
+      <div *ngIf="isManager()" class="filtered-users">
         <div *ngFor="let user of filteredUsers[selectedTask.id]">
           <span>{{ user.email }}</span>
           <button (click)="addUserToTask(selectedTask, user)">Add</button>
         </div>
       </div>
 
-      <button (click)="fileInput.click()">Ubaci fajl</button>
-      <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
 
-      <div *ngIf="selectedFile">
-        <p>Izabrani fajl: {{ selectedFile.name }}</p>
-        <p>Veličina fajla: {{ selectedFile.size }} bajtova</p>
-        <button (click)="sendFile()">Pošalji fajl</button>
+      <div *ngIf="isUserInTask">
+        
+        <button (click)="fileInput.click()">Ubaci fajl</button>
+        <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
+
+        <div *ngIf="selectedFile">
+          <p>Izabrani fajl: {{ selectedFile.name }}</p>
+          <p>Veličina fajla: {{ selectedFile.size }} bajtova</p>
+          <button (click)="sendFile()">Pošalji fajl</button>
+        </div>
+
+
+
       </div>
 
 
 
-      <h5>Assigned Members:</h5>
-      <ul>
-        <li *ngFor="let member of taskMembers[selectedTask.id]">
-          <span>{{ member.email }}</span>
-          <button (click)="removeUserFromTask(selectedTask, member)">Remove</button>
-        </li>
-      </ul>
-
-      <h3>Uploaded Files</h3>
-      <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
+      <div *ngIf="isManager()">
+        <h5>Assigned Members:</h5>
         <ul>
-          <li *ngFor="let doc of taskDocumentDetails">
-            <span>{{ doc.fileName }}</span> ({{ doc.fileType }})
-            <button (click)="downloadFile(doc)">Download</button>
+          <li *ngFor="let member of taskMembers[selectedTask.id]">
+            <span>{{ member.email }}</span>
+            <button (click)="removeUserFromTask(selectedTask, member)">Remove</button>
           </li>
         </ul>
       </div>
-      <ng-template #noFiles>
-        <p>No files uploaded for this task.</p>
-      </ng-template>
-    </div>
-    <button (click)="closeTask()">Close</button>
+
+
+
+
+      <div *ngIf="isUserInTask">
+
+        <h3>Uploaded Files</h3>
+        <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
+          <ul>
+            <li *ngFor="let doc of taskDocumentDetails">
+              <span>{{ doc.fileName }}</span> ({{ doc.fileType }})
+              <button (click)="downloadFile(doc)">Download</button>
+            </li>
+          </ul>
+        </div>
+        <ng-template #noFiles>
+          <p>No files uploaded for this task.</p>
+        </ng-template>
+      </div>
+
+
+      </div>
+
+
 
 
       <div *ngIf="isManager()">
