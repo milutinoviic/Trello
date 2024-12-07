@@ -169,7 +169,7 @@ func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification,
 		SELECT id, user_id, message, created_at, status
 		FROM notifications 
 		WHERE user_id = ? 
-		ORDER BY created_at DESC`, userID).Iter()
+		`, userID).Iter()
 
 	for {
 		var notification model.Notification
