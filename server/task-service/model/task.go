@@ -16,16 +16,17 @@ const (
 )
 
 type Task struct {
-	ID           primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ProjectID    string             `bson:"project_id" json:"projectId"`
-	Name         string             `bson:"name" json:"name"`
-	Description  string             `bson:"description" json:"description"`
-	Status       TaskStatus         `bson:"status" json:"status"`
-	CreatedAt    time.Time          `bson:"created_at" json:"createdAt"`
-	UpdatedAt    time.Time          `bson:"updated_at" json:"updatedAt"`
-	UserIDs      []string           `bson:"user_ids" json:"user_ids"`
-	Dependencies []string           `bson:"dependencies" json:"dependencies"`
-	Blocked      bool               `bson:"blocked" json:"blocked"`
+	ID              primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	ProjectID       string             `bson:"project_id" json:"projectId"`
+	Name            string             `bson:"name" json:"name"`
+	Description     string             `bson:"description" json:"description"`
+	Status          TaskStatus         `bson:"status" json:"status"`
+	CreatedAt       time.Time          `bson:"created_at" json:"createdAt"`
+	UpdatedAt       time.Time          `bson:"updated_at" json:"updatedAt"`
+	UserIDs         []string           `bson:"user_ids" json:"user_ids"`
+	Dependencies    []string           `bson:"dependencies" json:"dependencies"`
+	Blocked         bool               `bson:"blocked" json:"blocked"`
+	PendingDeletion bool               `bson:"pending_deletion" json:"pending_deletion"`
 }
 
 type Tasks []*Task

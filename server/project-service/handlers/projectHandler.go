@@ -32,6 +32,8 @@ type KeyProject struct{}
 type KeyUser struct{}
 type KeyRole struct{}
 
+var pendingProjectDeletion = make(map[string]map[string]bool)
+
 type ProjectsHandler struct {
 	logger     *log.Logger
 	custLogger *customLogger.Logger
@@ -912,13 +914,11 @@ func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request)
 		return
 	}
 
-	// Log success
 	p.logger.Printf("Project with ID %s successfully deleted", projectId)
 	p.custLogger.Info(logrus.Fields{
 		"project_id": projectId,
 	}, "Project successfully deleted and event published")
 
-	// Respond with success
 	rw.WriteHeader(http.StatusOK)
 	span.SetStatus(codes.Ok, "Successfully deleted project")
 }
@@ -931,10 +931,19 @@ func (p *ProjectsHandler) SubscribeToEvent() {
 
 		return
 	}
-	// Subscribe on channel to react on task deletion
 	_, err = nc.QueueSubscribe("TasksDeleted", "tasks-deleted-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		p.HandleTasksDeleted(projectID)
+		if _, exists := pendingProjectDeletion[projectID]; !exists {
+			pendingProjectDeletion[projectID] = make(map[string]bool)
+		}
+		pendingProjectDeletion[projectID]["TasksDeleted"] = true
+		p.logger.Printf("Received TaskDeleted")
+
+		if p.isDeletionReady(projectID) {
+			p.HandleTasksDeleted(projectID)
+			p.EmitSuccessMessage(projectID)
+		}
+
 	})
 
 	if err != nil {
@@ -944,27 +953,57 @@ func (p *ProjectsHandler) SubscribeToEvent() {
 		projectID := string(msg.Data)
 		p.HandleTasksDeletedRollback(projectID)
 	})
+
+	_, err = nc.QueueSubscribe("WorkflowsDeleted", "workflows-deleted-queue", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		if _, exists := pendingProjectDeletion[projectID]; !exists {
+			pendingProjectDeletion[projectID] = make(map[string]bool)
+		}
+		pendingProjectDeletion[projectID]["WorkflowsDeleted"] = true
+		p.logger.Printf("Received WorkflowsDeleted")
+
+		if p.isDeletionReady(projectID) {
+			p.HandleTasksDeleted(projectID)
+			p.EmitSuccessMessage(projectID)
+		}
+
+	})
+}
+
+// emit message to finally phisically delete workflows and tasks
+func (p *ProjectsHandler) EmitSuccessMessage(projectID string) {
+	nc, err := Conn()
+	if err != nil {
+		log.Println("Error connecting to NATS:", err)
+		p.logger.Printf("Error connecting to NATS: ", err)
+
+		return
+	}
+	defer nc.Close()
+
+	err = nc.Publish("TasksDeletionComplete", []byte(projectID))
+	if err != nil {
+		p.logger.Printf("Failed to publish TasksDeletionComplete event for project %s: %v", projectID, err)
+	}
+
+	err = nc.Publish("WorkflowsDeletionComplete", []byte(projectID))
+	if err != nil {
+		p.logger.Printf("Failed to publish WorkflowsDeletionComplete event for project %s: %v", projectID, err)
+	}
+
+	p.logger.Printf("Successfully published success messages for project %s", projectID)
+
+}
+
+func (p *ProjectsHandler) isDeletionReady(projectID string) bool {
+	status, exists := pendingProjectDeletion[projectID]
+	if !exists {
+		return false
+	}
+	return status["TasksDeleted"] && status["WorkflowsDeleted"]
 }
 
 func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
-	project, _ := p.repo.GetById(projectID)
-	subject := "project.removed"
-	for _, userID := range project.UserIDs {
-		message := struct {
-			UserID      string `json:"userId"`
-			ProjectName string `json:"projectName"`
-		}{
-			UserID:      userID,
-			ProjectName: project.Name,
-		}
-
-		if err := p.sendNotification(subject, message); err != nil {
-			p.logger.Println(err.Error())
-			return
-		}
-	}
-
-	p.logger.Println("a message has been sent")
 
 	err := p.repo.DeleteProject(projectID)
 	if err != nil {

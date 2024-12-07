@@ -76,14 +76,6 @@ func main() {
 	store.Ping()
 	userClient := initUserClient()
 
-	/*
-		hdfsAddress := "hdfs://namenode:8020" // Zameni sa adresom HDFS NameNode-a
-		hdfsClient, err := hdfs.NewHDFSClient(hdfsAddress)
-		if err != nil {
-			logger.Fatalf("Failed to initialize HDFS client: %v", err)
-		}
-	*/
-
 	taskDocStore, err := repositories.NewTaskDocumentRepository(timeoutContext, storeLogger, tracer)
 	if err != nil {
 		logger.Fatal(err)
@@ -100,6 +92,15 @@ func main() {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
 	}
 	defer sub.Unsubscribe()
+
+	sub2, err := nc.Subscribe("TasksDeletionComplete", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		taskHandler.DeletedTasks(projectID)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub2.Unsubscribe()
 	defer func() {
 		if err := nc.Drain(); err != nil {
 			logger.Printf("Error draining NATS connection: %v", err)

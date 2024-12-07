@@ -295,6 +295,30 @@ func (t *TasksHandler) HandleProjectDeleted(projectID string) {
 	_, span := t.tracer.Start(context.Background(), "TaskHandler.HandleProjectDeleted")
 	defer span.End()
 
+	err := t.repo.UpdateAllTasksByProjectId(projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		t.logger.Printf("Failed to delete tasks for project %s: %v", projectID, err)
+
+		_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID))
+	}
+	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+
+	err = t.natsConn.Publish("TasksDeleted", []byte(projectID))
+	if err != nil {
+		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+	}
+
+	//_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID)) // uncomment this, and comment out the code above to test 'rollback' function
+
+	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
+}
+
+func (t *TasksHandler) DeletedTasks(projectID string) {
+	_, span := t.tracer.Start(context.Background(), "TaskHandler.HandleProjectDeleted")
+	defer span.End()
+
 	err := t.repo.DeleteAllTasksByProjectId(projectID)
 	if err != nil {
 		span.RecordError(err)

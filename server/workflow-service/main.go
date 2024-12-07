@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"github.com/rs/cors"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
@@ -23,6 +24,16 @@ import (
 
 func main() {
 	config := loadConfig()
+
+	natsURL := os.Getenv("NATS_URL")
+	if natsURL == "" {
+		natsURL = "nats://nats:4222"
+	}
+	nc, err := nats.Connect(natsURL)
+	if err != nil {
+		log.Fatalf("Error connecting to NATS: %v", err)
+	}
+	defer nc.Close()
 
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -47,7 +58,32 @@ func main() {
 	defer store.CloseDriverConnection(timeoutContext)
 	store.CheckConnection()
 
-	workflowHandler := handler.NewWorkflowHandler(logger, store, custLogger, tracer)
+	workflowHandler := handler.NewWorkflowHandler(logger, store, custLogger, tracer, nc)
+
+	sub, err := nc.QueueSubscribe("ProjectDeleted", "workflow-queue", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		workflowHandler.HandleProjectDeleted(projectID)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub.Unsubscribe()
+
+	sub2, err := nc.Subscribe("WorkflowsDeletionComplete", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		workflowHandler.DeletedWorkflows(projectID)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub2.Unsubscribe()
+
+	defer func() {
+		if err := nc.Drain(); err != nil {
+			logger.Printf("Error draining NATS connection: %v", err)
+		}
+		nc.Close()
+	}()
 
 	router := mux.NewRouter()
 

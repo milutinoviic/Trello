@@ -255,6 +255,34 @@ func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 	return nil
 }
 
+func (t *TaskRepository) UpdateAllTasksByProjectId(projectID string) error {
+
+	_, span := t.tracer.Start(context.Background(), "TaskRepository.DeleteAllTasksByProjectId")
+	defer span.End()
+	tasks, err := t.GetAllByProjectId(projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		t.logger.Printf("Failed to fetch tasks for project %s: %v", projectID, err)
+		return fmt.Errorf("failed to fetch tasks: %w", err)
+	}
+
+	for _, task := range tasks {
+		task.PendingDeletion = true
+		err := t.UpdatePendingDeletion(&task)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			t.logger.Printf("Failed to delete task with ID %s: %v", task.ID.Hex(), err)
+			return fmt.Errorf("failed to delete task with ID %s: %w", task.ID.Hex(), err)
+		}
+	}
+
+	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
+	return nil
+}
+
 func (tr *TaskRepository) GetByID(taskID string) (*model.Task, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -293,6 +321,31 @@ func (tr *TaskRepository) Update(task *model.Task) error {
 		"$set": bson.M{
 			"user_ids":   task.UserIDs,
 			"updated_at": time.Now(),
+		},
+	}
+
+	_, err := tasksCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "Successfully updated the task")
+	return nil
+}
+
+func (tr *TaskRepository) UpdatePendingDeletion(task *model.Task) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, span := tr.tracer.Start(ctx, "TaskRepository.Update")
+	defer span.End()
+
+	tasksCollection := tr.getCollection()
+	filter := bson.M{"_id": task.ID}
+	update := bson.M{
+		"$set": bson.M{
+			"pending_deletion": task.PendingDeletion,
+			"updated_at":       time.Now(),
 		},
 	}
 

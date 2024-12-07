@@ -15,16 +15,17 @@ const (
 )
 
 type TaskGraph struct {
-	ID           string     `json:"id"`
-	ProjectID    string     `json:"projectId"`
-	Name         string     `json:"name"`
-	Description  string     `json:"description"`
-	Status       TaskStatus `json:"status"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
-	Dependencies []string   `json:"dependencies"`
-	UserIds      []string   `json:"user_ids"`
-	Blocked      bool       `bson:"blocked"`
+	ID              string     `json:"id"`
+	ProjectID       string     `json:"projectId"`
+	Name            string     `json:"name"`
+	Description     string     `json:"description"`
+	Status          TaskStatus `json:"status"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+	Dependencies    []string   `json:"dependencies"`
+	UserIds         []string   `json:"user_ids"`
+	Blocked         bool       `json:"blocked"`
+	PendingDeletion bool       `json:"pending_deletion"`
 }
 
 type TaskGraphs []*TaskGraph

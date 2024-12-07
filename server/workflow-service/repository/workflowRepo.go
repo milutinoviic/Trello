@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -111,23 +112,24 @@ func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
 	savedPerson, err := session.ExecuteWrite(ctx,
 		func(transaction neo4j.ManagedTransaction) (any, error) {
 			result, err := transaction.Run(ctx,
-				"CREATE (p:Task) SET p.id = $id, p.projectId = $projectId, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.user_ids = $user_ids, p.dependencies = $dependencies, p.blocked = $blocked  RETURN p.name + ', from node ' + id(p)",
-				map[string]any{"id": task.ID, "projectId": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "user_ids": task.UserIds, "dependencies": task.Dependencies, "blocked": task.Blocked})
+				"CREATE (p:Task) SET p.id = $id, p.projectId = $projectId, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.user_ids = $user_ids, p.dependencies = $dependencies, p.blocked = $blocked, p.pending_deletion = $pending_deletion  RETURN p.name + ', from node ' + id(p)",
+				map[string]any{"id": task.ID, "projectId": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "user_ids": task.UserIds, "dependencies": task.Dependencies, "blocked": task.Blocked, "pending_deletion": task.PendingDeletion})
 			if err != nil {
 				return nil, err
 			}
 
 			wf.logger.Printf("Query parameters: %+v\n", map[string]any{
-				"id":           task.ID,
-				"project_id":   task.ProjectID,
-				"name":         task.Name,
-				"description":  task.Description,
-				"status":       task.Status,
-				"created_at":   task.CreatedAt,
-				"updated_at":   task.UpdatedAt,
-				"user_ids":     task.UserIds,
-				"dependencies": task.Dependencies,
-				"blocked":      task.Blocked,
+				"id":               task.ID,
+				"project_id":       task.ProjectID,
+				"name":             task.Name,
+				"description":      task.Description,
+				"status":           task.Status,
+				"created_at":       task.CreatedAt,
+				"updated_at":       task.UpdatedAt,
+				"user_ids":         task.UserIds,
+				"dependencies":     task.Dependencies,
+				"blocked":          task.Blocked,
+				"pending_deletion": task.PendingDeletion,
 			})
 			if result.Next(ctx) {
 				return result.Record().Values[0], nil
@@ -390,4 +392,81 @@ func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
 	span.SetStatus(codes.Ok, "Successfully retrieved task graph")
 	return result.(map[string]any), nil
 
+}
+
+func (w *WorkflowRepo) UpdateAllWorkflowByProjectId(projectID string) error {
+
+	query := `
+		MATCH (t {projectId: $projectID})
+		SET t.pending_deletion = true, 
+		    t.updated_at = $updatedAt
+		RETURN COUNT(t) AS updatedCount
+	`
+
+	ctx := context.Background()
+	session := w.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+	updatedAt := time.Now().Format(time.RFC3339)
+	result, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		res, err := tx.Run(ctx, query, map[string]any{
+			"projectID": projectID,
+			"updatedAt": updatedAt,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute update query: %w", err)
+		}
+
+		if res.Next(ctx) {
+			return res.Record().Values[0], nil
+		}
+		return nil, fmt.Errorf("no records updated")
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update workflows for project %s: %w", projectID, err)
+	}
+	updatedCount, ok := result.(int64)
+	if ok && updatedCount > 0 {
+		fmt.Printf("Successfully updated %d workflows for project %s\n", updatedCount, projectID)
+	} else {
+		fmt.Printf("No workflows updated for project %s\n", projectID)
+	}
+
+	return nil
+}
+
+func (w *WorkflowRepo) DeleteAllWorkflowByProjectId(projectID string) error {
+
+	query := `
+		MATCH (t {projectId: $projectID})
+		DETACH DELETE t
+		RETURN COUNT(t) AS deletedCount
+	`
+
+	ctx := context.Background()
+	session := w.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+	result, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		res, err := tx.Run(ctx, query, map[string]any{
+			"projectID": projectID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute update query: %w", err)
+		}
+
+		if res.Next(ctx) {
+			return res.Record().Values[0], nil
+		}
+		return nil, fmt.Errorf("no records updated")
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update workflows for project %s: %w", projectID, err)
+	}
+	deletedCount, ok := result.(int64)
+	if ok && deletedCount > 0 {
+		fmt.Printf("Successfully updated %d workflows for project %s\n", deletedCount, projectID)
+	} else {
+		fmt.Printf("No workflows updated for project %s\n", projectID)
+	}
+
+	return nil
 }

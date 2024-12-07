@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gorilla/mux"
+	"github.com/nats-io/nats.go"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -28,10 +29,11 @@ type WorkflowHandler struct {
 	repo       *repository.WorkflowRepo
 	custLogger *customLogger.Logger
 	tracer     trace.Tracer
+	nc         *nats.Conn
 }
 
-func NewWorkflowHandler(l *log.Logger, r *repository.WorkflowRepo, custLogger *customLogger.Logger, tracer trace.Tracer) *WorkflowHandler {
-	return &WorkflowHandler{l, r, custLogger, tracer}
+func NewWorkflowHandler(l *log.Logger, r *repository.WorkflowRepo, custLogger *customLogger.Logger, tracer trace.Tracer, nc *nats.Conn) *WorkflowHandler {
+	return &WorkflowHandler{l, r, custLogger, tracer, nc}
 }
 
 func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
@@ -236,4 +238,48 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 	}
 	span.SetStatus(codes.Ok, "Successfully fetched task graph")
 	//rw.WriteHeader(http.StatusOK) // no need to set this when using .Encode, encode already sets statusOK
+}
+
+func (t *WorkflowHandler) HandleProjectDeleted(projectID string) {
+	_, span := t.tracer.Start(context.Background(), "WorkflowHandler.HandleProjectDeleted")
+	defer span.End()
+
+	err := t.repo.UpdateAllWorkflowByProjectId(projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		t.logger.Printf("Failed to delete workflows for project %s: %v", projectID, err)
+
+		_ = t.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
+	}
+	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+
+	err = t.nc.Publish("WorkflowsDeleted", []byte(projectID))
+	if err != nil {
+		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+	}
+
+	span.SetStatus(codes.Ok, "Successfully deleted all workflows")
+}
+
+func (t *WorkflowHandler) DeletedWorkflows(projectID string) {
+	_, span := t.tracer.Start(context.Background(), "WorkflowHandler.HandleProjectDeleted")
+	defer span.End()
+
+	err := t.repo.DeleteAllWorkflowByProjectId(projectID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		t.logger.Printf("Failed to delete workflows for project %s: %v", projectID, err)
+
+		_ = t.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
+	}
+	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+
+	err = t.nc.Publish("WorkflowsDeleted", []byte(projectID))
+	if err != nil {
+		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+	}
+
+	span.SetStatus(codes.Ok, "Successfully deleted all workflows")
 }
