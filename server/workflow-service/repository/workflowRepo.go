@@ -54,8 +54,9 @@ func (wf *WorkflowRepo) CloseDriverConnection(ctx context.Context) {
 	wf.driver.Close(ctx)
 }
 
-func (wf *WorkflowRepo) GetAllNodesWithTask(limit int) (*model.TaskGraph, error) {
-	ctx := context.Background()
+func (wf *WorkflowRepo) GetAllNodesWithTask(ctx context.Context, limit int) (*model.TaskGraph, error) {
+	ctx, span := wf.tracer.Start(ctx, "WorkflowRepo.GetAllNodesWithTask")
+	defer span.End()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
@@ -67,6 +68,8 @@ func (wf *WorkflowRepo) GetAllNodesWithTask(limit int) (*model.TaskGraph, error)
 				LIMIT $limit`,
 				map[string]any{"limit": limit})
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 				return nil, err
 			}
 
@@ -96,15 +99,18 @@ func (wf *WorkflowRepo) GetAllNodesWithTask(limit int) (*model.TaskGraph, error)
 
 		})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		wf.logger.Println("Error querying search:", err)
 		return nil, err
 	}
+	span.SetStatus(codes.Ok, "")
 	return movieResults.(*model.TaskGraph), nil
 }
 
-func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
-
-	ctx := context.Background()
+func (wf *WorkflowRepo) PostTask(ctx context.Context, task *model.TaskGraph) error {
+	ctx, span := wf.tracer.Start(ctx, "WorkflowRepo.PostTask")
+	defer span.End()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
@@ -114,6 +120,8 @@ func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
 				"CREATE (p:Task) SET p.id = $id, p.projectId = $projectId, p.name = $name, p.description = $description, p.status = $status, p.created_at = $created_at, p.updated_at = $updated_at, p.user_ids = $user_ids, p.dependencies = $dependencies, p.blocked = $blocked  RETURN p.name + ', from node ' + id(p)",
 				map[string]any{"id": task.ID, "projectId": task.ProjectID, "name": task.Name, "description": task.Description, "status": task.Status, "created_at": task.CreatedAt, "updated_at": task.UpdatedAt, "user_ids": task.UserIds, "dependencies": task.Dependencies, "blocked": task.Blocked})
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 				return nil, err
 			}
 
@@ -136,15 +144,19 @@ func (wf *WorkflowRepo) PostTask(task *model.TaskGraph) error {
 			return nil, result.Err()
 		})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		wf.logger.Println("Error inserting Person:", err)
 		return err
 	}
+	span.SetStatus(codes.Ok, "")
 	wf.logger.Println(savedPerson.(string))
 	return nil
 }
 
-func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
-	ctx := context.Background()
+func (wf *WorkflowRepo) GetOne(ctx context.Context, taskID int) (*model.TaskGraph, error) {
+	ctx, span := wf.tracer.Start(ctx, "WorkflowRepo.GetOne")
+	defer span.End()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
@@ -164,6 +176,8 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 
 		result, err := transaction.Run(ctx, query, params)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 
@@ -199,15 +213,18 @@ func (wf *WorkflowRepo) GetOne(taskID int) (*model.TaskGraph, error) {
 	})
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		wf.logger.Println("Error retrieving task:", err)
 		return nil, err
 	}
-
+	span.SetStatus(codes.Ok, "")
 	return task.(*model.TaskGraph), nil
 }
 
-func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error {
-	ctx := context.Background()
+func (wf *WorkflowRepo) AddDependency(ctx context.Context, taskID string, dependencyID string) error {
+	ctx, span := wf.tracer.Start(ctx, "WorkflowRepo.AddDependency")
+	defer span.End()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)
 
@@ -226,6 +243,8 @@ func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error 
 		params := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
 		result, err := transaction.Run(ctx, query, params)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 
@@ -240,9 +259,11 @@ func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error 
 			wf.logger.Println("Result from hasCycle.bool:", hasCycle.(bool))
 
 			if hasExistingRelationship.(bool) {
+				span.RecordError(errors.New("a dependency relationship already exists between these tasks"))
 				return nil, errors.New("a dependency relationship already exists between these tasks")
 			}
 			if hasCycle.(bool) {
+				span.RecordError(errors.New("adding this dependency would create a cycle"))
 				return nil, errors.New("adding this dependency would create a cycle")
 			}
 		}
@@ -254,6 +275,8 @@ func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error 
 		updateParams := map[string]any{"taskID": taskID, "dependencyID": dependencyID}
 		_, err = transaction.Run(ctx, updateQuery, updateParams)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 
@@ -262,16 +285,17 @@ func (wf *WorkflowRepo) AddDependency(taskID string, dependencyID string) error 
 	})
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		wf.logger.Println("Error adding dependency:", err)
 		return err
 	}
-
+	span.SetStatus(codes.Ok, "")
 	return nil
 }
 
-func (wf *WorkflowRepo) GetTaskGraph(projectID string) (map[string]any, error) {
-	ctx := context.Background()
-	_, span := wf.tracer.Start(ctx, "WorkflowRepository.GetTaskGraph")
+func (wf *WorkflowRepo) GetTaskGraph(ctx context.Context, projectID string) (map[string]any, error) {
+	ctx, span := wf.tracer.Start(ctx, "WorkflowRepo.GetTaskGraph")
 	defer span.End()
 	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
 	defer session.Close(ctx)

@@ -94,7 +94,7 @@ func main() {
 
 	sub, err := nc.QueueSubscribe("ProjectDeleted", "task-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		taskHandler.HandleProjectDeleted(projectID)
+		taskHandler.HandleProjectDeleted(timeoutContext, projectID)
 	})
 	if err != nil {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)

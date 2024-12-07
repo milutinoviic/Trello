@@ -69,7 +69,7 @@ func main() {
 	taskClient := initTaskClient()
 
 	projectsHandler := handlers.NewProjectsHandler(logger, custLogger, store, tracer, userClient, taskClient)
-	projectsHandler.SubscribeToEvent()
+	projectsHandler.SubscribeToEvent(timeoutContext)
 
 	router := mux.NewRouter()
 

@@ -57,7 +57,7 @@ func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
 
 func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.Registration")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.Registration")
 	defer span.End()
 	uh.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
 
@@ -74,7 +74,7 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 	uh.custLogger.Info(logrus.Fields{"email": request.Email}, "Registration request body decoded successfully")
 
 	// Process registration
-	err = uh.service.Registration(request)
+	err = uh.service.Registration(ctx, request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -107,9 +107,9 @@ func (uh *UserHandler) Registration(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) GetManagers(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetManagers")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.GetManagers")
 	defer span.End()
-	managers, err := uh.service.GetAll()
+	managers, err := uh.service.GetAll(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -151,7 +151,7 @@ func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 		}, "Token retrieved from cookie")
 
 		// Validate the token
-		userID, role, err := uh.service.ValidateToken(cookie.Value)
+		userID, role, err := uh.service.ValidateToken(h.Context(), cookie.Value)
 		if err != nil {
 			uh.logger.Println("Token validation failed:", err)
 			uh.custLogger.Error(logrus.Fields{
@@ -181,7 +181,7 @@ func (uh *UserHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.H
 }
 
 func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetManager")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.GetManager")
 	defer span.End()
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
 	if !ok {
@@ -192,7 +192,7 @@ func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 	_, findOneSpan := uh.tracer.Start(context.Background(), "UserHandler.GetManager.FindOne")
-	manager, err := uh.service.GetOne(userID)
+	manager, err := uh.service.GetOne(ctx, userID)
 	findOneSpan.End()
 	if err != nil {
 		span.RecordError(err)
@@ -220,12 +220,12 @@ func (uh *UserHandler) GetManager(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.DeleteUser")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.DeleteUser")
 	defer span.End()
 
 	userID, _ := h.Context().Value(KeyAccount{}).(string)
 
-	manager, err := uh.service.GetOne(userID)
+	manager, err := uh.service.GetOne(ctx, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -234,8 +234,6 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(h.Context(), 10*time.Second)
-	defer cancel()
 	projectUrl := os.Getenv("LINK_TO_PROJECT_SERVICE")
 	projectServiceURL := fmt.Sprintf("%s/projects", projectUrl)
 
@@ -357,7 +355,7 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 			return
 		}
 
-		err = uh.service.Delete(userID)
+		err = uh.service.Delete(ctx, userID)
 		if err != nil {
 			uh.logger.Println("Failed to delete user:", err)
 			http.Error(rw, "Error deleting user", http.StatusInternalServerError)
@@ -374,7 +372,7 @@ func (uh *UserHandler) DeleteUser(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) checkTasks(ctx context.Context, projects []service.Project, userID, role string, authTokenCookie *http.Cookie) bool {
-	_, span := uh.tracer.Start(ctx, "UserHandler.checkTasks")
+	ctx, span := uh.tracer.Start(ctx, "UserHandler.checkTasks")
 	defer span.End()
 
 	tlsClient, err := createTLSClient()
@@ -542,11 +540,11 @@ func decodeLoginBody(r io.Reader) (*data.LoginCredentials, error) {
 }
 
 func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetAllMembers")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.GetAllMembers")
 	defer span.End()
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
 
-	accounts, err := uh.service.GetAllMembers(h.Context())
+	accounts, err := uh.service.GetAllMembers(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -568,7 +566,7 @@ func (uh *UserHandler) GetAllMembers(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.VerifyTokenExistence")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.VerifyTokenExistence")
 	defer span.End()
 	userID := h.Header.Get("X-User-ID")
 	if userID == "" {
@@ -577,7 +575,7 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 		http.Error(rw, "User ID missing", http.StatusBadRequest)
 		return
 	}
-	repo, _ := repository.New(context.Background(), uh.logger, uh.custLogger, uh.tracer)
+	repo, _ := repository.New(ctx, uh.logger, uh.custLogger, uh.tracer)
 
 	cache, err := repository.NewCache(uh.logger, repo, uh.tracer)
 	if err != nil {
@@ -588,7 +586,7 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 		return
 	}
 
-	exists, err := cache.VerifyToken(userID)
+	exists, err := cache.VerifyToken(ctx, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -606,7 +604,7 @@ func (uh *UserHandler) VerifyTokenExistence(rw http.ResponseWriter, h *http.Requ
 }
 
 func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.Login")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.Login")
 	defer span.End()
 	uh.logger.Println("Processing login request")
 	uh.custLogger.Info(nil, "Processing login request")
@@ -624,7 +622,7 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	uh.custLogger.Info(logrus.Fields{}, "Login request decoded successfully")
 
 	// Verify reCAPTCHA
-	boolean, err := uh.service.VerifyRecaptcha(request.RecaptchaToken)
+	boolean, err := uh.service.VerifyRecaptcha(ctx, request.RecaptchaToken)
 	if !boolean {
 		if err != nil {
 			span.RecordError(err)
@@ -642,7 +640,7 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	uh.custLogger.Info(nil, "reCAPTCHA verified successfully")
 
 	// Process login
-	id, role, token, err := uh.service.Login(request)
+	id, role, token, err := uh.service.Login(ctx, request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -702,7 +700,7 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.Logout")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.Logout")
 	defer span.End()
 	// Dohvatanje User ID iz konteksta
 	userID, ok := h.Context().Value(KeyAccount{}).(string)
@@ -717,7 +715,7 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "Processing logout request")
 
 	// Poziv servisa za logout
-	err := uh.service.Logout(userID)
+	err := uh.service.Logout(ctx, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -768,7 +766,7 @@ func (uh *UserHandler) Logout(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.CheckPasswords")
+	ctx, span := uh.tracer.Start(r.Context(), "UserHandler.CheckPasswords")
 	defer span.End()
 	var req data.ChangePasswordRequest
 	err := json.NewDecoder(r.Body).Decode(&req)
@@ -789,7 +787,7 @@ func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	isPasswordCorrect := uh.service.PasswordCheck(userID, req.Password)
+	isPasswordCorrect := uh.service.PasswordCheck(ctx, userID, req.Password)
 	uh.logger.Println("Password is correct:", isPasswordCorrect)
 
 	responseString := "false"
@@ -811,7 +809,7 @@ func (uh *UserHandler) CheckPasswords(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.ChangePassword")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.ChangePassword")
 	defer span.End()
 	uh.custLogger.Info(nil, "Processing change password request")
 
@@ -842,7 +840,7 @@ func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 	uh.custLogger.Info(logrus.Fields{"user_id": userID}, "User ID retrieved from context")
 
 	// Promena lozinke
-	err = uh.service.ChangePassword(userID, req.Password)
+	err = uh.service.ChangePassword(ctx, userID, req.Password)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -860,7 +858,7 @@ func (uh *UserHandler) ChangePassword(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleRecovery")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.HandleRecovery")
 	defer span.End()
 	var req struct {
 		Email string `json:"email"`
@@ -875,7 +873,7 @@ func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
 	}
 	defer h.Body.Close()
 
-	err = uh.service.RecoveryRequest(req.Email)
+	err = uh.service.RecoveryRequest(ctx, req.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -888,7 +886,7 @@ func (uh *UserHandler) HandleRecovery(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (uh *UserHandler) HandlePasswordReset(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandlePasswordReset")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.HandlePasswordReset")
 	defer span.End()
 	var req struct {
 		Email    string `json:"email"`
@@ -902,7 +900,7 @@ func (uh *UserHandler) HandlePasswordReset(rw http.ResponseWriter, h *http.Reque
 		return
 	}
 	defer h.Body.Close()
-	err = uh.service.ResettingPassword(req.Email, req.Password)
+	err = uh.service.ResettingPassword(ctx, req.Email, req.Password)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -914,7 +912,7 @@ func (uh *UserHandler) HandlePasswordReset(rw http.ResponseWriter, h *http.Reque
 }
 
 func (uh *UserHandler) HandleMagic(rw http.ResponseWriter, r *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleMagic")
+	ctx, span := uh.tracer.Start(r.Context(), "UserHandler.HandleMagic")
 	defer span.End()
 	var req struct {
 		Email string `json:"email"`
@@ -927,7 +925,7 @@ func (uh *UserHandler) HandleMagic(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.Body.Close()
-	err = uh.service.MagicLink(req.Email)
+	err = uh.service.MagicLink(ctx, req.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -939,7 +937,7 @@ func (uh *UserHandler) HandleMagic(rw http.ResponseWriter, r *http.Request) {
 }
 
 func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleMagicVerification")
+	ctx, span := uh.tracer.Start(r.Context(), "UserHandler.HandleMagicVerification")
 	defer span.End()
 	var req struct {
 		Email string `json:"email"`
@@ -952,7 +950,7 @@ func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.R
 		return
 	}
 	defer r.Body.Close()
-	id, token, err := uh.service.VerifyMagic(req.Email)
+	id, token, err := uh.service.VerifyMagic(ctx, req.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -993,7 +991,7 @@ func (uh *UserHandler) HandleMagicVerification(rw http.ResponseWriter, r *http.R
 }
 
 func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.ValidateToken")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.ValidateToken")
 	defer span.End()
 	uh.logger.Println("The path is hit")
 	var req struct {
@@ -1009,7 +1007,7 @@ func (uh *UserHandler) ValidateToken(rw http.ResponseWriter, h *http.Request) {
 	}
 	defer h.Body.Close()
 
-	userID, role, err := uh.service.ValidateToken(req.Token)
+	userID, role, err := uh.service.ValidateToken(ctx, req.Token)
 	uh.logger.Println("User ID is:", userID, "Role is:", role)
 
 	if err != nil {
@@ -1068,7 +1066,7 @@ func (uh *UserHandler) MiddlewareCheckAuthenticated(next http.Handler) http.Hand
 
 		cookie, err := r.Cookie("auth_token")
 		if err == nil && cookie != nil {
-			_, _, err := uh.service.ValidateToken(cookie.Value)
+			_, _, err := uh.service.ValidateToken(r.Context(), cookie.Value)
 			if err == nil {
 				http.Error(rw, "You are already logged in", http.StatusForbidden)
 				uh.logger.Println("User is already authenticated. Forbidden access.")
@@ -1081,7 +1079,7 @@ func (uh *UserHandler) MiddlewareCheckAuthenticated(next http.Handler) http.Hand
 }
 
 func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.GetUsersByIds")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.GetUsersByIds")
 	defer span.End()
 	uh.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
 
@@ -1097,7 +1095,7 @@ func (uh *UserHandler) GetUsersByIds(rw http.ResponseWriter, h *http.Request) {
 
 	userIds := request.UserIds
 
-	users, err := uh.service.GetUsersByIds(userIds)
+	users, err := uh.service.GetUsersByIds(ctx, userIds)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1150,7 +1148,7 @@ func createTLSClient() (*http.Client, error) {
 	return client, nil
 }
 func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request) {
-	_, span := uh.tracer.Start(context.Background(), "UserHandler.HandleGettingRole")
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.HandleGettingRole")
 	defer span.End()
 
 	type RequestPayload struct {
@@ -1173,7 +1171,7 @@ func (uh *UserHandler) HandleGettingRole(rw http.ResponseWriter, h *http.Request
 		return
 	}
 
-	role, err := uh.service.GetRoleByEmail(payload.Email)
+	role, err := uh.service.GetRoleByEmail(ctx, payload.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
