@@ -1212,13 +1212,9 @@ func (th *TasksHandler) HandleCheckingIfUserIsInTask(rw http.ResponseWriter, r *
 	span.SetStatus(codes.Ok, "Successfully checked user")
 }
 
-// <<<<<<< HEAD
-// func (h *TasksHandler) saveFileToHDFS(localFilePath, hdfsDirPath, hdfsFileName string) error {
-// =======
 func (h *TasksHandler) saveFileToHDFS(ctx context.Context, localFilePath, hdfsDirPath, hdfsFileName string) error {
 	ctx, span := h.tracer.Start(ctx, "TaskHandler.SaveFileToHDFS")
 	defer span.End()
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	hdfsAddress := "namenode:9000"
 
 	// Kreiranje HDFS klijenta
@@ -1373,6 +1369,48 @@ func (h *TasksHandler) UploadTaskDocument(w http.ResponseWriter, r *http.Request
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		http.Error(w, "Unable to save task document to database", http.StatusInternalServerError)
+		return
+	}
+
+	id, ok := r.Context().Value(KeyId{}).(string)
+	if !ok || id == "" {
+		span.RecordError(errors.New("User ID is missing or invalid"))
+		span.SetStatus(codes.Error, "User ID is missing or invalid")
+		http.Error(w, "User ID is missing or invalid", http.StatusUnauthorized)
+		h.logger.Println("Error retrieving user ID from context")
+		errMsg := "User ID is missing or invalid"
+		h.logger.Println(errMsg)
+		h.custLogger.Error(nil, errMsg)
+		http.Error(w, errMsg, http.StatusUnauthorized)
+		return
+	}
+
+	task, err := h.repo.GetByID(ctx, taskId)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		h.logger.Print("Database exception:", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	currentTime := time.Now().Add(1 * time.Hour)
+	formattedTime := currentTime.Format(time.RFC3339)
+
+	event := map[string]interface{}{
+		"type": "DocumentAdded",
+		"time": formattedTime,
+		"event": map[string]interface{}{
+			"taskId":     taskDocument.TaskID,
+			"projectId":  task.ProjectID,
+			"documentId": taskDocument.ID,
+			"addedBy":    id,
+		},
+		"projectId": task.ProjectID,
+	}
+
+	if err := h.sendEventToAnalyticsService(ctx, event); err != nil {
+		http.Error(w, "Failed to send event to analytics service", http.StatusInternalServerError)
 		return
 	}
 

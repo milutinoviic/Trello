@@ -61,7 +61,6 @@ function initTokenVerification(accountService: AccountService) {
     ProjectComponent,
     ProjectHistoryComponent,
     GraphEditorComponent,
-
     AccountVerificationComponent,
   ],
   imports: [
