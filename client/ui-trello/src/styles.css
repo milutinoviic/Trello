@@ -44,6 +44,7 @@ body{
   /*--tercial-color: #041B15;*/
   --red-primary-color: #F15946;
   --red-secondary-color: #ED6A5A;
+  --green-primary-color: #2db629
 }
 
 
@@ -57,7 +58,7 @@ body{
 }
 
 .toast-success {
-  background-color: var(--primary-color) !important;
+  background-color: var(--green-primary-color) !important;
   color: var(--hover-background-color) !important;
   padding: 20px;
   border-radius: 5px;

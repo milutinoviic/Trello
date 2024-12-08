@@ -946,13 +946,10 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 		return
 	}
 
-	//<<<<<<< HEAD
-	//	task, err := th.repo.GetByID(requestBody.ID)
-	//=======
 	th.custLogger.Info(logrus.Fields{"taskID": requestBody.ID, "status": requestBody.Status}, "Parsed request body successfully")
 
 	task, err := th.repo.GetByID(ctx, requestBody.ID)
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
+
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "Failed to find task")
@@ -981,7 +978,14 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 
 	task.Status = model.TaskStatus(requestBody.Status)
 
-	err = th.repo.UpdateStatus(ctx, task)
+	userID, ok := ctx.Value(KeyId{}).(string)
+	if !ok || userID == "" {
+		th.logger.Println("There is no id")
+		http.Error(rw, "There is no id", http.StatusBadRequest)
+		return
+	}
+
+	err = th.repo.UpdateStatus(ctx, task, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

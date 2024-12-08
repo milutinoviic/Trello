@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -280,10 +281,7 @@ func (tr *TaskRepository) GetByID(ctx context.Context, taskID string) (*model.Ta
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, span := tr.tracer.Start(ctx, "TaskRepository.GetByID")
-	//=======
-	//func (tr *TaskRepository) GetByID(ctx context.Context, taskID string) (*model.Task, error) {
-	//	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetByID")
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
+
 	defer span.End()
 	tasksCollection := tr.getCollection()
 
@@ -328,7 +326,6 @@ func (tr *TaskRepository) Update(ctx context.Context, task *model.Task) error {
 	return nil
 }
 
-// <<<<<<< HEAD
 func (tr *TaskRepository) UpdatePendingDeletion(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -358,10 +355,7 @@ func (tr *TaskRepository) UpdateFlag(ctx context.Context, task *model.Task, bloc
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
-	//=======
-	//func (tr *TaskRepository) UpdateFlag(ctx context.Context, task *model.Task) error {
-	//	ctx, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
+
 	defer span.End()
 
 	tasksCollection := tr.getCollection()
@@ -462,7 +456,7 @@ func (tr *TaskRepository) getChangeCollection() *mongo.Collection {
 	return changeCollection
 }
 
-func (tr *TaskRepository) UpdateStatus(ctx context.Context, task *model.Task) error {
+func (tr *TaskRepository) UpdateStatus(ctx context.Context, task *model.Task, id string) error {
 	ctx, span := tr.tracer.Start(ctx, "TaskRepository.UpdateStatus")
 	defer span.End()
 
@@ -471,6 +465,19 @@ func (tr *TaskRepository) UpdateStatus(ctx context.Context, task *model.Task) er
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("invalid task ID: %v", err)
+	}
+
+	isAssigned := false
+	for _, userId := range task.UserIDs {
+		if userId == id {
+			isAssigned = true
+			break
+		}
+	}
+	if !isAssigned {
+		span.RecordError(errors.New("User is not assigned to the task"))
+		span.SetStatus(codes.Error, "User is not assigned to the task")
+		return fmt.Errorf("user is not assigned to the task")
 	}
 
 	tasksCollection := tr.getCollection()
