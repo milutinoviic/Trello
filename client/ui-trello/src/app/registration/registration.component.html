@@ -10,6 +10,19 @@
     </div>
   </div>
   <div>
+    <label for="password">Password:</label>
+    <input type="password" id="password" formControlName="password" />
+    <div *ngIf="registrationForm.get('password')?.touched && registrationForm.get('password')?.invalid">
+      <p *ngIf="registrationForm.get('password')?.errors?.['required']">Password is required.</p>
+      <p *ngIf="registrationForm.get('password')?.errors?.['length']">Password must be at least 8 characters long.</p>
+      <p *ngIf="registrationForm.get('password')?.errors?.['uppercase']">Password must contain at least one uppercase letter.</p>
+      <p *ngIf="registrationForm.get('password')?.errors?.['lowercase']">Password must contain at least one lowercase letter.</p>
+      <p *ngIf="registrationForm.get('password')?.errors?.['number']">Password must contain at least one number.</p>
+      <p *ngIf="registrationForm.get('password')?.errors?.['specialChar']">Password must contain at least one special character.</p>
+    </div>
+  </div>
+
+  <div>
     <label for="firstName">First name:</label>
     <input type="text" id="firstName" formControlName="firstName" placeholder="First name" required>
     <div *ngIf="registrationForm.get('firstName')?.touched">

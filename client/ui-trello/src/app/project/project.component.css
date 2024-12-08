@@ -11,7 +11,7 @@
 
 .column {
   width: 30%;
-  background-color: #f4f4f4;
+  background-color: var(--shadow--white); /*#f4f4f4;*/
   padding: 10px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -20,7 +20,7 @@
 
 .column-text {
   width: 95%;
-  background-color: #f4f4f4;
+  background-color: var(--shadow--white);
   color: var(--tercial-color);
   padding: 10px;
   border-radius: 8px;
@@ -214,3 +214,7 @@ button:hover {
   pointer-events: none;
 }
 
+.btn-primary:focus {
+  background-color: var(--primary-color);
+
+}

@@ -28,6 +28,7 @@ import {AccountService} from "./services/account.service";
 import { ProjectComponent } from './project/project.component';
 import { ProjectHistoryComponent } from './project-history/project-history.component';
 import { GraphEditorComponent } from './graph-editor/graph-editor.component';
+import { AccountVerificationComponent } from './account-verification/account-verification.component';
 
 
 
@@ -60,6 +61,8 @@ function initTokenVerification(accountService: AccountService) {
     ProjectComponent,
     ProjectHistoryComponent,
     GraphEditorComponent,
+
+    AccountVerificationComponent,
   ],
   imports: [
     BrowserModule,

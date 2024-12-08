@@ -4,6 +4,7 @@ import {animate, state, style, transition, trigger} from "@angular/animations";
 import {ToastrService} from "ngx-toastr";
 import {AccountRequest} from "../models/account-request.model";
 import {AccountService} from "../services/account.service";
+import {passwordValidator} from "../validator/password-validator";
 
 @Component({
   selector: 'app-registration',
@@ -37,6 +38,9 @@ export class RegistrationComponent implements OnInit{
       email: ['',
         [Validators.required, Validators.email]
       ],
+      password: ['',
+        [Validators.required, passwordValidator()]
+      ],
       firstName: ['', [Validators.required]],
       lastName: ['', [Validators.required]],
       role: ['', [Validators.required]],
@@ -48,6 +52,7 @@ export class RegistrationComponent implements OnInit{
       this.isSubmitting = true; // Set loading state
       const accountRequest: AccountRequest = {
         email: this.registrationForm.get('email')?.value,
+        password: this.registrationForm.get('password')?.value,
         first_name: this.registrationForm.get('firstName')?.value,
         last_name: this.registrationForm.get('lastName')?.value,
         role: this.registrationForm.get('role')?.value,

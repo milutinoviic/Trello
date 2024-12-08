@@ -5,18 +5,29 @@ import (
 	"analytics-service/repository"
 	"encoding/json"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
 )
 
 // EventHandler processes events for both HTTP and internal event processing.
 type EventHandler struct {
-	repo *repository.ESDBClient
+	repo   *repository.ESDBClient
+	tracer trace.Tracer
 }
 
 // NewEventHandler creates a new EventHandler with a given repository.
-func NewEventHandler(repo *repository.ESDBClient) *EventHandler {
-	return &EventHandler{repo: repo}
+func NewEventHandler(repo *repository.ESDBClient, tracer trace.Tracer) *EventHandler {
+	return &EventHandler{repo: repo, tracer: tracer}
+}
+
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // ProcessEventHandler will handle HTTP requests to process events (POST)

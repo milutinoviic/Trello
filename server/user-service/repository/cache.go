@@ -14,8 +14,10 @@ import (
 	"log"
 	"main.go/data"
 	"main.go/utils"
+	"net/mail"
 	"net/smtp"
 	"os"
+	"regexp"
 	"time"
 )
 
@@ -27,12 +29,14 @@ type UserCache struct {
 }
 
 const (
-	cacheRequestConstruct = "requests:%s"
-	cacheUserConstruct    = "activeUser:%s"
-	cacheMagicConstruct   = "magic:%s"
-	cacheMagic            = "magic"
-	cacheRequests         = "requests"
-	cacheUser             = "activeUser"
+	cacheRequestConstruct  = "requests:%s"
+	cacheUserConstruct     = "activeUser:%s"
+	cacheMagicConstruct    = "magic:%s"
+	cacheRegisterConstruct = "register:%s"
+	cacheMagic             = "magic"
+	cacheRequests          = "requests"
+	cacheUser              = "activeUser"
+	cacheRegister          = "register"
 )
 
 func constructKeyForRequest(id string) string {
@@ -46,6 +50,8 @@ func constructKeyForUser(id string) string {
 func constructKeyForMagic(email string) string {
 	return fmt.Sprintf(cacheMagicConstruct, email)
 }
+
+func constructKeyForRegister(email string) string { return fmt.Sprintf(cacheRegister, email) }
 
 func NewCache(logger *log.Logger, repo *UserRepository, trace trace.Tracer) (*UserCache, error) {
 	redisHost := os.Getenv("REDIS_HOST")
@@ -68,17 +74,17 @@ func NewCache(logger *log.Logger, repo *UserRepository, trace trace.Tracer) (*Us
 	}, nil
 }
 
-func (uc *UserCache) Login(user *data.LoginCredentials, token string) error {
-	_, span := uc.tracer.Start(context.Background(), "Cache.Login")
+func (uc *UserCache) Login(ctx context.Context, user *data.LoginCredentials, token string) error {
+	ctx, span := uc.tracer.Start(ctx, "Cache.Login")
 	defer span.End()
-	keyForId, err := uc.userRepository.GetUserIdByEmail(user.Email)
+	keyForId, err := uc.userRepository.GetUserIdByEmail(ctx, user.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return errors.New("key is not found")
 	}
 
-	userFound, err := uc.userRepository.GetUserByEmail(user.Email)
+	userFound, err := uc.userRepository.GetUserByEmail(ctx, user.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -99,10 +105,13 @@ func (uc *UserCache) Login(user *data.LoginCredentials, token string) error {
 		return err
 	}
 
-	// For testing purposes TTL is set to 5 minutes.
-
+	// For testing purposes TTL is set to 10 minutes.
 	// In more realistic situations, it should be set to 30 minutes minimally.
-	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 5*time.Minute).Err()
+	//<<<<<<< HEAD
+	//	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 5*time.Minute).Err()
+	//=======
+	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 10*time.Minute).Err()
+	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -112,8 +121,8 @@ func (uc *UserCache) Login(user *data.LoginCredentials, token string) error {
 	return err
 }
 
-func (uc *UserCache) VerifyToken(userID string) (bool, error) {
-	_, span := uc.tracer.Start(context.Background(), "Cache.VerifyToken")
+func (uc *UserCache) VerifyToken(ctx context.Context, userID string) (bool, error) {
+	_, span := uc.tracer.Start(ctx, "Cache.VerifyToken")
 	defer span.End()
 	key := constructKeyForUser(userID)
 	exists, err := uc.cli.Exists(key).Result()
@@ -133,8 +142,8 @@ func (uc *UserCache) VerifyToken(userID string) (bool, error) {
 	}
 }
 
-func (uc *UserCache) Logout(id string) error {
-	_, span := uc.tracer.Start(context.Background(), "Cache.Logout")
+func (uc *UserCache) Logout(ctx context.Context, id string) error {
+	_, span := uc.tracer.Start(ctx, "Cache.Logout")
 	defer span.End()
 	key := constructKeyForUser(id)
 	err := uc.cli.Del(key).Err()
@@ -147,8 +156,8 @@ func (uc *UserCache) Logout(id string) error {
 	return nil
 }
 
-func (uc *UserCache) GetUserIDFromToken(token string) (string, error) {
-	_, span := uc.tracer.Start(context.Background(), "Cache.GetUserIDFromToken")
+func (uc *UserCache) GetUserIDFromToken(ctx context.Context, token string) (string, error) {
+	_, span := uc.tracer.Start(ctx, "Cache.GetUserIDFromToken")
 	defer span.End()
 	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -211,17 +220,13 @@ func SendMagicLink(userEmail string) error {
 	return nil
 }
 
-func (c *UserCache) ImplementMagic(email string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (c *UserCache) ImplementMagic(ctx context.Context, email string) error {
 	ctx, span := c.tracer.Start(ctx, "Cache.ImplementMagic")
 	defer span.End()
 	accountCollection := c.userRepository.getAccountCollection()
 	var existingAccount data.Account
 
-	findOneCtx, findOneSpan := c.tracer.Start(ctx, "Cache.ImplementMagic.FindOne")
-	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
-	findOneSpan.End()
+	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -248,16 +253,12 @@ func (c *UserCache) ImplementMagic(email string) error {
 	return nil
 }
 
-func (c *UserCache) VerifyMagic(email string) (string, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (c *UserCache) VerifyMagic(ctx context.Context, email string) (string, string, error) {
 	ctx, span := c.tracer.Start(ctx, "Cache.VerifyMagic")
 	defer span.End()
 	accountCollection := c.userRepository.getAccountCollection()
 	var existingAccount data.Account
-	findOneCtx, findOneSpan := c.tracer.Start(ctx, "Cache.VerifyMagic.FindOne")
-	err := accountCollection.FindOne(findOneCtx, bson.M{"email": email}).Decode(&existingAccount)
-	findOneSpan.End()
+	err := accountCollection.FindOne(ctx, bson.M{"email": email}).Decode(&existingAccount)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -293,10 +294,10 @@ func (c *UserCache) VerifyMagic(email string) (string, string, error) {
 	return existingAccount.ID.Hex(), token, nil
 }
 
-func (uc *UserCache) VerifyTokenWithUserId(token string) (string, error) {
-	_, span := uc.tracer.Start(context.Background(), "Cache.VerifyTokenWithUserId")
+func (uc *UserCache) VerifyTokenWithUserId(ctx context.Context, token string) (string, error) {
+	ctx, span := uc.tracer.Start(ctx, "Cache.VerifyTokenWithUserId")
 	defer span.End()
-	userID, err := uc.GetUserIDFromToken(token)
+	userID, err := uc.GetUserIDFromToken(ctx, token)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -321,10 +322,10 @@ func (uc *UserCache) VerifyTokenWithUserId(token string) (string, error) {
 	return userID, nil
 }
 
-func (uc *UserCache) GetUserRole(token string) (string, error) {
-	_, span := uc.tracer.Start(context.Background(), "Cache.GetUserRole")
+func (uc *UserCache) GetUserRole(ctx context.Context, token string) (string, error) {
+	_, span := uc.tracer.Start(ctx, "Cache.GetUserRole")
 	defer span.End()
-	userRole, err := uc.GetRoleFromToken(token)
+	userRole, err := uc.GetRoleFromToken(ctx, token)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -335,8 +336,8 @@ func (uc *UserCache) GetUserRole(token string) (string, error) {
 	return userRole, nil
 }
 
-func (uc *UserCache) GetRoleFromToken(token string) (string, error) {
-	_, span := uc.tracer.Start(context.Background(), "Cache.GetRoleFromToken")
+func (uc *UserCache) GetRoleFromToken(ctx context.Context, token string) (string, error) {
+	_, span := uc.tracer.Start(ctx, "Cache.GetRoleFromToken")
 	defer span.End()
 	parsedToken, err := jwt.Parse(token, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -362,4 +363,164 @@ func (uc *UserCache) GetRoleFromToken(token string) (string, error) {
 	span.SetStatus(codes.Error, "Invalid token")
 
 	return "", errors.New("role not found in token")
+}
+
+func (uc *UserCache) Register(ctx context.Context, request *data.AccountRequest) error {
+	ctx, span := uc.tracer.Start(ctx, "UserRepository.Registration")
+	defer span.End()
+
+	var existingAccount data.Account
+	err := uc.userRepository.getAccountCollection().FindOne(ctx, bson.M{"email": request.Email}).Decode(&existingAccount)
+	if err == nil {
+		span.SetStatus(codes.Error, "Account already exists.")
+		return errors.New("account already exists")
+	}
+
+	construct := constructKeyForRegister(request.Email)
+	_, err = uc.cli.Get(construct).Result()
+	if errors.Is(err, redis.Nil) {
+		span.AddEvent("Redis key not found, proceeding with registration")
+	} else if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	} else {
+		span.SetStatus(codes.Error, "Registration already in progress")
+		return errors.New("registration already in progress")
+	}
+
+	if _, err = mail.ParseAddress(request.Email); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if len(request.FirstName) == 0 {
+		return errors.New("first name is empty")
+	}
+	if len(request.LastName) == 0 {
+		return errors.New("last name is empty")
+	}
+	if len(request.Role) == 0 {
+		return errors.New("role is empty")
+	}
+	if err = ValidatePassword(request.Password); err != nil {
+		return err
+	}
+
+	hashedPassword, err := hashPassword(request.Password)
+	if err != nil {
+		return err
+	}
+
+	account := &data.Account{
+		Email:     request.Email,
+		FirstName: request.FirstName,
+		LastName:  request.LastName,
+		Password:  hashedPassword,
+		Role:      request.Role,
+	}
+
+	// Serialize the account to JSON
+	accountJSON, err := json.Marshal(account)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "Failed to serialize account")
+		return err
+	}
+
+	// Store the serialized account in Redis
+	err = uc.cli.Set(construct, accountJSON, 5*time.Minute).Err()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	// Send verification email
+	err = sendEmail(account.Email)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	span.SetStatus(codes.Ok, "Registration successful")
+	return nil
+}
+
+func (uc *UserCache) VerifyAccount(ctx context.Context, email string) error {
+	ctx, span := uc.tracer.Start(ctx, "UserRepository.VerifyAccount")
+	defer span.End()
+
+	construct := constructKeyForRegister(email)
+
+	val, err := uc.cli.Get(construct).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return fmt.Errorf("account verification key not found in Redis for email: %s", email)
+		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("Redis error: %v", err))
+		return fmt.Errorf("failed to get account verification data from Redis: %w", err)
+	}
+
+	var account data.Account
+	err = json.Unmarshal([]byte(val), &account)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("JSON unmarshal error: %v", err))
+		return fmt.Errorf("failed to unmarshal account data for email: %s, error: %w", email, err)
+	}
+
+	existingAccount := data.Account{}
+	err = uc.userRepository.getAccountCollection().FindOne(ctx, bson.M{"email": account.Email}).Decode(&existingAccount)
+	if err == nil {
+		span.RecordError(errors.New("Account already exists in the database"))
+		span.SetStatus(codes.Error, "Account already exists")
+		return fmt.Errorf("account already exists for email: %s", account.Email)
+	}
+
+	_, err = uc.userRepository.getAccountCollection().InsertOne(ctx, account)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, fmt.Sprintf("Database insert error: %v", err))
+		return fmt.Errorf("failed to insert account into the database: %w", err)
+	}
+
+	span.SetStatus(codes.Ok, "Account verified successfully")
+	return nil
+}
+
+func ValidatePassword(password string) error {
+	rules := map[string]string{
+		"length":      `.{8,}`,
+		"uppercase":   `[A-Z]`,
+		"lowercase":   `[a-z]`,
+		"number":      `[0-9]`,
+		"specialChar": `[!@#$%^&*()]`,
+	}
+
+	messages := map[string]string{
+		"length":      "Password must be at least 8 characters long.",
+		"uppercase":   "Password must contain at least one uppercase letter.",
+		"lowercase":   "Password must contain at least one lowercase letter.",
+		"number":      "Password must contain at least one number.",
+		"specialChar": "Password must contain at least one special character.",
+	}
+
+	var validationErrors []string
+
+	for rule, pattern := range rules {
+		matched, err := regexp.MatchString(pattern, password)
+		if err != nil {
+			return fmt.Errorf("error validating password for rule %s: %w", rule, err)
+		}
+		if !matched {
+			validationErrors = append(validationErrors, messages[rule])
+		}
+	}
+	if len(validationErrors) > 0 {
+		return errors.New(fmt.Sprintf("Password validation failed:\n%s", validationErrors))
+	}
+	return nil
 }

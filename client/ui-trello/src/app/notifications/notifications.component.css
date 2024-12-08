@@ -46,3 +46,9 @@
   font-size: 1.1rem;
   line-height: 1.5;
 }
+
+.btn-outline-primary{
+  border-color: var(--tercial-color);
+  color: var(--tercial-color);
+
+}

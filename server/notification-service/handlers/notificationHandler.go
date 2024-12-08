@@ -12,7 +12,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
@@ -64,16 +66,21 @@ func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler)
 	})
 }
 
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
-	_, span := n.tracer.Start(ctx, "NotificationHandler.verifyTokenWithUserService")
+	ctx, span := n.tracer.Start(ctx, "NotificationHandler.verifyTokenWithUserService")
 	defer span.End()
 	linkToUserService := os.Getenv("LINK_TO_USER_SERVICE")
 	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserService)
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
-	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 
-	req, err := http.NewRequestWithContext(reqCtx, "POST", userServiceURL, strings.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -81,7 +88,7 @@ func (n *NotificationHandler) verifyTokenWithUserService(ctx context.Context, to
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	client, err := createTLSClient()
 	if err != nil {
 		span.RecordError(err)
@@ -226,7 +233,7 @@ func createTLSClient() (*http.Client, error) {
 }
 
 func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http.Request) {
-	_, span := n.tracer.Start(context.Background(), "NotificationHandler.CreateNotification")
+	ctx, span := n.tracer.Start(h.Context(), "NotificationHandler.CreateNotification")
 	defer span.End()
 	var notification model.Notification
 
@@ -247,7 +254,7 @@ func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http
 		return
 	}
 
-	err = n.repo.Create(&notification)
+	err = n.repo.Create(ctx, &notification)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -269,7 +276,7 @@ func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http
 }
 
 func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *http.Request) {
-	_, span := n.tracer.Start(context.Background(), "NotificationHandler.GetNotificationByID")
+	ctx, span := n.tracer.Start(h.Context(), "NotificationHandler.GetNotificationByID")
 	defer span.End()
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -283,7 +290,7 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 		return
 	}
 
-	notification, err := n.repo.GetByID(notificationID)
+	notification, err := n.repo.GetByID(ctx, notificationID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -304,7 +311,7 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 }
 
 func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h *http.Request) {
-	_, span := n.tracer.Start(context.Background(), "NotificationHandler.GetNotificationsByUserID")
+	ctx, span := n.tracer.Start(h.Context(), "NotificationHandler.GetNotificationsByUserID")
 	defer span.End()
 	userID, ok := h.Context().Value(KeyProduct{}).(string)
 	if !ok {
@@ -317,7 +324,7 @@ func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h
 
 	n.logger.Println("User ID:", userID)
 
-	notifications, err := n.repo.GetByUserID(userID)
+	notifications, err := n.repo.GetByUserID(ctx, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -338,7 +345,7 @@ func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h
 }
 
 func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h *http.Request) {
-	_, span := n.tracer.Start(context.Background(), "NotificationHandler.UpdateNotificationStatus")
+	ctx, span := n.tracer.Start(h.Context(), "NotificationHandler.UpdateNotificationStatus")
 	defer span.End()
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -384,7 +391,7 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 		return
 	}
 
-	err = n.repo.UpdateStatus(req.CreatedAt, userID, notificationID, req.Status)
+	err = n.repo.UpdateStatus(ctx, req.CreatedAt, userID, notificationID, req.Status)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -398,7 +405,7 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 }
 
 func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http.Request) {
-	_, span := n.tracer.Start(context.Background(), "NotificationHandler.DeleteNotification")
+	ctx, span := n.tracer.Start(h.Context(), "NotificationHandler.DeleteNotification")
 	defer span.End()
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -412,7 +419,7 @@ func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http
 		return
 	}
 
-	err = n.repo.Delete(notificationID)
+	err = n.repo.Delete(ctx, notificationID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -454,7 +461,7 @@ func (uh *NotificationHandler) MiddlewareCheckRoles(allowedRoles []string, next 
 
 func (n *NotificationHandler) NotificationListener() {
 	n.logger.Println("Notification listener started")
-	_, span := n.tracer.Start(context.Background(), "NotificationHandler.NotificationListener")
+	ctx, span := n.tracer.Start(context.Background(), "NotificationHandler.NotificationListener")
 	defer span.End()
 	n.logger.Println("method started")
 	nc, err := Conn()
@@ -465,8 +472,18 @@ func (n *NotificationHandler) NotificationListener() {
 	}
 	defer nc.Close()
 
-	subscribe := func(subject string, handler nats.MsgHandler) {
-		_, err := nc.Subscribe(subject, handler)
+	// Wrapper to provide context to handlers
+	wrapHandler := func(handler func(context.Context, *nats.Msg)) nats.MsgHandler {
+		return func(msg *nats.Msg) {
+			// Start a fresh span for each message handling
+			msgCtx, msgSpan := n.tracer.Start(ctx, "NATS.MessageHandler")
+			defer msgSpan.End()
+			handler(msgCtx, msg)
+		}
+	}
+
+	subscribe := func(subject string, handler func(context.Context, *nats.Msg)) {
+		_, err := nc.Subscribe(subject, wrapHandler(handler))
 		if err != nil {
 			n.logger.Printf("Error subscribing to NATS subject %s: %v", subject, err)
 		}
@@ -481,12 +498,17 @@ func (n *NotificationHandler) NotificationListener() {
 	select {}
 }
 
-func (n *NotificationHandler) handleProjectJoined(msg *nats.Msg) {
+func (n *NotificationHandler) handleProjectJoined(ctx context.Context, msg *nats.Msg) {
+	ctx, span := n.tracer.Start(ctx, "NotificationHandler.handleProjectJoined")
+	defer span.End()
+
 	var data struct {
 		UserID      string `json:"userId"`
 		ProjectName string `json:"projectName"`
 	}
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error unmarshalling project.joined message:", err)
 		return
 	}
@@ -498,17 +520,24 @@ func (n *NotificationHandler) handleProjectJoined(msg *nats.Msg) {
 		CreatedAt: time.Now(),
 		Status:    model.Unread,
 	}
-	if err := n.repo.Create(&notification); err != nil {
+	if err := n.repo.Create(ctx, &notification); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error inserting notification:", err)
 	}
+	span.SetStatus(codes.Ok, message)
 }
 
-func (n *NotificationHandler) handleTaskJoined(msg *nats.Msg) {
+func (n *NotificationHandler) handleTaskJoined(ctx context.Context, msg *nats.Msg) {
+	ctx, span := n.tracer.Start(ctx, "NotificationHandler.handleTaskJoined")
+	defer span.End()
 	var data struct {
 		UserID   string `json:"userId"`
 		TaskName string `json:"taskName"`
 	}
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error unmarshalling task.joined message:", err)
 		return
 	}
@@ -520,17 +549,25 @@ func (n *NotificationHandler) handleTaskJoined(msg *nats.Msg) {
 		CreatedAt: time.Now(),
 		Status:    model.Unread,
 	}
-	if err := n.repo.Create(&notification); err != nil {
+	if err := n.repo.Create(ctx, &notification); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error inserting notification:", err)
 	}
+	span.SetStatus(codes.Ok, message)
 }
 
-func (n *NotificationHandler) handleProjectRemoved(msg *nats.Msg) {
+func (n *NotificationHandler) handleProjectRemoved(ctx context.Context, msg *nats.Msg) {
+	ctx, span := n.tracer.Start(ctx, "NotificationHandler.handleProjectRemoved")
+	defer span.End()
+
 	var data struct {
 		UserID      string `json:"userId"`
 		ProjectName string `json:"projectName"`
 	}
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error unmarshalling project.removed message:", err)
 		return
 	}
@@ -542,17 +579,24 @@ func (n *NotificationHandler) handleProjectRemoved(msg *nats.Msg) {
 		CreatedAt: time.Now(),
 		Status:    model.Unread,
 	}
-	if err := n.repo.Create(&notification); err != nil {
+	if err := n.repo.Create(ctx, &notification); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error inserting notification:", err)
 	}
+	span.SetStatus(codes.Ok, message)
 }
 
-func (n *NotificationHandler) handleTaskRemoved(msg *nats.Msg) {
+func (n *NotificationHandler) handleTaskRemoved(ctx context.Context, msg *nats.Msg) {
+	ctx, span := n.tracer.Start(ctx, "NotificationHandler.handleTaskRemoved")
+	defer span.End()
 	var data struct {
 		UserID   string `json:"userId"`
 		TaskName string `json:"taskName"`
 	}
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error unmarshalling task.removed message:", err)
 		return
 	}
@@ -564,12 +608,17 @@ func (n *NotificationHandler) handleTaskRemoved(msg *nats.Msg) {
 		CreatedAt: time.Now(),
 		Status:    model.Unread,
 	}
-	if err := n.repo.Create(&notification); err != nil {
+	if err := n.repo.Create(ctx, &notification); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Println("Error inserting notification:", err)
 	}
+	span.SetStatus(codes.Ok, "")
 }
 
-func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
+func (n *NotificationHandler) handleTaskStatusUpdate(ctx context.Context, msg *nats.Msg) {
+	ctx, span := n.tracer.Start(ctx, "NotificationHandler.handleTaskStatusUpdate")
+	defer span.End()
 	fmt.Printf("User received status update notification: %s\n", string(msg.Data))
 
 	var update struct {
@@ -579,6 +628,8 @@ func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
 	}
 
 	if err := json.Unmarshal(msg.Data, &update); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		n.logger.Printf("Error unmarshalling task status update message: %v", err)
 		return
 	}
@@ -595,13 +646,16 @@ func (n *NotificationHandler) handleTaskStatusUpdate(msg *nats.Msg) {
 		}
 		n.logger.Println("MEMBERI SU " + memberID)
 
-		if err := n.repo.Create(&notification); err != nil {
+		if err := n.repo.Create(ctx, &notification); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			n.logger.Printf("Error inserting notification for user %s: %v", memberID, err)
 			continue
 		}
 
 		n.logger.Printf("Notification sent to user %s\n", memberID)
 	}
+	span.SetStatus(codes.Ok, message)
 }
 
 func Conn() (*nats.Conn, error) {
@@ -615,16 +669,22 @@ func Conn() (*nats.Conn, error) {
 }
 
 func (n *NotificationHandler) GetUnreadNotificationCount(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := n.tracer.Start(h.Context(), "GetUnreadNotificationCount")
+	defer span.End()
 	n.logger.Println("method hit")
 	userID, ok := h.Context().Value(KeyProduct{}).(string)
 	if !ok {
+		span.RecordError(errors.New("user id not found"))
+		span.SetStatus(codes.Error, "user id not found")
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		n.logger.Println("User ID not found in context")
 		return
 	}
 
-	notifications, err := n.repo.GetByUserID(userID)
+	notifications, err := n.repo.GetByUserID(ctx, userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Error fetching notifications", http.StatusInternalServerError)
 		n.logger.Println("Error fetching notifications:", err)
 		return
@@ -642,7 +702,10 @@ func (n *NotificationHandler) GetUnreadNotificationCount(rw http.ResponseWriter,
 		UnreadCount int `json:"unreadCount"`
 	}{UnreadCount: unreadCount})
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		n.logger.Fatal("Unable to encode response:", err)
 	}
+	span.SetStatus(codes.Ok, "")
 }

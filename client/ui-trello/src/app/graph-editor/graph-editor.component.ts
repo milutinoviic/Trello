@@ -65,20 +65,20 @@ export class GraphEditorComponent implements OnInit {
         font: { size: 14 },
         color: {
           background: '#F2BB05',
-          border: '#fff',
+          border: '#4E4E55',
           highlight: {
             background: '#F2BB05',
-            border: '#fff',
+            border: '#4E4E55',
           },
           hover: {
             background: '#FBC823',
-            border: '#fff',
+            border: '#4E4E55',
           },
         },
       },
       edges: {
         width: 2,
-        color: { color: '#fff', hover: '#fff' },
+        color: { color: '#4E4E55', hover: '#4E4E55' },
         arrows: { to: { enabled: true } },
       },
       physics: {

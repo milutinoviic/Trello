@@ -1,6 +1,6 @@
 .project-members {
   min-height: 200px;
-  background-color: #f9f9f9;
+  background-color: var(--shadow--white);
   border: 1px dashed #ccc;
 }
 
@@ -16,7 +16,7 @@
 
 
 .user:hover {
-  background-color: #f9f9f9;
+  background-color: var(--shadow--white);
 }
 
 .remove-btn {

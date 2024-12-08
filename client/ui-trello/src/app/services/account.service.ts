@@ -166,5 +166,9 @@ export class AccountService {
     return this.http.post<string>(this.config.get_role_url, { email });
   }
 
+  verifyAccount(email: string): Observable<any> {
+    return this.http.get(this.config.verify_account_url(email))
+  }
+
 
 }

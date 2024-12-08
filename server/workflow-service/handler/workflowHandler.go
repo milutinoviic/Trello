@@ -10,7 +10,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"io/ioutil"
 	"log"
@@ -36,17 +38,32 @@ func NewWorkflowHandler(l *log.Logger, r *repository.WorkflowRepo, custLogger *c
 	return &WorkflowHandler{l, r, custLogger, tracer, nc}
 }
 
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := w.tracer.Start(h.Context(), "WorkflowHandler.GetAllTasks")
+	defer span.End()
 	vars := mux.Vars(h)
 	limit, err := strconv.Atoi(vars["limit"])
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		w.logger.Printf("Expected integer, got: %d", limit)
 		http.Error(rw, "Unable to convert limit to integer", http.StatusBadRequest)
 		return
 	}
 
-	tasks, err := w.repo.GetAllNodesWithTask(limit)
+	tasks, err := w.repo.GetAllNodesWithTask(ctx, limit)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		w.logger.Print("Database exception: ", err)
 	}
 
@@ -56,16 +73,25 @@ func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 
 	err = tasks.ToJSON(rw)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		w.logger.Fatal("Unable to convert to json :", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "")
 }
 
 func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := m.tracer.Start(h.Context(), "WorkflowHandler.PostTask")
+	defer span.End()
 	var task model.TaskGraph
 	err := json.NewDecoder(h.Body).Decode(&task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		m.logger.Println("Error decoding task:", err)
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write([]byte("Invalid task format"))
@@ -73,23 +99,32 @@ func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 	}
 	m.logger.Printf("Received task: %+v\n", task)
 
-	err = m.repo.PostTask(&task)
+	err = m.repo.PostTask(ctx, &task)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		m.logger.Print("Database exception: ", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, "")
 	rw.WriteHeader(http.StatusCreated)
 }
 
 func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := w.tracer.Start(h.Context(), "WorkflowHandler.AddTaskAsDependency")
+	defer span.End()
 	vars := mux.Vars(h)
 	taskId := vars["taskId"]
 	dependency := vars["dependencyId"]
 	w.logger.Print("TaskId", taskId)
 	w.logger.Print("dependencyId", dependency)
-	err := w.repo.AddDependency(taskId, dependency)
+	err := w.repo.AddDependency(ctx, taskId, dependency)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+
 		w.logger.Print("Database exception: ", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -100,6 +135,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 
 	req, err := http.NewRequest("POST", taskServiceURL, strings.NewReader("{}"))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to create task blocked request: %v", err)
 		w.custLogger.Error(nil, "Failed to create task blocked request: "+err.Error())
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -110,6 +147,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 
 	client, err := createTLSClient()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to initalize tls: %v", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -117,6 +156,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 
 	resp, err := client.Do(req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to call task server: %v", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -124,6 +165,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		span.RecordError(errors.New("Internal server error"))
+		span.SetStatus(codes.Error, errors.New("Internal server error").Error())
 		w.logger.Printf("Task server responded with status: %v", resp.Status)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -134,6 +177,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 
 	req2, err := http.NewRequest("POST", dependencyTaskServiceURL, strings.NewReader("{}"))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to create task blocked request: %v", err)
 		w.custLogger.Error(nil, "Failed to create task blocked request: "+err.Error())
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -144,6 +189,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 
 	client2, err := createTLSClient()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to initalize tls: %v", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -151,6 +198,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 
 	resp2, err := client2.Do(req2)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to call task server: %v", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -158,10 +207,13 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 	defer resp2.Body.Close()
 
 	if resp2.StatusCode != http.StatusOK {
+		span.RecordError(errors.New("Internal server error"))
+		span.SetStatus(codes.Error, errors.New("Internal server error").Error())
 		w.logger.Printf("Task server responded with status: %v", resp2.Status)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	span.SetStatus(codes.Ok, "")
 
 	rw.WriteHeader(http.StatusCreated)
 }
@@ -202,7 +254,7 @@ func createTLSClient() (*http.Client, error) {
 
 func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.Request) {
 	vars := mux.Vars(h)
-	_, span := w.tracer.Start(context.Background(), "WorkflowHandler.GetTaskGraphByProject")
+	ctx, span := w.tracer.Start(h.Context(), "WorkflowHandler.GetTaskGraphByProject")
 	defer span.End()
 	projectID, ok := vars["project_id"]
 	if !ok {
@@ -220,7 +272,7 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 		return
 	}
 
-	taskGraph, err := w.repo.GetTaskGraph(objectID.Hex())
+	taskGraph, err := w.repo.GetTaskGraph(ctx, objectID.Hex())
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -244,7 +296,7 @@ func (t *WorkflowHandler) HandleProjectDeleted(projectID string) {
 	_, span := t.tracer.Start(context.Background(), "WorkflowHandler.HandleProjectDeleted")
 	defer span.End()
 
-	err := t.repo.UpdateAllWorkflowByProjectId(projectID)
+	err := t.repo.UpdateAllWorkflowByProjectId(projectID, true)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -279,6 +331,28 @@ func (t *WorkflowHandler) DeletedWorkflows(projectID string) {
 	err = t.nc.Publish("WorkflowsDeleted", []byte(projectID))
 	if err != nil {
 		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+	}
+
+	span.SetStatus(codes.Ok, "Successfully deleted all workflows")
+}
+
+func (w *WorkflowHandler) RollbackWorkflows(ctx context.Context, projectID string) {
+	_, span := w.tracer.Start(context.Background(), "WorkflowHandler.HandleProjectDeleted")
+	defer span.End()
+
+	err := w.repo.UpdateAllWorkflowByProjectId(projectID, false)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		w.logger.Printf("Failed to delete workflows for project %s: %v", projectID, err)
+
+		_ = w.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
+	}
+	w.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+
+	err = w.nc.Publish("WorkflowsDeleted", []byte(projectID))
+	if err != nil {
+		w.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
 	}
 
 	span.SetStatus(codes.Ok, "Successfully deleted all workflows")

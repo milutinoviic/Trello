@@ -87,6 +87,12 @@ export class ConfigService {
 
   private _password_check_url = this._password_url + "/check"
 
+  private _verify_account_url = this._api_url + "/verify/account"
+
+  verify_account_url(email: string): string {
+    return this._verify_account_url + "/" + email;
+  }
+
 
   get password_check_url(): string {
     return this._password_check_url;

@@ -86,7 +86,7 @@ func main() {
 
 	sub, err := nc.QueueSubscribe("ProjectDeleted", "task-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		taskHandler.HandleProjectDeleted(projectID)
+		taskHandler.HandleProjectDeleted(timeoutContext, projectID)
 	})
 	if err != nil {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
@@ -95,12 +95,24 @@ func main() {
 
 	sub2, err := nc.Subscribe("TasksDeletionComplete", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		taskHandler.DeletedTasks(projectID)
+		ctx := context.Background()
+		taskHandler.DeletedTasks(ctx, projectID)
 	})
 	if err != nil {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
 	}
 	defer sub2.Unsubscribe()
+
+	sub3, err := nc.Subscribe("WorkflowsDeletionFailed", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		ctx := context.Background()
+		taskHandler.RollbackTasks(ctx, projectID)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub3.Unsubscribe()
+
 	defer func() {
 		if err := nc.Drain(); err != nil {
 			logger.Printf("Error draining NATS connection: %v", err)
@@ -111,6 +123,7 @@ func main() {
 	router := mux.NewRouter()
 
 	router.Use(taskHandler.MiddlewareContentTypeSet)
+	router.Use(handlers.ExtractTraceInfoMiddleware)
 
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetAllTask))))

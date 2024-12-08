@@ -49,6 +49,7 @@ func main() {
 	uh := handlers.NewUserHandler(logger, us, tracer, custLogger)
 
 	r := mux.NewRouter()
+	r.Use(handlers.ExtractTraceInfoMiddleware)
 
 	r.Handle("/register", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.Registration))).Methods(http.MethodPost)
 	r.Handle("/register", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +72,7 @@ func main() {
 	r.Handle("/magic", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagic))).Methods(http.MethodPost)
 	r.Handle("/magic/verify", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagicVerification))).Methods(http.MethodPost)
 	r.HandleFunc("/role", uh.HandleGettingRole).Methods(http.MethodPost)
+	r.HandleFunc("/verify/account/{email}", uh.HandleAccountVerification).Methods(http.MethodGet)
 
 	// SAMO IM SERVIS PRISTUPA
 	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)

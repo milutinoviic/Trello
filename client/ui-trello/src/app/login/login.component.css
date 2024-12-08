@@ -89,3 +89,13 @@ button.btn:disabled {
 }
 
 
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+
+}
+a:hover {
+  color: var(--tercial-color);
+  text-decoration: none;
+}

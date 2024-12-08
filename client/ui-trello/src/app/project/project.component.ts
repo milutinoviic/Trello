@@ -133,7 +133,6 @@ export class ProjectComponent implements OnInit {
 
   openTask(task: TaskDetails): void {
 
-// <<<<<<< HEAD
     if (!this.isDragging) {
       console.log(task);
 
@@ -155,32 +154,6 @@ export class ProjectComponent implements OnInit {
       this.checkIfUserInTask();
       this.getTaskDocumentsForTask();
     }
-// // =======
-//     this.selectedTask = task;
-//     this.getTaskDocumentsForTask();
-//
-//     console.log(this.selectedTask.users);
-//     console.log(this.selectedTask.userIds);
-//     console.log(this.selectedTask.user_ids);
-//
-//     this.taskMembers[task.id] = (task.user_ids || [])
-//       .map(userId => this.allUsers.find(user => user.id === userId))
-//       .filter(user => user !== undefined) as UserDetails[];
-//
-//     if (!this.taskMembers[task.id]) {
-//       this.taskMembers[task.id] = [];
-//     }
-//
-//     this.filteredUsers[task.id] = this.allUsers.filter(user =>
-//       !(this.taskMembers[task.id]?.some(member => member.id === user.id))
-//     );
-//
-//     if (!this.filteredUsers[task.id]) {
-//       this.filteredUsers[task.id] = [];
-//     }
-//
-//     this.checkIfUserInTask();
-// // >>>>>>> 701ed926e96cddba2666f90bd009235a6daad719
 
   }
 

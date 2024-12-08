@@ -5,7 +5,7 @@
 }
 
 .task-card {
-  background-color: #f9f9f9;
+  background-color: var(--shadow--white); /*#f9f9f9;*/
   border-radius: 8px;
   padding: 20px;
   width: 100%;
@@ -71,7 +71,7 @@ select {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 8px;
-  background-color: #f9f9f9;
+  background-color: var(--shadow--white);
 }
 
 /* Label for search input */
@@ -120,7 +120,7 @@ select {
   align-items: center;
   padding: 8px 10px;
   margin-bottom: 5px;
-  background-color: #f1f1f1;
+  background-color: var(--shadow--white);
   border: 1px solid #ddd;
   border-radius: 4px;
 }
@@ -142,8 +142,8 @@ select {
 
 .filtered-users div {
   padding: 8px 10px;
-  background-color: #e9ecef;
-  border: 1px solid #ddd;
+  background-color: var(--shadow--white);
+  border: 1px solid var(--shadow--white);
   border-radius: 4px;
   margin-bottom: 5px;
   display: flex;
@@ -161,7 +161,6 @@ select {
   background-color: #218838;
 }
 
-/* General responsive behavior */
 @media (max-width: 768px) {
   .user-management #userSearch {
     font-size: 12px;

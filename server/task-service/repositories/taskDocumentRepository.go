@@ -67,9 +67,7 @@ func (tdr *TaskDocumentRepository) getCollection() *mongo.Collection {
 	return taskDocumentsCollection
 }
 
-func (tdr *TaskDocumentRepository) SaveTaskDocument(doc *model.TaskDocument) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (tdr *TaskDocumentRepository) SaveTaskDocument(ctx context.Context, doc *model.TaskDocument) error {
 	ctx, span := tdr.tracer.Start(ctx, "TaskDocumentRepository.SaveTaskDocument")
 	defer span.End()
 
@@ -87,9 +85,7 @@ func (tdr *TaskDocumentRepository) SaveTaskDocument(doc *model.TaskDocument) err
 	return nil
 }
 
-func (tdr *TaskDocumentRepository) GetTaskDocumentsByTaskID(taskID string) ([]model.TaskDocument, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (tdr *TaskDocumentRepository) GetTaskDocumentsByTaskID(ctx context.Context, taskID string) ([]model.TaskDocument, error) {
 	ctx, span := tdr.tracer.Start(ctx, "TaskDocumentRepository.GetTaskDocumentsByTaskID")
 	defer span.End()
 
@@ -116,9 +112,7 @@ func (tdr *TaskDocumentRepository) GetTaskDocumentsByTaskID(taskID string) ([]mo
 	return documents, nil
 }
 
-func (tdr *TaskDocumentRepository) DeleteTaskDocument(docID primitive.ObjectID) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (tdr *TaskDocumentRepository) DeleteTaskDocument(ctx context.Context, docID primitive.ObjectID) error {
 	ctx, span := tdr.tracer.Start(ctx, "TaskDocumentRepository.DeleteTaskDocument")
 	defer span.End()
 
@@ -136,9 +130,7 @@ func (tdr *TaskDocumentRepository) DeleteTaskDocument(docID primitive.ObjectID) 
 	return nil
 }
 
-func (tdr *TaskDocumentRepository) GetTaskDocumentByID(docID primitive.ObjectID) (*model.TaskDocument, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (tdr *TaskDocumentRepository) GetTaskDocumentByID(ctx context.Context, docID primitive.ObjectID) (*model.TaskDocument, error) {
 	ctx, span := tdr.tracer.Start(ctx, "TaskDocumentRepository.GetTaskDocumentByID")
 	defer span.End()
 

@@ -100,8 +100,8 @@ func (repo *NotificationRepo) CreateTables() {
 	span.SetStatus(codes.Ok, "Successful function!")
 }
 
-func (repo *NotificationRepo) Create(notification *model.Notification) error {
-	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.Create")
+func (repo *NotificationRepo) Create(ctx context.Context, notification *model.Notification) error {
+	_, span := repo.tracer.Start(ctx, "NotificationRepo.Create")
 	defer span.End()
 	location, err := time.LoadLocation("Europe/Budapest")
 	if err != nil {
@@ -129,8 +129,8 @@ func (repo *NotificationRepo) Create(notification *model.Notification) error {
 	return nil
 }
 
-func (repo *NotificationRepo) GetByID(id gocql.UUID) (*model.Notification, error) {
-	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.GetByID")
+func (repo *NotificationRepo) GetByID(ctx context.Context, id gocql.UUID) (*model.Notification, error) {
+	_, span := repo.tracer.Start(ctx, "NotificationRepo.GetByID")
 	defer span.End()
 	var notification model.Notification
 	err := repo.session.Query(`
@@ -160,8 +160,8 @@ func (repo *NotificationRepo) GetByID(id gocql.UUID) (*model.Notification, error
 	return &notification, nil
 }
 
-func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification, error) {
-	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.GetByUserID")
+func (repo *NotificationRepo) GetByUserID(ctx context.Context, userID string) ([]*model.Notification, error) {
+	_, span := repo.tracer.Start(ctx, "NotificationRepo.GetByUserID")
 	defer span.End()
 	var notifications []*model.Notification
 
@@ -190,8 +190,8 @@ func (repo *NotificationRepo) GetByUserID(userID string) ([]*model.Notification,
 	return notifications, nil
 }
 
-func (repo *NotificationRepo) UpdateStatus(createdAt time.Time, userID string, id gocql.UUID, status model.NotificationStatus) error {
-	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.UpdateStatus")
+func (repo *NotificationRepo) UpdateStatus(ctx context.Context, createdAt time.Time, userID string, id gocql.UUID, status model.NotificationStatus) error {
+	_, span := repo.tracer.Start(ctx, "NotificationRepo.UpdateStatus")
 	defer span.End()
 	err := repo.session.Query(`
         UPDATE notifications 
@@ -209,8 +209,8 @@ func (repo *NotificationRepo) UpdateStatus(createdAt time.Time, userID string, i
 	return nil
 }
 
-func (repo *NotificationRepo) Delete(id gocql.UUID) error {
-	_, span := repo.tracer.Start(context.Background(), "NotificationRepo.Delete")
+func (repo *NotificationRepo) Delete(ctx context.Context, id gocql.UUID) error {
+	_, span := repo.tracer.Start(ctx, "NotificationRepo.Delete")
 	defer span.End()
 	err := repo.session.Query(`
 		DELETE FROM notifications WHERE id = ?`, id).Exec()

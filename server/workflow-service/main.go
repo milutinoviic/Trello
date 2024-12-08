@@ -34,6 +34,12 @@ func main() {
 		log.Fatalf("Error connecting to NATS: %v", err)
 	}
 	defer nc.Close()
+	defer func() {
+		if err := nc.Drain(); err != nil {
+			log.Printf("Error draining NATS connection: %v", err)
+		}
+		nc.Close()
+	}()
 
 	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -77,6 +83,16 @@ func main() {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
 	}
 	defer sub2.Unsubscribe()
+	sub3, err := nc.Subscribe("TaskDeletionFailed", func(msg *nats.Msg) {
+		projectID := string(msg.Data)
+		timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		workflowHandler.RollbackWorkflows(timeoutContext, projectID)
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub3.Unsubscribe()
 
 	defer func() {
 		if err := nc.Drain(); err != nil {
@@ -86,6 +102,7 @@ func main() {
 	}()
 
 	router := mux.NewRouter()
+	router.Use(handler.ExtractTraceInfoMiddleware)
 
 	//TODO: add authorization to every route
 	//router.Handle("/workflow/{limit}", workflowHandler.MiddlewareExtractUserFromCookie(workflowHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(workflowHandler.GetAllTasks)))).Methods(http.MethodGet)

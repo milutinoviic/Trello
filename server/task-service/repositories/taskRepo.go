@@ -81,9 +81,7 @@ func (tr *TaskRepository) Ping() {
 	fmt.Println(databases)
 }
 
-func (tr *TaskRepository) Insert(task *model.Task) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (tr *TaskRepository) Insert(ctx context.Context, task *model.Task) error {
 	ctx, span := tr.tracer.Start(ctx, "TaskRepository.Insert")
 	defer span.End()
 	tasksCollection := tr.getCollection()
@@ -118,18 +116,14 @@ func (tr *TaskRepository) Insert(task *model.Task) error {
 	return nil
 }
 
-func (tr *TaskRepository) GetAllTask() (model.Tasks, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func (tr *TaskRepository) GetAllTask(ctx context.Context) (model.Tasks, error) {
 	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetAllTask")
 	defer span.End()
 
 	tasksCollection := tr.getCollection()
 
 	var tasks model.Tasks
-	findCtx, findSpan := tr.tracer.Start(ctx, "TaskRepository.GetAllTask.Find")
-	tasksCursor, err := tasksCollection.Find(findCtx, bson.M{})
-	findSpan.End()
+	tasksCursor, err := tasksCollection.Find(ctx, bson.M{})
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -146,16 +140,17 @@ func (tr *TaskRepository) GetAllTask() (model.Tasks, error) {
 	return tasks, nil
 }
 
-func (tr *TaskRepository) GetDependenciesByTaskId(taskID string) ([]model.Task, error) {
+func (tr *TaskRepository) GetDependenciesByTaskId(ctx context.Context, taskID string) ([]model.Task, error) {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetDependenciesByTaskId")
+	defer span.End()
 	var tasks []model.Task
 	filter := bson.M{"_id": taskID}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	tasksCollection := tr.getCollection()
 	tasksCursor, err := tasksCollection.Find(ctx, filter)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	defer tasksCursor.Close(ctx)
@@ -163,28 +158,27 @@ func (tr *TaskRepository) GetDependenciesByTaskId(taskID string) ([]model.Task, 
 	for tasksCursor.Next(ctx) {
 		var task model.Task
 		if err := tasksCursor.Decode(&task); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		tasks = append(tasks, task)
 	}
+	span.SetStatus(codes.Ok, "Successfully got all tasks")
 	return tasks, tasksCursor.Err()
 }
 
-func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, error) {
+func (tr *TaskRepository) GetAllByProjectId(ctx context.Context, projectID string) ([]model.Task, error) {
 
 	var tasks []model.Task
 
 	filter := bson.M{"project_id": projectID}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetAllByProjectIdProject")
 	defer span.End()
 
 	tasksCollection := tr.getCollection()
-	findCtx, findSpan := tr.tracer.Start(ctx, "TaskRepository.GetAllByProjectIdProject.Find")
-	tasksCursor, err := tasksCollection.Find(findCtx, filter)
-	findSpan.End()
+	tasksCursor, err := tasksCollection.Find(ctx, filter)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -212,10 +206,8 @@ func (tr *TaskRepository) GetAllByProjectId(projectID string) ([]model.Task, err
 
 }
 
-func (tr *TaskRepository) DeleteTask(taskId primitive.ObjectID) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.DeleteTask")
+func (tr *TaskRepository) DeleteTask(ctx context.Context, taskId primitive.ObjectID) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.DeleteTask")
 	defer span.End()
 	collection := tr.getCollection()
 	_, err := collection.DeleteOne(ctx, bson.M{"_id": taskId})
@@ -228,11 +220,11 @@ func (tr *TaskRepository) DeleteTask(taskId primitive.ObjectID) error {
 	return nil
 }
 
-func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
+func (t *TaskRepository) DeleteAllTasksByProjectId(ctx context.Context, projectID string) error {
 
-	_, span := t.tracer.Start(context.Background(), "TaskRepository.DeleteAllTasksByProjectId")
+	ctx, span := t.tracer.Start(ctx, "TaskRepository.DeleteAllTasksByProjectId")
 	defer span.End()
-	tasks, err := t.GetAllByProjectId(projectID)
+	tasks, err := t.GetAllByProjectId(ctx, projectID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -241,7 +233,7 @@ func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 	}
 
 	for _, task := range tasks {
-		err := t.DeleteTask(task.ID)
+		err := t.DeleteTask(ctx, task.ID)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -255,11 +247,12 @@ func (t *TaskRepository) DeleteAllTasksByProjectId(projectID string) error {
 	return nil
 }
 
-func (t *TaskRepository) UpdateAllTasksByProjectId(projectID string) error {
+// <<<<<<< HEAD
+func (t *TaskRepository) UpdateAllTasksByProjectId(ctx context.Context, projectID string, toDelete bool) error {
 
 	_, span := t.tracer.Start(context.Background(), "TaskRepository.DeleteAllTasksByProjectId")
 	defer span.End()
-	tasks, err := t.GetAllByProjectId(projectID)
+	tasks, err := t.GetAllByProjectId(ctx, projectID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -268,7 +261,7 @@ func (t *TaskRepository) UpdateAllTasksByProjectId(projectID string) error {
 	}
 
 	for _, task := range tasks {
-		task.PendingDeletion = true
+		task.PendingDeletion = toDelete
 		err := t.UpdatePendingDeletion(&task)
 		if err != nil {
 			span.RecordError(err)
@@ -283,14 +276,17 @@ func (t *TaskRepository) UpdateAllTasksByProjectId(projectID string) error {
 	return nil
 }
 
-func (tr *TaskRepository) GetByID(taskID string) (*model.Task, error) {
+func (tr *TaskRepository) GetByID(ctx context.Context, taskID string) (*model.Task, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, span := tr.tracer.Start(ctx, "TaskRepository.GetByID")
+	//=======
+	//func (tr *TaskRepository) GetByID(ctx context.Context, taskID string) (*model.Task, error) {
+	//	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetByID")
+	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	defer span.End()
 	tasksCollection := tr.getCollection()
 
-	// Convert string ID to ObjectID
 	taskObjID, err := primitive.ObjectIDFromHex(taskID)
 	if err != nil {
 		span.RecordError(err)
@@ -309,10 +305,8 @@ func (tr *TaskRepository) GetByID(taskID string) (*model.Task, error) {
 	return &task, nil
 }
 
-func (tr *TaskRepository) Update(task *model.Task) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.Update")
+func (tr *TaskRepository) Update(ctx context.Context, task *model.Task) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.Update")
 	defer span.End()
 
 	tasksCollection := tr.getCollection()
@@ -334,6 +328,7 @@ func (tr *TaskRepository) Update(task *model.Task) error {
 	return nil
 }
 
+// <<<<<<< HEAD
 func (tr *TaskRepository) UpdatePendingDeletion(task *model.Task) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -359,10 +354,14 @@ func (tr *TaskRepository) UpdatePendingDeletion(task *model.Task) error {
 	return nil
 }
 
-func (tr *TaskRepository) UpdateFlag(task *model.Task, blocked bool) error {
+func (tr *TaskRepository) UpdateFlag(ctx context.Context, task *model.Task, blocked bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
+	//=======
+	//func (tr *TaskRepository) UpdateFlag(ctx context.Context, task *model.Task) error {
+	//	ctx, span := tr.tracer.Start(ctx, "TaskRepository.UpdateFlag")
+	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	defer span.End()
 
 	tasksCollection := tr.getCollection()
@@ -384,10 +383,8 @@ func (tr *TaskRepository) UpdateFlag(task *model.Task, blocked bool) error {
 	return nil
 }
 
-func (tr *TaskRepository) AddDependency(task *model.Task, dependencyID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateDependency")
+func (tr *TaskRepository) AddDependency(ctx context.Context, task *model.Task, dependencyID string) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.UpdateDependency")
 	defer span.End()
 	task.Dependencies = append(task.Dependencies, dependencyID)
 	tr.logger.Println("new dependencies: ", task.Dependencies)
@@ -410,10 +407,8 @@ func (tr *TaskRepository) AddDependency(task *model.Task, dependencyID string) e
 	return nil
 }
 
-func (tr *TaskRepository) InsertTaskMemberActivity(change *model.TaskMemberActivity) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.InsertTaskMemberActivity")
+func (tr *TaskRepository) InsertTaskMemberActivity(ctx context.Context, change *model.TaskMemberActivity) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.InsertTaskMemberActivity")
 	defer span.End()
 	_, err := tr.getChangeCollection().InsertOne(ctx, change)
 	if err != nil {
@@ -425,10 +420,8 @@ func (tr *TaskRepository) InsertTaskMemberActivity(change *model.TaskMemberActiv
 	return nil
 }
 
-func (tr *TaskRepository) GetUnprocessedActivities() ([]model.TaskMemberActivity, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.GetUnprocessedActivities")
+func (tr *TaskRepository) GetUnprocessedActivities(ctx context.Context) ([]model.TaskMemberActivity, error) {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.GetUnprocessedActivities")
 	defer span.End()
 
 	cursor, err := tr.getChangeCollection().Find(ctx, bson.M{"processed": false})
@@ -449,10 +442,8 @@ func (tr *TaskRepository) GetUnprocessedActivities() ([]model.TaskMemberActivity
 	return changes, nil
 }
 
-func (tr *TaskRepository) MarkChangeAsProcessed(changeID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.MarkChangeAsProcessed")
+func (tr *TaskRepository) MarkChangeAsProcessed(ctx context.Context, changeID string) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.MarkChangeAsProcessed")
 	defer span.End()
 
 	_, err := tr.getChangeCollection().UpdateOne(ctx, bson.M{"_id": changeID}, bson.M{"$set": bson.M{"processed": true}})
@@ -471,10 +462,8 @@ func (tr *TaskRepository) getChangeCollection() *mongo.Collection {
 	return changeCollection
 }
 
-func (tr *TaskRepository) UpdateStatus(task *model.Task) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := tr.tracer.Start(ctx, "TaskRepository.UpdateStatus")
+func (tr *TaskRepository) UpdateStatus(ctx context.Context, task *model.Task) error {
+	ctx, span := tr.tracer.Start(ctx, "TaskRepository.UpdateStatus")
 	defer span.End()
 
 	objID, err := primitive.ObjectIDFromHex(task.ID.Hex())

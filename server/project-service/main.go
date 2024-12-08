@@ -69,12 +69,12 @@ func main() {
 	taskClient := initTaskClient()
 
 	projectsHandler := handlers.NewProjectsHandler(logger, custLogger, store, tracer, userClient, taskClient)
-	projectsHandler.SubscribeToEvent()
+	projectsHandler.SubscribeToEvent(timeoutContext)
 
 	router := mux.NewRouter()
 
 	router.Use(projectsHandler.MiddlewareContentTypeSet)
-
+	router.Use(handlers.ExtractTraceInfoMiddleware)
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.HandleFunc("/", projectsHandler.GetAllProjects)
 	getRouter.Handle("/projects", projectsHandler.MiddlewareExtractUserFromCookie(projectsHandler.MiddlewareCheckRoles([]string{"member", "manager"}, http.HandlerFunc(projectsHandler.GetAllProjectsByUser))))

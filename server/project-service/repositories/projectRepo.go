@@ -74,11 +74,8 @@ func (pr *ProjectRepo) Ping() {
 	fmt.Println(databases)
 }
 
-func (pr *ProjectRepo) GetAll() (model.Projects, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.GetAll")
+func (pr *ProjectRepo) GetAll(ctx context.Context) (model.Projects, error) {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.GetAll")
 	defer span.End()
 	patientsCollection := pr.getCollection()
 
@@ -100,10 +97,8 @@ func (pr *ProjectRepo) GetAll() (model.Projects, error) {
 	return projects, nil
 }
 
-func (pr *ProjectRepo) GetAllByManager(managerEmail string) (model.Projects, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.GetAllByManager")
+func (pr *ProjectRepo) GetAllByManager(ctx context.Context, managerEmail string) (model.Projects, error) {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.GetAllByManager")
 	defer span.End()
 
 	projectsCollection := pr.getCollection()
@@ -127,10 +122,8 @@ func (pr *ProjectRepo) GetAllByManager(managerEmail string) (model.Projects, err
 	return projects, nil
 }
 
-func (pr *ProjectRepo) GetAllByMember(userID string) (model.Projects, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.GetAllByMember")
+func (pr *ProjectRepo) GetAllByMember(ctx context.Context, userID string) (model.Projects, error) {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.GetAllByMember")
 	defer span.End()
 
 	projectsCollection := pr.getCollection()
@@ -160,10 +153,8 @@ func (pr *ProjectRepo) GetAllByMember(userID string) (model.Projects, error) {
 	return projects, nil
 }
 
-func (pr *ProjectRepo) GetById(id string) (*model.Project, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.GetById")
+func (pr *ProjectRepo) GetById(ctx context.Context, id string) (*model.Project, error) {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.GetById")
 	defer span.End()
 	patientsCollection := pr.getCollection()
 
@@ -180,10 +171,8 @@ func (pr *ProjectRepo) GetById(id string) (*model.Project, error) {
 	return &patient, nil
 }
 
-func (pr *ProjectRepo) Insert(project *model.Project) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.Insert")
+func (pr *ProjectRepo) Insert(ctx context.Context, project *model.Project) error {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.Insert")
 	defer span.End()
 	projectsCollection := pr.getCollection()
 
@@ -209,10 +198,8 @@ func (pr *ProjectRepo) getCollection() *mongo.Collection {
 	return projectCollection
 }
 
-func (pr *ProjectRepo) AddUsersToProject(projectId string, userIds []string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.AddUsersToProject")
+func (pr *ProjectRepo) AddUsersToProject(ctx context.Context, projectId string, userIds []string) error {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.AddUsersToProject")
 	defer span.End()
 
 	collection := pr.getCollection()
@@ -250,10 +237,8 @@ func (pr *ProjectRepo) AddUsersToProject(projectId string, userIds []string) err
 	return nil
 }
 
-func (pr *ProjectRepo) RemoveUserFromProject(projectId string, userId string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.RemoveUserFromProject")
+func (pr *ProjectRepo) RemoveUserFromProject(ctx context.Context, projectId string, userId string) error {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.RemoveUserFromProject")
 	defer span.End()
 	collection := pr.getCollection()
 
@@ -285,10 +270,8 @@ func (pr *ProjectRepo) RemoveUserFromProject(projectId string, userId string) er
 	return nil
 }
 
-func (pr *ProjectRepo) DeleteProject(projectId string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.DeleteProject")
+func (pr *ProjectRepo) DeleteProject(ctx context.Context, projectId string) error {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.DeleteProject")
 	defer span.End()
 
 	collection := pr.getCollection()
@@ -313,14 +296,15 @@ func (pr *ProjectRepo) DeleteProject(projectId string) error {
 
 	return nil
 }
-func (pr *ProjectRepo) PendingDeletion(projectId string, toBeDeleted bool) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (pr *ProjectRepo) PendingDeletion(ctx context.Context, projectId string, toBeDeleted bool) error {
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.PendingDeletion")
+	defer span.End()
 	collection := pr.getCollection()
 
 	projectObjID, err := primitive.ObjectIDFromHex(projectId)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("invalid project ID: %v", err)
 	}
 
@@ -330,17 +314,19 @@ func (pr *ProjectRepo) PendingDeletion(projectId string, toBeDeleted bool) error
 		bson.M{"$set": bson.M{"pending_deletion": toBeDeleted}},
 	)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return fmt.Errorf("failed to remove user from project: %v", err)
 	}
-
+	span.SetStatus(codes.Ok, "Successfully removed pending deletion")
 	return nil
 }
 
-func (pr *ProjectRepo) IsUserManagerOfProject(userId string, projectId string) (bool, error) {
+func (pr *ProjectRepo) IsUserManagerOfProject(ctx context.Context, userId string, projectId string) (bool, error) {
+
 	pr.logger.Println("Hit the repo method")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, span := pr.tracer.Start(ctx, "ProjectRepo.IsUserManagerOfProject")
+
+	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.IsUserManagerOfProject")
 	defer span.End()
 
 	patientsCollection := pr.getCollection()

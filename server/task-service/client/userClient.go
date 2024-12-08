@@ -2,11 +2,14 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"io"
 	"io/ioutil"
 	"log"
@@ -76,6 +79,7 @@ func (client UserClient) GetByIdsWithCookies(ids []string, cookie *http.Cookie) 
 
 	// Step 1: Attach the received cookie to the outgoing request
 	httpReq.AddCookie(cookie)
+	otel.GetTextMapPropagator().Inject(context.Background(), propagation.HeaderCarrier(httpReq.Header))
 
 	// Step 2: Send the request
 	clientTask, err := createTLSClient()
