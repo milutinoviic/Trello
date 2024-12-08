@@ -49,6 +49,7 @@ func main() {
 	uh := handlers.NewUserHandler(logger, us, tracer, custLogger)
 
 	r := mux.NewRouter()
+	r.Use(handlers.ExtractTraceInfoMiddleware)
 
 	r.Handle("/register", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.Registration))).Methods(http.MethodPost)
 	r.Handle("/register", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

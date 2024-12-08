@@ -27,10 +27,10 @@ func NewUserService(user *repository.UserRepository, cache *repository.UserCache
 	return &UserService{user, cache, logger, trace}
 }
 
-func (s *UserService) Registration(request *data.AccountRequest) error {
-	_, span := s.tracer.Start(context.Background(), "UserService.Registration")
+func (s *UserService) Registration(ctx context.Context, request *data.AccountRequest) error {
+	ctx, span := s.tracer.Start(ctx, "UserService.Registration")
 	defer span.End()
-	err := s.user.Registration(request)
+	err := s.user.Registration(ctx, request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -41,10 +41,10 @@ func (s *UserService) Registration(request *data.AccountRequest) error {
 
 }
 
-func (s *UserService) GetAll() (*data.Accounts, error) {
-	_, span := s.tracer.Start(context.Background(), "UserService.GetAll")
+func (s *UserService) GetAll(ctx context.Context) (*data.Accounts, error) {
+	ctx, span := s.tracer.Start(ctx, "UserService.GetAll")
 	defer span.End()
-	managers, err := s.user.GetAllManagers()
+	managers, err := s.user.GetAllManagers(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -55,10 +55,10 @@ func (s *UserService) GetAll() (*data.Accounts, error) {
 
 }
 
-func (s *UserService) GetOne(userId string) (*data.Account, error) {
-	_, span := s.tracer.Start(context.Background(), "UserService.GetOne")
+func (s *UserService) GetOne(ctx context.Context, userId string) (*data.Account, error) {
+	ctx, span := s.tracer.Start(ctx, "UserService.GetOne")
 	defer span.End()
-	manager, err := s.user.GetOne(userId)
+	manager, err := s.user.GetOne(ctx, userId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -70,7 +70,7 @@ func (s *UserService) GetOne(userId string) (*data.Account, error) {
 }
 
 func (s *UserService) GetAllMembers(ctx context.Context) ([]data.Account, error) {
-	_, span := s.tracer.Start(ctx, "UserService.GetAllMembers")
+	ctx, span := s.tracer.Start(ctx, "UserService.GetAllMembers")
 	defer span.End()
 	accounts, err := s.user.GetAllMembers(ctx)
 	if err != nil {
@@ -82,16 +82,16 @@ func (s *UserService) GetAllMembers(ctx context.Context) ([]data.Account, error)
 	return accounts, nil
 }
 
-func (s UserService) Login(user *data.LoginCredentials) (id string, role string, token string, err error) {
-	_, span := s.tracer.Start(context.Background(), "UserService.Login")
+func (s UserService) Login(ctx context.Context, user *data.LoginCredentials) (id string, role string, token string, err error) {
+	ctx, span := s.tracer.Start(ctx, "UserService.Login")
 	defer span.End()
-	role, err = s.user.GetUserRoleByEmail(user.Email)
+	role, err = s.user.GetUserRoleByEmail(ctx, user.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return "", "", "", errors.New("role does not exist")
 	}
-	get, err := s.user.GetUserIdByEmail(user.Email)
+	get, err := s.user.GetUserIdByEmail(ctx, user.Email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -103,7 +103,7 @@ func (s UserService) Login(user *data.LoginCredentials) (id string, role string,
 		span.SetStatus(codes.Error, err.Error())
 		return "", "", "", errors.New("error creating token")
 	}
-	err = s.cache.Login(user, token)
+	err = s.cache.Login(ctx, user, token)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -114,10 +114,10 @@ func (s UserService) Login(user *data.LoginCredentials) (id string, role string,
 	return get.Hex(), role, token, nil
 }
 
-func (s *UserService) Logout(id string) error {
-	_, span := s.tracer.Start(context.Background(), "UserService.Logout")
+func (s *UserService) Logout(ctx context.Context, id string) error {
+	ctx, span := s.tracer.Start(ctx, "UserService.Logout")
 	defer span.End()
-	err := s.cache.Logout(id)
+	err := s.cache.Logout(ctx, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -128,14 +128,14 @@ func (s *UserService) Logout(id string) error {
 
 }
 
-func (s *UserService) PasswordCheck(id string, password string) bool {
-	return s.user.CheckIfPasswordIsSame(id, password)
+func (s *UserService) PasswordCheck(ctx context.Context, id string, password string) bool {
+	return s.user.CheckIfPasswordIsSame(ctx, id, password)
 }
 
-func (s *UserService) ChangePassword(id string, password string) error {
-	_, span := s.tracer.Start(context.Background(), "UserService.ChangePassword")
+func (s *UserService) ChangePassword(ctx context.Context, id string, password string) error {
+	ctx, span := s.tracer.Start(ctx, "UserService.ChangePassword")
 	defer span.End()
-	err := s.user.ChangePassword(id, password)
+	err := s.user.ChangePassword(ctx, id, password)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -145,10 +145,10 @@ func (s *UserService) ChangePassword(id string, password string) error {
 	return nil
 }
 
-func (s *UserService) RecoveryRequest(email string) error {
-	_, span := s.tracer.Start(context.Background(), "UserService.RecoveryRequest")
+func (s *UserService) RecoveryRequest(ctx context.Context, email string) error {
+	ctx, span := s.tracer.Start(ctx, "UserService.RecoveryRequest")
 	defer span.End()
-	err := s.user.HandleRecoveryRequest(email)
+	err := s.user.HandleRecoveryRequest(ctx, email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -158,10 +158,10 @@ func (s *UserService) RecoveryRequest(email string) error {
 	return nil
 }
 
-func (s *UserService) ResettingPassword(email string, password string) error {
+func (s *UserService) ResettingPassword(ctx context.Context, email string, password string) error {
 	_, span := s.tracer.Start(context.Background(), "UserService.ResettingPassword")
 	defer span.End()
-	err := s.user.ResetPassword(email, password)
+	err := s.user.ResetPassword(ctx, email, password)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -171,10 +171,10 @@ func (s *UserService) ResettingPassword(email string, password string) error {
 	return nil
 }
 
-func (s *UserService) MagicLink(email string) error {
-	_, span := s.tracer.Start(context.Background(), "UserService.MagicLink")
+func (s *UserService) MagicLink(ctx context.Context, email string) error {
+	ctx, span := s.tracer.Start(ctx, "UserService.MagicLink")
 	defer span.End()
-	err := s.cache.ImplementMagic(email)
+	err := s.cache.ImplementMagic(ctx, email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -184,10 +184,10 @@ func (s *UserService) MagicLink(email string) error {
 	return nil
 }
 
-func (s *UserService) VerifyMagic(email string) (string, string, error) {
-	_, span := s.tracer.Start(context.Background(), "UserService.VerifyMagic")
+func (s *UserService) VerifyMagic(ctx context.Context, email string) (string, string, error) {
+	ctx, span := s.tracer.Start(ctx, "UserService.VerifyMagic")
 	defer span.End()
-	id, token, err := s.cache.VerifyMagic(email)
+	id, token, err := s.cache.VerifyMagic(ctx, email)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -197,10 +197,10 @@ func (s *UserService) VerifyMagic(email string) (string, string, error) {
 	return id, token, nil
 }
 
-func (us *UserService) ValidateToken(token string) (string, string, error) {
-	_, span := us.tracer.Start(context.Background(), "UserService.ValidateToken")
+func (us *UserService) ValidateToken(ctx context.Context, token string) (string, string, error) {
+	ctx, span := us.tracer.Start(ctx, "UserService.ValidateToken")
 	defer span.End()
-	userID, err := us.cache.VerifyTokenWithUserId(token)
+	userID, err := us.cache.VerifyTokenWithUserId(ctx, token)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -212,7 +212,7 @@ func (us *UserService) ValidateToken(token string) (string, string, error) {
 		span.SetStatus(codes.Error, "Invalid token")
 		return "", "", errors.New("invalid token")
 	}
-	role, err := us.cache.GetUserRole(token)
+	role, err := us.cache.GetUserRole(ctx, token)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -223,10 +223,10 @@ func (us *UserService) ValidateToken(token string) (string, string, error) {
 	return userID, role, nil
 }
 
-func (us *UserService) Delete(userId string) error {
-	_, span := us.tracer.Start(context.Background(), "UserService.Delete")
+func (us *UserService) Delete(ctx context.Context, userId string) error {
+	ctx, span := us.tracer.Start(ctx, "UserService.Delete")
 	defer span.End()
-	err := us.user.Delete(userId)
+	err := us.user.Delete(ctx, userId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -235,11 +235,11 @@ func (us *UserService) Delete(userId string) error {
 	span.SetStatus(codes.Ok, "Successful delete user")
 	return nil
 }
-func (us *UserService) VerifyRecaptcha(token string) (bool, error) {
-	_, span := us.tracer.Start(context.Background(), "UserService.VerifyRecaptcha")
+func (us *UserService) VerifyRecaptcha(ctx context.Context, token string) (bool, error) {
+	ctx, span := us.tracer.Start(ctx, "UserService.VerifyRecaptcha")
 
 	defer span.End()
-	success, err := us.user.VerifyRecaptcha(token)
+	success, err := us.user.VerifyRecaptcha(ctx, token)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -250,10 +250,10 @@ func (us *UserService) VerifyRecaptcha(token string) (bool, error) {
 	return success, nil
 }
 
-func (us *UserService) GetUsersByIds(userIds []string) ([]data.Account, error) {
-	_, span := us.tracer.Start(context.Background(), "UserService.GetUsersByIds")
+func (us *UserService) GetUsersByIds(ctx context.Context, userIds []string) ([]data.Account, error) {
+	ctx, span := us.tracer.Start(ctx, "UserService.GetUsersByIds")
 	defer span.End()
-	users, err := us.user.GetUsersByIds(userIds)
+	users, err := us.user.GetUsersByIds(ctx, userIds)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -263,8 +263,8 @@ func (us *UserService) GetUsersByIds(userIds []string) ([]data.Account, error) {
 	return users, nil
 }
 
-func (us *UserService) GetRoleByEmail(email string) (string, error) {
-	role, err := us.user.GetUserRoleByEmail(email)
+func (us *UserService) GetRoleByEmail(ctx context.Context, email string) (string, error) {
+	role, err := us.user.GetUserRoleByEmail(ctx, email)
 	if err != nil {
 		return "", err
 	}

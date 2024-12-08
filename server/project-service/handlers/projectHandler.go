@@ -13,7 +13,9 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
@@ -72,22 +74,32 @@ func (p *ProjectsHandler) MiddlewareExtractUserFromCookie(next http.Handler) htt
 	})
 }
 
+func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := otel.GetTextMapPropagator().Extract(r.Context(), propagation.HeaderCarrier(r.Header))
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
 func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token string) (string, string, error) {
+	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.verifyTokenWithUserService")
+	defer span.End()
 	linkToUserServer := os.Getenv("LINK_TO_USER_SERVICE")
 	userServiceURL := fmt.Sprintf("%s/validate-token", linkToUserServer) // Use HTTPS for secure connection
 	reqBody := fmt.Sprintf(`{"token": "%s"}`, token)
 
-	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, "POST", userServiceURL, strings.NewReader(reqBody))
+	req, err := http.NewRequestWithContext(ctx, "POST", userServiceURL, strings.NewReader(reqBody))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
 	c, err := createTLSClient()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", "", fmt.Errorf("failed to create TLS client: %s", err)
 	}
 
@@ -124,7 +136,7 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 	var userID, role string
 	retryCount := 0
 
-	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		p.logger.Printf("Attempting validate-token request, attempt #%d", retryCount)
 
@@ -162,6 +174,8 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 
 			err = json.NewDecoder(resp.Body).Decode(&result)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 				return nil, err
 			}
 
@@ -172,16 +186,20 @@ func (p *ProjectsHandler) verifyTokenWithUserService(ctx context.Context, token 
 		})
 
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 		return nil
 	})
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		p.logger.Printf("Error during validate-token request after retries: %v", err)
 		return "", "", fmt.Errorf("error validating token: %w", err)
 	}
-
+	span.SetStatus(codes.Ok, "")
 	return userID, role, nil
 }
 
@@ -220,9 +238,9 @@ func NewProjectsHandler(l *log.Logger, custLogger *customLogger.Logger, r *repos
 }
 
 func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.GetAllProjects")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.GetAllProjects")
 	defer span.End()
-	projects, err := p.repo.GetAll()
+	projects, err := p.repo.GetAll(ctx)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -245,7 +263,7 @@ func (p *ProjectsHandler) GetAllProjects(rw http.ResponseWriter, h *http.Request
 }
 
 func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.GetAllProjectsByUser")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.GetAllProjectsByUser")
 	defer span.End()
 	role, e := h.Context().Value(KeyRole{}).(string)
 	if !e {
@@ -284,14 +302,14 @@ func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.R
 			"user_id": userId,
 			"role":    role,
 		}, "Fetching projects for manager")
-		projects, err = p.repo.GetAllByManager(userId)
+		projects, err = p.repo.GetAllByManager(ctx, userId)
 	} else if role == "member" {
 		p.logger.Println("Fetching projects for member")
 		p.custLogger.Info(logrus.Fields{
 			"user_id": userId,
 			"role":    role,
 		}, "Fetching projects for member")
-		projects, err = p.repo.GetAllByMember(userId)
+		projects, err = p.repo.GetAllByMember(ctx, userId)
 	} else {
 		span.RecordError(errors.New("There is an error"))
 		span.SetStatus(codes.Error, errors.New("There is an error").Error())
@@ -356,7 +374,7 @@ func (p *ProjectsHandler) GetAllProjectsByUser(rw http.ResponseWriter, h *http.R
 }
 
 func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.GetProjectById")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.GetProjectById")
 	defer span.End()
 	vars := mux.Vars(h)
 	id := vars["id"]
@@ -367,7 +385,7 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 	}, "Fetching project by ID")
 
 	// Fetch project from repository
-	project, err := p.repo.GetById(id)
+	project, err := p.repo.GetById(ctx, id)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -421,7 +439,7 @@ func (p *ProjectsHandler) GetProjectById(rw http.ResponseWriter, h *http.Request
 }
 
 func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.PostProject")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.PostProject")
 	defer span.End()
 	// Retrieve project from context
 	project, ok := h.Context().Value(KeyProject{}).(*model.Project)
@@ -440,7 +458,7 @@ func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	}, "Received project for insertion")
 
 	// Insert project into repository
-	err := p.repo.Insert(project)
+	err := p.repo.Insert(ctx, project)
 	if err != nil {
 		http.Error(rw, "Database error", http.StatusInternalServerError)
 		p.logger.Printf("Error inserting project into database: %v", err)
@@ -489,7 +507,7 @@ func (p *ProjectsHandler) MiddlewarePatientDeserialization(next http.Handler) ht
 	})
 }
 func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.AddUsersToProject")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.AddUsersToProject")
 	defer span.End()
 	vars := mux.Vars(h)
 	projectId := vars["id"]
@@ -510,7 +528,7 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 	}
 
 	// Retrieve project details
-	project, err := p.repo.GetById(projectId)
+	project, err := p.repo.GetById(ctx, projectId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -617,7 +635,7 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 	}
 
 	// Add users to project
-	err = p.repo.AddUsersToProject(projectId, userIds)
+	err = p.repo.AddUsersToProject(ctx, projectId, userIds)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -641,7 +659,7 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 			ProjectName: project.Name,
 		}
 
-		if err := p.sendNotification(subject, message); err != nil {
+		if err := p.sendNotification(ctx, subject, message); err != nil {
 			http.Error(rw, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -659,7 +677,7 @@ func (p *ProjectsHandler) AddUsersToProject(rw http.ResponseWriter, h *http.Requ
 			"projectId": projectId,
 		}
 
-		if err := p.sendEventToAnalyticsService(event); err != nil {
+		if err := p.sendEventToAnalyticsService(ctx, event); err != nil {
 			http.Error(rw, "Error sending event to analytics service", http.StatusInternalServerError)
 			return
 		}
@@ -686,13 +704,13 @@ func Conn() (*nats.Conn, error) {
 	return conn, nil
 }
 func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.RemoveUserFromProject")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.RemoveUserFromProject")
 	defer span.End()
 	vars := mux.Vars(h)
 	projectId := vars["id"]
 	userId := vars["userId"]
 
-	project, err := p.repo.GetById(projectId)
+	project, err := p.repo.GetById(ctx, projectId)
 	// Retrieve project details
 	if err != nil {
 		http.Error(rw, "Error retrieving project", http.StatusInternalServerError)
@@ -743,7 +761,7 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 	}
 
 	// Remove user from project
-	err = p.repo.RemoveUserFromProject(projectId, userId)
+	err = p.repo.RemoveUserFromProject(ctx, projectId, userId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -767,7 +785,7 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 		ProjectName: project.Name,
 	}
 
-	if err := p.sendNotification(subject, message); err != nil {
+	if err := p.sendNotification(ctx, subject, message); err != nil {
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -786,7 +804,7 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 	}
 
 	// Send the event to the analytic service
-	if err := p.sendEventToAnalyticsService(event); err != nil {
+	if err := p.sendEventToAnalyticsService(ctx, event); err != nil {
 		http.Error(rw, "Failed to send event to analytics service", http.StatusInternalServerError)
 		return
 	}
@@ -801,54 +819,65 @@ func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.
 	span.SetStatus(codes.Ok, "Successfully removed user from project")
 }
 
-func (p *ProjectsHandler) sendEventToAnalyticsService(event interface{}) error {
-
+func (p *ProjectsHandler) sendEventToAnalyticsService(ctx context.Context, event interface{}) error {
+	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.sendEventToAnalyticsService")
+	defer span.End()
 	linkToUserServer := os.Getenv("LINK_TO_ANALYTIC_SERVICE")
 	analyticsServiceURL := fmt.Sprintf("%s/event/append", linkToUserServer)
 
 	eventData, err := json.Marshal(event)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Printf("Error marshalling event: %v", err)
 		return err
 	}
 
 	req, err := http.NewRequest("POST", analyticsServiceURL, bytes.NewBuffer(eventData))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Printf("Error creating request: %v", err)
 		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-
+	otel.GetTextMapPropagator().Inject(context.Background(), propagation.HeaderCarrier(req.Header))
 	client, err := createTLSClient()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Printf("Error creating TLS client: %v", err)
 		return fmt.Errorf("failed to create TLS client: %v", err)
 	}
 
 	resp, err := client.Do(req)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Printf("Error sending request to analytics service: %v", err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		span.RecordError(errors.New(resp.Status))
+		span.SetStatus(codes.Error, resp.Status)
 		log.Printf("Failed to send event to analytics service: %s", resp.Status)
 		return fmt.Errorf("failed to send event to analytics service: %s", resp.Status)
 	}
-
+	span.SetStatus(codes.Ok, "Successfully sent event to analytics service")
 	return nil
 }
 
 func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.DeleteProject")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.DeleteProject")
 	defer span.End()
 	// Extract project ID from request
 	vars := mux.Vars(h)
 	projectId := vars["id"]
 
-	project, err := p.repo.GetById(projectId)
+	project, err := p.repo.GetById(ctx, projectId)
 	if err != nil {
 		http.Error(rw, "Error retrieving project", http.StatusInternalServerError)
 		p.logger.Printf("Error retrieving project with ID %s: %v", projectId, err)
@@ -876,7 +905,7 @@ func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request)
 		"project_id": projectId,
 	}, "Deleting project")
 
-	err = p.repo.PendingDeletion(projectId, true)
+	err = p.repo.PendingDeletion(ctx, projectId, true)
 	//err = p.repo.DeleteProject(projectId)
 	if err != nil {
 		span.RecordError(err)
@@ -923,9 +952,13 @@ func (p *ProjectsHandler) DeleteProject(rw http.ResponseWriter, h *http.Request)
 	span.SetStatus(codes.Ok, "Successfully deleted project")
 }
 
-func (p *ProjectsHandler) SubscribeToEvent() {
+func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
+	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.SubscribeToEvent")
+	defer span.End()
 	nc, err := Conn()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		log.Println("Error connecting to NATS:", err)
 		p.logger.Printf("Error connecting to NATS: ", err)
 
@@ -934,20 +967,25 @@ func (p *ProjectsHandler) SubscribeToEvent() {
 	// Subscribe on channel to react on task deletion
 	_, err = nc.QueueSubscribe("TasksDeleted", "tasks-deleted-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		p.HandleTasksDeleted(projectID)
+		p.HandleTasksDeleted(ctx, projectID)
 	})
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		p.logger.Printf("Failed to subscribe to TasksDeleted event: %v", err)
 	}
 	_, err = nc.QueueSubscribe("TaskDeletionFailed", "task-failed-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		p.HandleTasksDeletedRollback(projectID)
+		p.HandleTasksDeletedRollback(ctx, projectID)
 	})
+	span.SetStatus(codes.Ok, "")
 }
 
-func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
-	project, _ := p.repo.GetById(projectID)
+func (p *ProjectsHandler) HandleTasksDeleted(ctx context.Context, projectID string) {
+	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.HandleTasksDeleted")
+	defer span.End()
+	project, _ := p.repo.GetById(ctx, projectID)
 	subject := "project.removed"
 	for _, userID := range project.UserIDs {
 		message := struct {
@@ -958,7 +996,9 @@ func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
 			ProjectName: project.Name,
 		}
 
-		if err := p.sendNotification(subject, message); err != nil {
+		if err := p.sendNotification(ctx, subject, message); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			p.logger.Println(err.Error())
 			return
 		}
@@ -966,28 +1006,37 @@ func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
 
 	p.logger.Println("a message has been sent")
 
-	err := p.repo.DeleteProject(projectID)
+	err := p.repo.DeleteProject(ctx, projectID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		p.logger.Printf("Failed to delete project %s: %v", projectID, err)
 		return
 	}
 
+	span.SetStatus(codes.Ok, "Successfully deleted project")
+
 	p.logger.Printf("Successfully deleted project %s", projectID)
 }
 
-func (p *ProjectsHandler) HandleTasksDeletedRollback(projectID string) {
-	err := p.repo.PendingDeletion(projectID, false)
+func (p *ProjectsHandler) HandleTasksDeletedRollback(ctx context.Context, projectID string) {
+	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.HandleTasksDeletedRollback")
+	defer span.End()
+	err := p.repo.PendingDeletion(ctx, projectID, false)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		p.logger.Printf("Failed to delete project %s: %v", projectID, err)
 		return
 	}
 
 	p.logger.Printf("Successfully retrive deleted project %s", projectID)
+	span.SetStatus(codes.Ok, "Successfully retrive deleted project")
 }
 
 func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project, userID string, authTokenCookie *http.Cookie) bool {
 	// Start a new trace span for distributed tracing
-	_, span := ph.tracer.Start(ctx, "ProjectsHandler.checkTasks")
+	ctx, span := ph.tracer.Start(ctx, "ProjectsHandler.checkTasks")
 	defer span.End()
 
 	// Create the custom TLS client for secure communication
@@ -1001,15 +1050,15 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 
 	// Prepare the request to the task service
 	taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s", project.ID.Hex())
-	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second) // Adding a timeout to the request context
-	defer cancel()
-	taskReq, err := http.NewRequestWithContext(reqCtx, "GET", taskServiceURL, nil)
+
+	taskReq, err := http.NewRequestWithContext(ctx, "GET", taskServiceURL, nil)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		ph.logger.Println("Failed to create request to task-service:", err)
 		return false
 	}
+	otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(taskReq.Header))
 	taskReq.Header.Set("Content-Type", "application/json")
 	taskReq.AddCookie(authTokenCookie)
 
@@ -1049,7 +1098,7 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 	retryCount := 0
 
 	// Retry the task request if it fails (with circuit breaker)
-	err = retryAgain.RunCtx(reqCtx, func(ctx context.Context) error {
+	err = retryAgain.RunCtx(ctx, func(ctx context.Context) error {
 		retryCount++
 		ph.logger.Printf("Attempting task-service request, attempt #%d", retryCount)
 
@@ -1066,6 +1115,8 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 			// Send the HTTP request using the TLS client
 			resp, err := c.Do(taskReq)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
 				return nil, err
 			}
 
@@ -1090,6 +1141,8 @@ func (ph *ProjectsHandler) checkTasks(ctx context.Context, project model.Project
 
 		// If an error occurred, return it for retrying
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 		return nil
@@ -1165,13 +1218,13 @@ func (uh *ProjectsHandler) MiddlewareCheckRoles(allowedRoles []string, next http
 }
 
 func (p *ProjectsHandler) IsUserInProject(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.IsUserInProject")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.IsUserInProject")
 	defer span.End()
 	vars := mux.Vars(h)
 	projectID := vars["id"]
 	userID := vars["userId"]
 
-	isMember := p.isUserInProject(projectID, userID)
+	isMember := p.isUserInProject(ctx, projectID, userID)
 
 	if isMember {
 		rw.WriteHeader(http.StatusOK)
@@ -1183,10 +1236,10 @@ func (p *ProjectsHandler) IsUserInProject(rw http.ResponseWriter, h *http.Reques
 	span.SetStatus(codes.Ok, "Successful function")
 }
 
-func (p *ProjectsHandler) isUserInProject(projectID, userID string) bool {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.isUserInProject")
+func (p *ProjectsHandler) isUserInProject(ctx context.Context, projectID, userID string) bool {
+	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.isUserInProject")
 	defer span.End()
-	project, err := p.repo.GetById(projectID)
+	project, err := p.repo.GetById(ctx, projectID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1208,7 +1261,7 @@ func contains(slice []string, item string) bool {
 }
 
 func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.Request) {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.CheckIfUserIsManager")
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.CheckIfUserIsManager")
 	defer span.End()
 	role, ok := h.Context().Value(KeyRole{}).(string)
 	if !ok {
@@ -1235,7 +1288,7 @@ func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.R
 		return
 	}
 
-	isManager, err := p.repo.IsUserManagerOfProject(userId, projectId)
+	isManager, err := p.repo.IsUserManagerOfProject(ctx, userId, projectId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1253,8 +1306,8 @@ func (p *ProjectsHandler) CheckIfUserIsManager(rw http.ResponseWriter, h *http.R
 	span.SetStatus(codes.Ok, "Successful function")
 }
 
-func (p *ProjectsHandler) sendNotification(subject string, message interface{}) error {
-	_, span := p.tracer.Start(context.Background(), "ProjectsHandler.AddUsersToProject")
+func (p *ProjectsHandler) sendNotification(ctx context.Context, subject string, message interface{}) error {
+	_, span := p.tracer.Start(ctx, "ProjectsHandler.AddUsersToProject")
 	defer span.End()
 	nc, err := Conn()
 	if err != nil {
@@ -1289,9 +1342,13 @@ func (p *ProjectsHandler) sendNotification(subject string, message interface{}) 
 	return nil
 }
 func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.GetProjectDetailsById")
+	defer span.End()
 	// Step 1: Extract the auth_token cookie from the incoming request
 	cookie, err := h.Cookie("auth_token")
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
 		p.logger.Println("No token in cookie:", err)
 		return
@@ -1302,8 +1359,10 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 	id := vars["id"]
 
 	// Step 3: Fetch the project from the database
-	project, err := p.repo.GetById(id)
+	project, err := p.repo.GetById(ctx, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		p.logger.Print("Database exception: ", err)
 		http.Error(rw, "Error fetching project details", http.StatusInternalServerError)
 		return
@@ -1311,6 +1370,8 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 
 	// If project is not found, return an error
 	if project == nil {
+		span.SetStatus(codes.Error, "Project not found")
+		span.SetStatus(codes.Error, "Project not found")
 		http.Error(rw, "Project with given id not found", http.StatusNotFound)
 		p.logger.Printf("Project with id: '%s' not found", id)
 		return
@@ -1319,6 +1380,8 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 	// Step 4: Fetch the user details associated with the project
 	usersDetails, err := p.userClient.GetByIdsWithCookies(project.UserIDs, cookie)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Error fetching user details", http.StatusInternalServerError)
 		return
 	}
@@ -1326,6 +1389,8 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 	// Step 5: Fetch the tasks associated with the project
 	tasksDetails, err := p.taskClient.GetTasksByProjectId(id, cookie)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -1346,8 +1411,11 @@ func (p *ProjectsHandler) GetProjectDetailsById(rw http.ResponseWriter, h *http.
 	// Step 7: Send the project details with users and tasks as a response
 	err = projectDetails.ToJSON(rw)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		p.logger.Fatal("Unable to convert to json:", err)
 		return
 	}
+	span.SetStatus(codes.Ok, "")
 }

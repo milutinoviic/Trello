@@ -94,7 +94,7 @@ func main() {
 
 	sub, err := nc.QueueSubscribe("ProjectDeleted", "task-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		taskHandler.HandleProjectDeleted(projectID)
+		taskHandler.HandleProjectDeleted(timeoutContext, projectID)
 	})
 	if err != nil {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
@@ -110,6 +110,7 @@ func main() {
 	router := mux.NewRouter()
 
 	router.Use(taskHandler.MiddlewareContentTypeSet)
+	router.Use(handlers.ExtractTraceInfoMiddleware)
 
 	getRouter := router.Methods(http.MethodGet).Subrouter()
 	getRouter.Handle("/tasks", taskHandler.MiddlewareExtractUserFromCookie(taskHandler.MiddlewareCheckRoles([]string{"manager", "member"}, http.HandlerFunc(taskHandler.GetAllTask))))
