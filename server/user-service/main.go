@@ -72,6 +72,7 @@ func main() {
 	r.Handle("/magic", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagic))).Methods(http.MethodPost)
 	r.Handle("/magic/verify", uh.MiddlewareCheckAuthenticated(http.HandlerFunc(uh.HandleMagicVerification))).Methods(http.MethodPost)
 	r.HandleFunc("/role", uh.HandleGettingRole).Methods(http.MethodPost)
+	r.HandleFunc("/verify/account/{email}", uh.HandleAccountVerification).Methods(http.MethodGet)
 
 	// SAMO IM SERVIS PRISTUPA
 	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)

@@ -1,0 +1,12 @@
+<div class="container">
+  <div *ngIf="verificationStatus === 'success'" class="success-message">
+    <p>You have successfully verified your account, you will be redirected to login page now.</p>
+  </div>
+  <div *ngIf="verificationStatus === 'error'" class="error-message">
+    <p>
+      Oops, your verification was not successful. Please try to register again.
+      If the problem persists, please contact our support team.
+    </p>
+    <button (click)="retryVerification()">Retry</button>
+  </div>
+</div>

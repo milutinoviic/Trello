@@ -10,6 +10,7 @@ import (
 type AccountRequest struct {
 	Email     string `bson:"email" json:"email"`
 	FirstName string `bson:"first_name" json:"first_name"`
+	Password  string `bson:"password" json:"password"`
 	LastName  string `bson:"last_name" json:"last_name"`
 	Role      string `bson:"role" json:"role"`
 }
