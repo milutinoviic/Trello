@@ -52,7 +52,6 @@ export class ProjectHistoryComponent implements OnInit {
     const taskName = this.getTaskName(eventData.event.taskId);
     const changedBy = this.getMemberName(eventData.event.changedBy);
 
-
     switch (eventData.type) {
       case "MemberAdded":
         return `Member "${memberName}" was added to the project on ${eventTime}.`;
@@ -66,6 +65,12 @@ export class ProjectHistoryComponent implements OnInit {
         return `Member "${memberName}" was removed from the project on ${eventTime}.`;
       case "TaskStatusChanged":
         return `Task "${taskName}" was marked as "${eventData.event.status}" by user "${changedBy}" on ${eventTime}.`;
+      case "DocumentAdded": {
+        const addedBy = eventData.event.addedBy === this.project?.manager
+          ? "the project manager"
+          : this.getMemberName(eventData.event.addedBy);
+        return `Document with ID "${eventData.event.documentId}" was added to task "${taskName}" by ${addedBy} on ${eventTime}.`;
+      }
       default:
         return `An unknown event occurred on ${eventTime}.`;
     }
@@ -112,6 +117,7 @@ export class ProjectHistoryComponent implements OnInit {
       MemberRemovedTask: 'Member Unassigned from Task',
       MemberRemoved: 'Member Removed from Project',
       TaskStatusChanged: 'Task Status Updated',
+      DocumentAdded: 'New Document Added to Task'
     };
 
     return eventTypeMap[eventType] || 'Unknown Event';
@@ -128,6 +134,7 @@ export class ProjectHistoryComponent implements OnInit {
     const member = this.allUsers?.find(u => u.id === memberId);
     return member ? member.first_name : memberId;
   }
+
 }
 
 
