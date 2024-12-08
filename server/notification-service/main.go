@@ -13,6 +13,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
 	"net/http"
+	"notification-service/customLogger"
 	handler "notification-service/handlers"
 	"notification-service/repository"
 	"os"
@@ -41,6 +42,7 @@ func main() {
 	defer func() { _ = tp.Shutdown(timeoutContext) }()
 	otel.SetTracerProvider(tp)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
+	custLogger := customLogger.GetLogger()
 	tracer := tp.Tracer("notification-service")
 
 	repo, err := repository.New(logger, tracer)
@@ -50,7 +52,7 @@ func main() {
 
 	repo.CreateTables()
 
-	notificationHandler := handler.NewNotificationHandler(logger, repo, tracer)
+	notificationHandler := handler.NewNotificationHandler(logger, repo, custLogger, tracer)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

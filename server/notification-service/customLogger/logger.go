@@ -62,7 +62,7 @@ func (l *Logger) addDefaultFields(fields logrus.Fields) logrus.Fields {
 		fields = logrus.Fields{}
 	}
 	fields["timestamp"] = time.Now().Format(time.RFC3339) // ISO 8601 format
-	fields["source"] = "workflow-server"
+	fields["source"] = "notification-server"
 	fields["event_id"] = uuid.NewString() // Generate a new UUID for event_id
 	return fields
 }

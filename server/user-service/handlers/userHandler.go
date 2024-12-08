@@ -611,7 +611,9 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 	}
 	uh.custLogger.Info(logrus.Fields{}, "Login request decoded successfully")
 
-	emailRegex := `^[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}@[a-zA-Z0-9]+\.[a-zA-Z]{2,}$`
+	//emailRegex := `^[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}@[a-zA-Z0-9]+\.[a-zA-Z]{2,}$`
+	emailRegex := `^.+@.+$`
+
 	matched, err := regexp.MatchString(emailRegex, request.Email)
 	if err != nil || !matched {
 		span.RecordError(fmt.Errorf("invalid email format"))

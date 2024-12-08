@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"log"
 	"net/http"
+	"notification-service/customLogger"
 	"notification-service/domain"
 	"notification-service/model"
 	"notification-service/repository"
@@ -29,36 +30,45 @@ type KeyProduct struct{} // Context key for storing user data
 type KeyRole struct{}
 
 type NotificationHandler struct {
-	logger *log.Logger
-	repo   *repository.NotificationRepo
-	tracer trace.Tracer
+	logger     *log.Logger
+	repo       *repository.NotificationRepo
+	custLogger *customLogger.Logger
+	tracer     trace.Tracer
 }
 
-func NewNotificationHandler(l *log.Logger, r *repository.NotificationRepo, tracer trace.Tracer) *NotificationHandler {
-	return &NotificationHandler{l, r, tracer}
+func NewNotificationHandler(l *log.Logger, r *repository.NotificationRepo, custLogger *customLogger.Logger, tracer trace.Tracer) *NotificationHandler {
+	return &NotificationHandler{l, r, custLogger, tracer}
 }
 
 // Middleware to extract user ID from HTTP-only cookie and validate it
 func (n *NotificationHandler) MiddlewareExtractUserFromCookie(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, h *http.Request) {
+		n.custLogger.Info(nil, "Starting MiddlewareExtractUserFromCookie")
 		cookie, err := h.Cookie("auth_token")
 		if err != nil {
 			http.Error(rw, "No token found in cookie", http.StatusUnauthorized)
 			n.logger.Println("No token in cookie:", err)
 			return
 		}
+		n.custLogger.Info(nil, "Auth token found in cookie")
 
 		userID, role, err := n.verifyTokenWithUserService(h.Context(), cookie.Value)
 		if err != nil {
+			errorMsg := "Invalid token"
 			http.Error(rw, "Invalid token", http.StatusUnauthorized)
+			n.custLogger.Error(nil, errorMsg+": "+err.Error())
 			n.logger.Println("Invalid token:", err)
 			return
 		}
+
+		n.custLogger.Info(nil, fmt.Sprintf("Token verified successfully, userID: %s, role: %s", userID, role))
 
 		ctx := context.WithValue(h.Context(), KeyProduct{}, userID)
 		ctx = context.WithValue(ctx, KeyRole{}, role)
 
 		h = h.WithContext(ctx)
+
+		n.custLogger.Info(nil, "UserID and role added to context")
 
 		next.ServeHTTP(rw, h)
 	})
@@ -226,6 +236,7 @@ func createTLSClient() (*http.Client, error) {
 }
 
 func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http.Request) {
+	n.custLogger.Info(nil, "Starting CreateNotification request")
 	_, span := n.tracer.Start(context.Background(), "NotificationHandler.CreateNotification")
 	defer span.End()
 	var notification model.Notification
@@ -235,17 +246,21 @@ func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, "Unable to decode JSON: "+err.Error())
 		http.Error(rw, "Unable to decode json", http.StatusBadRequest)
 		n.logger.Fatal(err)
 		return
 	}
+	n.custLogger.Info(nil, "Decoded notification object")
 
 	if err := notification.Validate(); err != nil {
 		span.RecordError(errors.New("Very bad request!"))
+		n.custLogger.Error(nil, "Notification validation failed: "+err.Error())
 		span.SetStatus(codes.Error, "Very bad request!")
 		http.Error(rw, err.Error(), http.StatusBadRequest)
 		return
 	}
+	n.custLogger.Info(nil, "Notification validation passed")
 
 	err = n.repo.Create(&notification)
 	if err != nil {
@@ -255,6 +270,7 @@ func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http
 		n.logger.Print("Error inserting notification:", err)
 		return
 	}
+	n.custLogger.Info(nil, "Notification successfully created in repository")
 
 	rw.WriteHeader(http.StatusCreated)
 	rw.Header().Set("Content-Type", "application/json")
@@ -262,13 +278,16 @@ func (n *NotificationHandler) CreateNotification(rw http.ResponseWriter, h *http
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, "Unable to encode response: "+err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		n.logger.Fatal("Unable to encode response:", err)
 	}
 	span.SetStatus(codes.Ok, "Successfully created notification")
+	n.custLogger.Info(nil, "CreateNotification request completed successfully")
 }
 
 func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *http.Request) {
+	n.custLogger.Info(nil, "Starting GetNotificationByID request")
 	_, span := n.tracer.Start(context.Background(), "NotificationHandler.GetNotificationByID")
 	defer span.End()
 	vars := mux.Vars(h)
@@ -278,6 +297,7 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, "Invalid UUID format: "+err.Error())
 		http.Error(rw, "Invalid UUID format", http.StatusBadRequest)
 		n.logger.Println("Invalid UUID format:", err)
 		return
@@ -287,6 +307,7 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, "Error fetching notification: "+err.Error())
 		http.Error(rw, "Notification not found", http.StatusNotFound)
 		n.logger.Println("Error fetching notification:", err)
 		return
@@ -297,47 +318,60 @@ func (n *NotificationHandler) GetNotificationByID(rw http.ResponseWriter, h *htt
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, "Unable to encode response: "+err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		n.logger.Fatal("Unable to encode response:", err)
 	}
+	n.custLogger.Info(nil, "GetNotificationByID request completed successfully")
 	span.SetStatus(codes.Ok, "Successfully fetched notification")
 }
 
 func (n *NotificationHandler) GetNotificationsByUserID(rw http.ResponseWriter, h *http.Request) {
+	n.custLogger.Info(nil, "Starting GetNotificationsByUserID request")
 	_, span := n.tracer.Start(context.Background(), "NotificationHandler.GetNotificationsByUserID")
 	defer span.End()
 	userID, ok := h.Context().Value(KeyProduct{}).(string)
 	if !ok {
+		errMsg := "User ID not found in context"
 		span.RecordError(errors.New("Missing user id"))
 		span.SetStatus(codes.Error, "Missing user id")
+		n.custLogger.Error(nil, errMsg)
 		http.Error(rw, "User ID not found", http.StatusUnauthorized)
 		n.logger.Println("User ID not found in context")
 		return
 	}
+	n.custLogger.Info(nil, "User ID extracted from context: "+userID)
 
 	n.logger.Println("User ID:", userID)
 
 	notifications, err := n.repo.GetByUserID(userID)
 	if err != nil {
+		errMsg := "Error fetching notifications"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Error fetching notifications", http.StatusInternalServerError)
 		n.logger.Println("Error fetching notifications:", err)
 		return
 	}
+	n.custLogger.Info(nil, fmt.Sprintf("Fetched %d notifications for user ID: %s", len(notifications), userID))
 
 	rw.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(rw).Encode(notifications)
 	if err != nil {
+		errMsg := "Unable to encode response"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		n.logger.Fatal("Unable to encode response:", err)
 	}
 	span.SetStatus(codes.Ok, "Successfully got notifications")
+	n.custLogger.Info(nil, "GetNotificationsByUserID request completed successfully")
 }
 
 func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h *http.Request) {
+	n.custLogger.Info(nil, "Starting UpdateNotificationStatus request")
 	_, span := n.tracer.Start(context.Background(), "NotificationHandler.UpdateNotificationStatus")
 	defer span.End()
 	vars := mux.Vars(h)
@@ -345,8 +379,10 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 
 	notificationID, err := gocql.ParseUUID(id)
 	if err != nil {
+		errMsg := "Invalid UUID format"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Invalid UUID format", http.StatusBadRequest)
 		n.logger.Println("Invalid UUID format:", err)
 		return
@@ -361,43 +397,58 @@ func (n *NotificationHandler) UpdateNotificationStatus(rw http.ResponseWriter, h
 	decoder := json.NewDecoder(h.Body)
 	err = decoder.Decode(&req)
 	if err != nil {
+		errMsg := "Unable to decode JSON"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Unable to decode JSON", http.StatusBadRequest)
 		n.logger.Println("Error decoding JSON:", err)
 		return
 	}
+	n.custLogger.Info(nil, "Decoded status request")
 
 	if req.Status != model.Unread && req.Status != model.Read {
+		errMsg := "Invalid status value"
 		span.RecordError(errors.New("Bad status"))
 		span.SetStatus(codes.Error, "Bad")
+		n.custLogger.Error(nil, errMsg)
 		http.Error(rw, "Invalid status value", http.StatusBadRequest)
 		return
 	}
+	n.custLogger.Info(nil, "Status value is valid: "+string(req.Status))
 
 	userID, ok := h.Context().Value(KeyProduct{}).(string)
 	if !ok {
+		errMsg := "User ID not found in context"
 		span.RecordError(errors.New("Could not find user id"))
 		span.SetStatus(codes.Error, "Could not find user id")
 		n.logger.Println("User id not found in context")
+		n.custLogger.Error(nil, errMsg)
 		http.Error(rw, "User id not found in context", http.StatusUnauthorized)
 		return
 	}
+	n.custLogger.Info(nil, "User ID extracted from context: "+userID)
 
 	err = n.repo.UpdateStatus(req.CreatedAt, userID, notificationID, req.Status)
 	if err != nil {
+		errMsg := "Error updating notification status"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Error updating notification status", http.StatusInternalServerError)
 		n.logger.Println("Error updating notification status:", err)
 		return
 	}
 
+	n.custLogger.Info(nil, "Notification status successfully updated")
+
 	rw.WriteHeader(http.StatusNoContent)
 	span.SetStatus(codes.Ok, "Successfully updated notification status")
+	n.custLogger.Info(nil, "UpdateNotificationStatus request completed successfully")
 }
 
 func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http.Request) {
+	n.custLogger.Info(nil, "Starting DeleteNotification request")
 	_, span := n.tracer.Start(context.Background(), "NotificationHandler.DeleteNotification")
 	defer span.End()
 	vars := mux.Vars(h)
@@ -405,8 +456,10 @@ func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http
 
 	notificationID, err := gocql.ParseUUID(id)
 	if err != nil {
+		errMsg := "Invalid UUID format"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Invalid UUID format", http.StatusBadRequest)
 		n.logger.Println("Invalid UUID format:", err)
 		return
@@ -414,15 +467,20 @@ func (n *NotificationHandler) DeleteNotification(rw http.ResponseWriter, h *http
 
 	err = n.repo.Delete(notificationID)
 	if err != nil {
+		errMsg := "Error deleting notification"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Error deleting notification", http.StatusInternalServerError)
 		n.logger.Println("Error deleting notification:", err)
 		return
 	}
 
+	n.custLogger.Info(nil, "Notification successfully deleted")
+
 	rw.WriteHeader(http.StatusNoContent)
 	span.SetStatus(codes.Ok, "Successfully deleted notification")
+	n.custLogger.Info(nil, "DeleteNotification request completed successfully")
 }
 
 func (uh *NotificationHandler) MiddlewareCheckRoles(allowedRoles []string, next http.Handler) http.Handler {
@@ -615,6 +673,7 @@ func Conn() (*nats.Conn, error) {
 }
 
 func (n *NotificationHandler) GetUnreadNotificationCount(rw http.ResponseWriter, h *http.Request) {
+	n.custLogger.Info(nil, "Starting GetUnreadNotificationCount request")
 	n.logger.Println("method hit")
 	userID, ok := h.Context().Value(KeyProduct{}).(string)
 	if !ok {
@@ -622,13 +681,17 @@ func (n *NotificationHandler) GetUnreadNotificationCount(rw http.ResponseWriter,
 		n.logger.Println("User ID not found in context")
 		return
 	}
+	n.custLogger.Info(nil, "User ID extracted from context: "+userID)
 
 	notifications, err := n.repo.GetByUserID(userID)
 	if err != nil {
+		errMsg := "Error fetching notifications"
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Error fetching notifications", http.StatusInternalServerError)
 		n.logger.Println("Error fetching notifications:", err)
 		return
 	}
+	n.custLogger.Info(nil, fmt.Sprintf("Fetched %d notifications for user ID: %s", len(notifications), userID))
 
 	unreadCount := 0
 	for _, notification := range notifications {
@@ -636,13 +699,17 @@ func (n *NotificationHandler) GetUnreadNotificationCount(rw http.ResponseWriter,
 			unreadCount++
 		}
 	}
+	n.custLogger.Info(nil, fmt.Sprintf("Unread notifications count: %d", unreadCount))
 
 	rw.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(rw).Encode(struct {
 		UnreadCount int `json:"unreadCount"`
 	}{UnreadCount: unreadCount})
 	if err != nil {
+		errMsg := "Unable to encode response"
+		n.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		n.logger.Fatal("Unable to encode response:", err)
 	}
+	n.custLogger.Info(nil, "GetUnreadNotificationCount request completed successfully")
 }
