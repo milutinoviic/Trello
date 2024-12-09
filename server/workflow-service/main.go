@@ -14,6 +14,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
 	"main.go/customLogger"
+
 	"main.go/handler"
 	"main.go/repository"
 	"net/http"

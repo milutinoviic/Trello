@@ -306,6 +306,7 @@ services:
       nats:
         condition: service_started
     volumes:
+      - ./server/notification-service/app.log:/app.log
       - ./server/notification-service/cert.crt:/app/cert.crt
       - ./server/notification-service/privat.key:/app/privat.key
     networks:
@@ -389,7 +390,7 @@ services:
     volumes:
       - ./server/workflow-service/cert.crt:/app/cert.crt
       - ./server/workflow-service/privat.key:/app/privat.key
-      - ./server/project-service/app.log:/app.log
+      - ./server/workflow-service/app.log:/app.log
     networks:
       - network
 

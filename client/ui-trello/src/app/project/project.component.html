@@ -63,11 +63,6 @@
   <div class="modal-content" (click)="$event.stopPropagation()">
 
 
-    <div class="status-buttons" *ngIf="isUserInTask">
-      <button class="btn-status" (click)="changeStatus('Pending')">Pending</button>
-      <button class="btn-status" (click)="changeStatus('In Progress')">In Progress</button>
-      <button class="btn-status" (click)="changeStatus('Completed')">Completed</button>
-    </div>
 
 
     <h2 class="title">{{ selectedTask.name }}</h2>
@@ -80,17 +75,18 @@
     <p><strong>Updated At:</strong> {{ selectedTask.updatedAt | date }}</p>
     <p><strong>Blocked:</strong> {{selectedTask.blocked}}</p>
 
-    <div *ngIf="isManager()" class="user-management">
-      <label for="userSearch">Search Users:</label>
-      <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
+    <div class="user-management" >
+      <div *ngIf="isManager()">
+
+        <label for="userSearch">Search Users:</label>
+        <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
+
+
 
       <h5 class="margin-top-small">Assign Members:</h5>
-      <div class="filtered-users">
-        <div class="button-container">
-
+      <div *ngIf="isManager()" class="filtered-users">
         <div *ngFor="let user of filteredUsers[selectedTask.id]">
           <button class="column-text" (click)="addUserToTask(selectedTask, user)">{{ user.email }}</button>
-        </div>
         </div>
       </div>
 
@@ -99,36 +95,52 @@
         <div class="button-container">
 
         <div *ngFor="let member of taskMembers[selectedTask.id]">
-          <button class="column-text"  (click)="removeUserFromTask(selectedTask, member)">{{ member.email }} - Remove</button>
+          <button class="column-text"  (click)="removeUserFromTask(selectedTask, member)">{{ member.email }}</button>
         </div>
         </div>
       </div>
+      </div>
 
+<!--      <div *ngIf="isUserInTask">-->
+
+<!--        <div *ngIf="selectedFile">-->
+<!--          <p>Choosen file: {{ selectedFile.name }}</p>-->
+<!--          <p>File size: {{ selectedFile.size }} bytes</p>-->
+<!--          <button class="column-text-file" (click)="sendFile()">Send File</button>-->
+<!--        </div>-->
+
+
+<!--      </div>-->
 
 
 
 
 
     </div>
-    <h4 class="margin-top-small">Uploaded Files</h4>
-    <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
-      <ul>
-        <li *ngFor="let doc of taskDocumentDetails">
-          <span>{{ doc.fileName }}</span>
-          <img
-            src="assets/icons/download2.png"
-            alt="Download"
-            class="download-icon"
-            (click)="downloadFile(doc)"
-          />
-        </li>
-      </ul>
-    </div>
-    <ng-template #noFiles>
-      <p>No files uploaded for this task.</p>
-    </ng-template>
-    <button *ngIf="!selectedFile" class="column-text-file" (click)="fileInput.click()">Add File</button>
-    <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
+
+      <div *ngIf="isUserInTask">
+
+        <h4 class="margin-top-small">Uploaded Files</h4>
+        <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
+          <ul>
+            <li *ngFor="let doc of taskDocumentDetails">
+              <span>{{ doc.fileName }}</span>
+              <img
+                src="assets/icons/download2.png"
+                alt="Download"
+                class="download-icon"
+                (click)="downloadFile(doc)"
+              />
+            </li>
+          </ul>
+        </div>
+        <ng-template #noFiles>-->
+                    <p>No files uploaded for this task.</p>
+                  </ng-template>
+        <button *ngIf="!selectedFile" class="column-text-file" (click)="fileInput.click()">Add File</button>
+        <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
+
+      </div>
 
 
     <div *ngIf="selectedFile">

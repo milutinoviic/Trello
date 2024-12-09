@@ -25,6 +25,7 @@ import (
 	"main.go/service"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 )
@@ -621,6 +622,18 @@ func (uh *UserHandler) Login(rw http.ResponseWriter, h *http.Request) {
 		return
 	}
 	uh.custLogger.Info(logrus.Fields{}, "Login request decoded successfully")
+
+	//emailRegex := `^[a-zA-Z0-9]{2,}\.[a-zA-Z0-9]{2,}@[a-zA-Z0-9]+\.[a-zA-Z]{2,}$`
+	emailRegex := `^.+@.+$`
+
+	matched, err := regexp.MatchString(emailRegex, request.Email)
+	if err != nil || !matched {
+		span.RecordError(fmt.Errorf("invalid email format"))
+		span.SetStatus(codes.Error, "invalid email format")
+		uh.logger.Println("Invalid email format:", request.Email)
+		http.Error(rw, `{"message": "Invalid email format. Use 'ime.prezime@gmail.com'"}`, http.StatusBadRequest)
+		return
+	}
 
 	// Verify reCAPTCHA
 	boolean, err := uh.service.VerifyRecaptcha(ctx, request.RecaptchaToken)

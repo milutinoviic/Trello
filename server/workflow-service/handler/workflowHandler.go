@@ -48,6 +48,8 @@ func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
 func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 	ctx, span := w.tracer.Start(h.Context(), "WorkflowHandler.GetAllTasks")
 	defer span.End()
+	w.custLogger.Info(nil, "Starting GetAllTasks request")
+
 	vars := mux.Vars(h)
 	limit, err := strconv.Atoi(vars["limit"])
 	if err != nil {
@@ -60,6 +62,7 @@ func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 	}
 
 	tasks, err := w.repo.GetAllNodesWithTask(ctx, limit)
+	w.custLogger.Info(nil, fmt.Sprintf("Fetching tasks with limit: %d", limit))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -68,6 +71,7 @@ func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 	}
 
 	if tasks == nil {
+		w.custLogger.Warn(nil, "No tasks found")
 		return
 	}
 
@@ -75,7 +79,7 @@ func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-
+		w.custLogger.Error(nil, "Error converting tasks to JSON: "+err.Error())
 		http.Error(rw, "Unable to convert to json", http.StatusInternalServerError)
 		w.logger.Fatal("Unable to convert to json :", err)
 		return
@@ -84,14 +88,12 @@ func (w *WorkflowHandler) GetAllTasks(rw http.ResponseWriter, h *http.Request) {
 }
 
 func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
+	m.custLogger.Info(nil, "Starting PostTask request")
 	ctx, span := m.tracer.Start(h.Context(), "WorkflowHandler.PostTask")
-	defer span.End()
 	var task model.TaskGraph
 	err := json.NewDecoder(h.Body).Decode(&task)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-
+		m.custLogger.Error(nil, "Error decoding task: "+err.Error())
 		m.logger.Println("Error decoding task:", err)
 		rw.WriteHeader(http.StatusBadRequest)
 		rw.Write([]byte("Invalid task format"))
@@ -103,24 +105,27 @@ func (m *WorkflowHandler) PostTask(rw http.ResponseWriter, h *http.Request) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-
+		m.custLogger.Error(nil, "Database exception: "+err.Error())
 		m.logger.Print("Database exception: ", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	span.SetStatus(codes.Ok, "")
+	m.custLogger.Info(nil, "Task successfully posted")
 	rw.WriteHeader(http.StatusCreated)
 }
 
 func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Request) {
 	ctx, span := w.tracer.Start(h.Context(), "WorkflowHandler.AddTaskAsDependency")
 	defer span.End()
+	w.custLogger.Info(nil, "Starting AddTaskAsDependency request")
 	vars := mux.Vars(h)
 	taskId := vars["taskId"]
 	dependency := vars["dependencyId"]
 	w.logger.Print("TaskId", taskId)
 	w.logger.Print("dependencyId", dependency)
 	err := w.repo.AddDependency(ctx, taskId, dependency)
+	w.custLogger.Info(nil, fmt.Sprintf("TaskId: %s, DependencyId: %s", taskId, dependency))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -149,6 +154,7 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		w.custLogger.Error(nil, "Failed to initialize TLS client: "+err.Error())
 		w.logger.Printf("Failed to initalize tls: %v", err)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
@@ -171,6 +177,8 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	w.custLogger.Info(nil, "Task successfully blocked")
 
 	dependencyTaskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s/dependency/%s", taskId, dependency)
 	w.logger.Printf("Add depenedency to task at %s", dependencyTaskServiceURL)
@@ -209,12 +217,14 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 	if resp2.StatusCode != http.StatusOK {
 		span.RecordError(errors.New("Internal server error"))
 		span.SetStatus(codes.Error, errors.New("Internal server error").Error())
+		w.custLogger.Error(nil, "Failed to call task server for dependency: "+err.Error())
 		w.logger.Printf("Task server responded with status: %v", resp2.Status)
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	span.SetStatus(codes.Ok, "")
 
+	w.custLogger.Info(nil, "Dependency successfully added")
 	rw.WriteHeader(http.StatusCreated)
 }
 
@@ -253,6 +263,9 @@ func createTLSClient() (*http.Client, error) {
 }
 
 func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.Request) {
+
+	w.custLogger.Info(nil, "Starting GetTaskGraphByProject request")
+
 	vars := mux.Vars(h)
 	ctx, span := w.tracer.Start(h.Context(), "WorkflowHandler.GetTaskGraphByProject")
 	defer span.End()
@@ -263,6 +276,8 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 		http.Error(rw, "Missing project_id in route parameters", http.StatusBadRequest)
 		return
 	}
+
+	w.custLogger.Info(nil, fmt.Sprintf("Processing project_id: %s", projectID))
 
 	objectID, err := primitive.ObjectIDFromHex(projectID)
 	if err != nil {
@@ -279,15 +294,18 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 		http.Error(rw, "Error fetching task graph: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	w.custLogger.Info(nil, "Successfully fetched task graph")
 	rw.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(rw).Encode(taskGraph)
 	if err != nil {
+		errMsg := "Error encoding response"
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		w.custLogger.Error(nil, errMsg+": "+err.Error())
 		http.Error(rw, "Error encoding response: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	w.custLogger.Info(nil, "GetTaskGraphByProject completed successfully")
 	span.SetStatus(codes.Ok, "Successfully fetched task graph")
 	//rw.WriteHeader(http.StatusOK) // no need to set this when using .Encode, encode already sets statusOK
 }
