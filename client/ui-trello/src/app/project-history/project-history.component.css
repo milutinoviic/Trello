@@ -8,7 +8,7 @@
 
 .history-container h1 {
   text-align: center;
-  color: #007bff;
+  color: var(--primary-color);
   font-size: 2em;
   margin-bottom: 20px;
 }
@@ -20,7 +20,7 @@
 }
 
 .history-item {
-  background-color: #fff;
+  background-color: var(--hover-background-color);
   padding: 15px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);

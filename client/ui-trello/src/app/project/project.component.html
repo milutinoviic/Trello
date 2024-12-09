@@ -82,8 +82,7 @@
         <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
 
 
-
-      <h5 class="margin-top-small">Assign Members:</h5>
+        <h5 class="margin-top-small">Assign Members:</h5>
       <div *ngIf="isManager()" class="filtered-users">
         <div *ngFor="let user of filteredUsers[selectedTask.id]">
           <button class="column-text" (click)="addUserToTask(selectedTask, user)">{{ user.email }}</button>
@@ -91,26 +90,16 @@
       </div>
 
       <h5 class="margin-top-small">Assigned Members:</h5>
-      <div>
+      <div *ngIf="isManager()">
         <div class="button-container">
 
         <div *ngFor="let member of taskMembers[selectedTask.id]">
-          <button class="column-text"  (click)="removeUserFromTask(selectedTask, member)">{{ member.email }}</button>
+          <button class="column-text"  (click)="removeUserFromTask(selectedTask, member)">{{ member.email }} - Remove </button>
         </div>
         </div>
       </div>
       </div>
 
-<!--      <div *ngIf="isUserInTask">-->
-
-<!--        <div *ngIf="selectedFile">-->
-<!--          <p>Choosen file: {{ selectedFile.name }}</p>-->
-<!--          <p>File size: {{ selectedFile.size }} bytes</p>-->
-<!--          <button class="column-text-file" (click)="sendFile()">Send File</button>-->
-<!--        </div>-->
-
-
-<!--      </div>-->
 
 
 
