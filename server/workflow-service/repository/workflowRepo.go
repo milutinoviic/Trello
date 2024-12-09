@@ -380,13 +380,6 @@ func (wf *WorkflowRepo) GetTaskGraph(ctx context.Context, projectID string) (map
 
 				}
 
-				if _, exists := nodesMap[depID]; !exists {
-					nodesMap[depID] = map[string]any{
-						"id":          depID,
-						"label":       "Dependency Task",
-						"description": "Task Description",
-					}
-				}
 			}
 		}
 
