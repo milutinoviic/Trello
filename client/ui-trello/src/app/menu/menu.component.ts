@@ -7,6 +7,7 @@ import { CommonModule } from '@angular/common';
 import {error} from "@angular/compiler-cli/src/transformers/util";
 import {HttpClient} from "@angular/common/http";
 import {NotificationService} from "../services/notification-service.service";
+import {FormToggleService} from "../form-toggle.service";
 
 @Component({
   selector: 'app-menu',
@@ -17,14 +18,19 @@ import {NotificationService} from "../services/notification-service.service";
 })
 export class MenuComponent implements OnInit {
 
-  constructor(private accountService: AccountService, private toastrService: ToastrService, private router: Router, private deleteService: DeleteService, private notificationService: NotificationService) {
+  constructor(private formToggleService: FormToggleService, private accountService: AccountService, private toastrService: ToastrService, private router: Router, private deleteService: DeleteService, private notificationService: NotificationService) {
 
   }
   visible: boolean = false;
   userId: string | null = ""
   message: string = "Are you sure you want to delete your account?"
   unreadNotifications = 0;
+  showForm: boolean = false;
 
+
+  toggleForm(): void {
+    this.formToggleService.toggleForm();
+  }
 
   logout() {
     this.accountService.logout().subscribe({
@@ -97,11 +103,15 @@ export class MenuComponent implements OnInit {
 
   ngOnInit(): void {
     this.fetchUnreadNotificationCount();
+
+    this.formToggleService.showForm$.subscribe((state) => {
+      this.showForm = state;
+    });
   }
 
   isManager(): boolean {
     const role = localStorage.getItem('role');
     return role === 'manager';
   }
-  
+
 }

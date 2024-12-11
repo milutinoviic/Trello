@@ -107,25 +107,28 @@
 
     </div>
 
+
+    <h4 class="margin-top-small">Uploaded Files</h4>
+    <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
+      <ul>
+        <li *ngFor="let doc of taskDocumentDetails">
+          <span>{{ doc.fileName }}</span>
+          <img
+            src="assets/icons/download2.png"
+            alt="Download"
+            class="download-icon"
+            (click)="downloadFile(doc)"
+          />
+        </li>
+      </ul>
+    </div>
+    <ng-template #noFiles>
+      <p>No files uploaded for this task.</p>
+    </ng-template>
+
       <div *ngIf="isUserInTask">
 
-        <h4 class="margin-top-small">Uploaded Files</h4>
-        <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
-          <ul>
-            <li *ngFor="let doc of taskDocumentDetails">
-              <span>{{ doc.fileName }}</span>
-              <img
-                src="assets/icons/download2.png"
-                alt="Download"
-                class="download-icon"
-                (click)="downloadFile(doc)"
-              />
-            </li>
-          </ul>
-        </div>
-        <ng-template #noFiles>-->
-                    <p>No files uploaded for this task.</p>
-                  </ng-template>
+
         <button *ngIf="!selectedFile" class="column-text-file" (click)="fileInput.click()">Add File</button>
         <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
 

@@ -48,7 +48,7 @@ func main() {
 
 	custLogger := customLogger.GetLogger()
 
-	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeoutContext, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	logger := log.New(os.Stdout, "[task-api] ", log.LstdFlags)

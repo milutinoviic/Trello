@@ -964,9 +964,10 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 
 		return
 	}
+	defer nc.Close()
+
 	_, err = nc.QueueSubscribe("TasksDeleted", "tasks-deleted-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		//<<<<<<< HEAD
 		if _, exists := pendingProjectDeletion[projectID]; !exists {
 			pendingProjectDeletion[projectID] = make(map[string]bool)
 		}
@@ -978,9 +979,6 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 			p.EmitSuccessMessage(projectID)
 		}
 
-		//=======
-		//		p.HandleTasksDeleted(ctx, projectID)
-		//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	})
 
 	if err != nil {
@@ -996,7 +994,6 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 		projectID := string(msg.Data)
 		p.HandleTasksDeletedRollback(ctx, projectID)
 	})
-	//<<<<<<< HEAD
 
 	_, err = nc.QueueSubscribe("WorkflowsDeleted", "workflows-deleted-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)

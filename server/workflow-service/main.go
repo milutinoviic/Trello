@@ -42,7 +42,7 @@ func main() {
 		nc.Close()
 	}()
 
-	timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeoutContext, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	logger := log.New(os.Stdout, "[workflow-api] ", log.LstdFlags)

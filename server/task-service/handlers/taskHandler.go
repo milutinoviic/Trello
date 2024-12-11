@@ -306,7 +306,6 @@ func (t *TasksHandler) HandleProjectDeleted(ctx context.Context, projectID strin
 	ctx, span := t.tracer.Start(ctx, "TaskHandler.HandleProjectDeleted")
 	defer span.End()
 
-	//<<<<<<< HEAD
 	err := t.repo.UpdateAllTasksByProjectId(ctx, projectID, true)
 	if err != nil {
 		span.RecordError(err)

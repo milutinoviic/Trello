@@ -14,12 +14,6 @@
 
 }
 
-.navbar{
-  background-color: var(--tercial-color)!important;
-}
-.navbar-brand{
-  color: white;
-}
 .q-text {
   margin-top: 5%;
   text-align: center;
@@ -43,3 +37,14 @@
 
 
 
+.navbar{
+  background-color: var(--tercial-color)!important;
+}
+.navbar-brand{
+  padding: 10px;
+}
+
+.logo{
+  height: 35px;
+
+}

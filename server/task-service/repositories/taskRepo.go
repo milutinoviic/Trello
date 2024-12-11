@@ -248,7 +248,6 @@ func (t *TaskRepository) DeleteAllTasksByProjectId(ctx context.Context, projectI
 	return nil
 }
 
-// <<<<<<< HEAD
 func (t *TaskRepository) UpdateAllTasksByProjectId(ctx context.Context, projectID string, toDelete bool) error {
 
 	_, span := t.tracer.Start(context.Background(), "TaskRepository.DeleteAllTasksByProjectId")

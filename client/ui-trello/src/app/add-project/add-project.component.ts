@@ -13,6 +13,7 @@ import {AppModule} from "../app.module";
 import {MenuComponent} from "../menu/menu.component";
 import {AccountService} from "../services/account.service";
 import {DeleteService} from "../services/delete.service";
+import {FormToggleService} from "../form-toggle.service";
 
 
 @Component({
@@ -63,11 +64,15 @@ export class AddProjectComponent implements OnInit {
     private accService: AccountService,
     private deleteService: DeleteService,
     private toastr: ToastrService,
+    private formToggleService: FormToggleService,
   ) { }
 
   ngOnInit(): void {
     this.fetchManager();
     this.fetchData();
+    this.formToggleService.showForm$.subscribe((state) => {
+      this.showForm = state;
+    });
     this.newProjectForm = this.formBuilder.group({
       project_name: ['', [Validators.required, Validators.minLength(3)]],
       end_date: ['', [Validators.required, dateValidator()]],
