@@ -86,9 +86,9 @@ func main() {
 	defer sub2.Unsubscribe()
 	sub3, err := nc.Subscribe("TaskDeletionFailed", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		timeoutContext, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx := context.Background()
 		defer cancel()
-		workflowHandler.RollbackWorkflows(timeoutContext, projectID)
+		workflowHandler.RollbackWorkflows(ctx, projectID)
 	})
 	if err != nil {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)

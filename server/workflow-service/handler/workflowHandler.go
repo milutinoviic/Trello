@@ -322,14 +322,16 @@ func (t *WorkflowHandler) HandleProjectDeleted(projectID string) {
 
 		_ = t.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
 	}
-	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+	t.logger.Printf("Successfully updated all tasks for project %s", projectID)
 
 	err = t.nc.Publish("WorkflowsDeleted", []byte(projectID))
 	if err != nil {
-		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+		t.logger.Printf("Failed to publish WorkflowsDeleted event for project %s: %v", projectID, err)
+	} else {
+		t.logger.Printf("Successfully published WorkflowsDeleted event for project %s", projectID)
 	}
 
-	span.SetStatus(codes.Ok, "Successfully deleted all workflows")
+	span.SetStatus(codes.Ok, "Successfully updated all workflows")
 }
 
 func (t *WorkflowHandler) DeletedWorkflows(projectID string) {
@@ -344,7 +346,7 @@ func (t *WorkflowHandler) DeletedWorkflows(projectID string) {
 
 		_ = t.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
 	}
-	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+	t.logger.Printf("Successfully updated all workflows for project %s", projectID)
 
 	err = t.nc.Publish("WorkflowsDeleted", []byte(projectID))
 	if err != nil {

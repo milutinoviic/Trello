@@ -1,6 +1,21 @@
 /* You can add global styles to this file, and also import other style files */
 
 
+body{
+  background-color: var(--hover-background-color);
+}
+
+/*body.dark-mode {*/
+/*  background-color: var(--secondary-color);*/
+/*  color: white;*/
+/*  --primary-color: #FFA726;*/
+/*  --hover-background-color: #1e1e1e;*/
+/*  --shadow--white: #303030;*/
+/*  --secondary-color: #424242;*/
+/*  --tercial-color: #28282B;*/
+
+/*}*/
+
 :root {
   /*--primary-color: #046E8F;*/
   /*--hover-background-color: white;*/
@@ -9,7 +24,7 @@
 
 
   /*--primary-color: #4E4E55;*/
-  --primary-color: #F78E69;
+  --primary-color: #FFA726;
   --hover-background-color: white;
   --shadow--white: #F5F5F5;
   --secondary-color: #E9F1F7;

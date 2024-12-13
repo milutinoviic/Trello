@@ -271,8 +271,8 @@ func (t *TaskRepository) UpdateAllTasksByProjectId(ctx context.Context, projectI
 		}
 	}
 
-	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
-	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
+	t.logger.Printf("Successfully updated all tasks for project %s", projectID)
+	span.SetStatus(codes.Ok, "Successfully updateds all tasks")
 	return nil
 }
 

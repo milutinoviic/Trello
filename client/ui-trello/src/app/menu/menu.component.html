@@ -5,18 +5,14 @@
 
 
     <div class="d-flex ms-auto">
+<!--      <button class="btn btn-outline-light me-2" (click)="toggleDarkMode()">-->
+<!--        {{ isDarkMode ? 'Light Mode' : 'Dark Mode' }}-->
+<!--      </button>-->
       <div *ngIf="isManager()">
         <button class="btn btn-outline-light me-2" (click)="toggleForm()">
            Add new project
         </button>
       </div>
-<!--      <div *ngIf="!isManager()">-->
-<!--        <button-->
-<!--          class="btn btn-outline-light me-2"-->
-<!--          (click)="notifications()"-->
-
-<!--        ></button>-->
-<!--      </div>-->
       <button
         class="btn btn-outline-light me-2"
         (click)="navigateToChangePassword()"

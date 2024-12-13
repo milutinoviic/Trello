@@ -26,11 +26,25 @@ export class MenuComponent implements OnInit {
   message: string = "Are you sure you want to delete your account?"
   unreadNotifications = 0;
   showForm: boolean = false;
-
+  // isDarkMode = false;
 
   toggleForm(): void {
     this.formToggleService.toggleForm();
   }
+
+  // toggleDarkMode(): void {
+  //   this.isDarkMode = !this.isDarkMode;
+  //   localStorage.setItem('theme', this.isDarkMode ? 'dark' : 'light');
+  //   this.updateTheme();
+  // }
+  //
+  // private updateTheme(): void {
+  //   if (this.isDarkMode) {
+  //     document.body.classList.add('dark-mode');
+  //   } else {
+  //     document.body.classList.remove('dark-mode');
+  //   }
+  // }
 
   logout() {
     this.accountService.logout().subscribe({
@@ -107,6 +121,10 @@ export class MenuComponent implements OnInit {
     this.formToggleService.showForm$.subscribe((state) => {
       this.showForm = state;
     });
+    //
+    // const savedTheme = localStorage.getItem('theme');
+    // this.isDarkMode = savedTheme === 'dark';
+    // this.updateTheme();
   }
 
   isManager(): boolean {

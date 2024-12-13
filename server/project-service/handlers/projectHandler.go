@@ -705,6 +705,7 @@ func Conn() (*nats.Conn, error) {
 	}
 	return conn, nil
 }
+
 func (p *ProjectsHandler) RemoveUserFromProject(rw http.ResponseWriter, h *http.Request) {
 	ctx, span := p.tracer.Start(h.Context(), "ProjectsHandler.RemoveUserFromProject")
 	defer span.End()
@@ -963,10 +964,14 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 		p.logger.Printf("Error connecting to NATS: ", err)
 
 		return
-	}
-	defer nc.Close()
+	} else {
+		p.logger.Printf("Success connecting to NATS!!!")
+		log.Println("Success connecting to NATS!!!")
 
-	_, err = nc.QueueSubscribe("TasksDeleted", "tasks-deleted-queue", func(msg *nats.Msg) {
+	}
+	//defer nc.Close()
+
+	_, err = nc.Subscribe("TasksDeleted", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
 		if _, exists := pendingProjectDeletion[projectID]; !exists {
 			pendingProjectDeletion[projectID] = make(map[string]bool)
@@ -976,7 +981,7 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 
 		if p.isDeletionReady(projectID) {
 			p.HandleTasksDeleted(ctx, projectID)
-			p.EmitSuccessMessage(projectID)
+			p.EmitSuccessMessage(projectID, nc)
 		}
 
 	})
@@ -990,7 +995,7 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 		projectID := string(msg.Data)
 		p.HandleTasksDeletedRollback(ctx, projectID)
 	})
-	_, err = nc.QueueSubscribe("WorkflowsDeletionFailed", "task-failed-queue", func(msg *nats.Msg) {
+	_, err = nc.Subscribe("WorkflowsDeletionFailed", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
 		p.HandleTasksDeletedRollback(ctx, projectID)
 	})
@@ -1005,34 +1010,40 @@ func (p *ProjectsHandler) SubscribeToEvent(ctx context.Context) {
 
 		if p.isDeletionReady(projectID) {
 			p.HandleTasksDeleted(ctx, projectID)
-			p.EmitSuccessMessage(projectID)
+			p.EmitSuccessMessage(projectID, nc)
 		}
 
 	})
 }
 
 // emit message to finally phisically delete workflows and tasks
-func (p *ProjectsHandler) EmitSuccessMessage(projectID string) {
-	nc, err := Conn()
-	if err != nil {
-		log.Println("Error connecting to NATS:", err)
-		p.logger.Printf("Error connecting to NATS: ", err)
-
+func (p *ProjectsHandler) EmitSuccessMessage(projectID string, nc *nats.Conn) {
+	if nc == nil || nc.IsClosed() {
+		p.logger.Println("NATS connection is nil or closed. Cannot emit success message.")
 		return
 	}
-	defer nc.Close()
 
-	err = nc.Publish("TasksDeletionComplete", []byte(projectID))
-	if err != nil {
-		p.logger.Printf("Failed to publish TasksDeletionComplete event for project %s: %v", projectID, err)
+	if err := nc.Publish("TasksDeletionComplete", []byte(projectID)); err != nil {
+		p.logger.Printf("Failed to publish TasksDeletionComplete for project %s: %v", projectID, err)
 	}
 
-	err = nc.Publish("WorkflowsDeletionComplete", []byte(projectID))
-	if err != nil {
-		p.logger.Printf("Failed to publish WorkflowsDeletionComplete event for project %s: %v", projectID, err)
+	if err := nc.Publish("WorkflowsDeletionComplete", []byte(projectID)); err != nil {
+		p.logger.Printf("Failed to publish WorkflowsDeletionComplete for project %s: %v", projectID, err)
 	}
 
 	p.logger.Printf("Successfully published success messages for project %s", projectID)
+	//defer nc.Close() // comment this if not working
+	//err = nc.Publish("TasksDeletionComplete", []byte(projectID))
+	//if err != nil {
+	//	p.logger.Printf("Failed to publish TasksDeletionComplete event for project %s: %v", projectID, err)
+	//}
+	//
+	//err = nc.Publish("WorkflowsDeletionComplete", []byte(projectID))
+	//if err != nil {
+	//	p.logger.Printf("Failed to publish WorkflowsDeletionComplete event for project %s: %v", projectID, err)
+	//}
+	//
+	//p.logger.Printf("Successfully published success messages for project %s", projectID)
 
 }
 
@@ -1044,35 +1055,11 @@ func (p *ProjectsHandler) isDeletionReady(projectID string) bool {
 	return status["TasksDeleted"] && status["WorkflowsDeleted"]
 }
 
-//func (p *ProjectsHandler) HandleTasksDeleted(projectID string) {
-//=======
-//	span.SetStatus(codes.Ok, "")
-//}
-
 func (p *ProjectsHandler) HandleTasksDeleted(ctx context.Context, projectID string) {
 	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.HandleTasksDeleted")
 	defer span.End()
-	//project, _ := p.repo.GetById(ctx, projectID)
-	//subject := "project.removed"
-	//for _, userID := range project.UserIDs {
-	//	message := struct {
-	//		UserID      string `json:"userId"`
-	//		ProjectName string `json:"projectName"`
-	//	}{
-	//		UserID:      userID,
-	//		ProjectName: project.Name,
-	//	}
-	//
-	//	if err := p.sendNotification(ctx, subject, message); err != nil {
-	//		span.RecordError(err)
-	//		span.SetStatus(codes.Error, err.Error())
-	//		p.logger.Println(err.Error())
-	//		return
-	//	}
-	//}
 
 	p.logger.Println("a message has been sent")
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 
 	err := p.repo.DeleteProject(ctx, projectID)
 	if err != nil {
