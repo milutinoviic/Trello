@@ -4,12 +4,14 @@ go 1.23.2
 
 require (
 	github.com/EventStore/EventStore-Client-Go v1.0.2
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/gorilla/mux v1.8.1
 	github.com/rs/cors v1.11.1
 	go.opentelemetry.io/otel v1.32.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.17.0
 	go.opentelemetry.io/otel/sdk v1.32.0
+	go.opentelemetry.io/otel/trace v1.32.0
 )
 
 require (
@@ -24,7 +26,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	go.opentelemetry.io/otel/metric v1.32.0 // indirect
-	go.opentelemetry.io/otel/trace v1.32.0 // indirect
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.27.0 // indirect
 	golang.org/x/text v0.19.0 // indirect

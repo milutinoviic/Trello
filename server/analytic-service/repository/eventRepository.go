@@ -5,7 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/go-redis/redis"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
+
+	"io"
 	"log"
+	"os"
 	"time"
 
 	"analytics-service/model"
@@ -14,21 +20,41 @@ import (
 )
 
 var (
-	ErrEmptyStream    = errors.New("no events in the stream")
-	ErrStreamNotFound = errors.New("stream not found")
+	ErrEmptyStream        = errors.New("no events in the stream")
+	ErrStreamNotFound     = errors.New("stream not found")
+	cacheProjectConstruct = "project:%s"
 )
+
+func constructKeyForProject(projectID string) string {
+	return fmt.Sprintf(cacheProjectConstruct, projectID)
+}
 
 type ESDBClient struct {
 	client *esdb.Client
 	group  string
 	sub    *esdb.PersistentSubscription // Initialized in the subscribe method
+	rds    *redis.Client
+	tracer trace.Tracer
 }
 
 // NewESDBClient initializes a new ESDBClient.
-func NewESDBClient(client *esdb.Client, group string) (*ESDBClient, error) {
+func NewESDBClient(client *esdb.Client, group string, tracer trace.Tracer) (*ESDBClient, error) {
 	opts := esdb.PersistentAllSubscriptionOptions{
 		From: esdb.Start{},
 	}
+
+	redisHost := os.Getenv("REDIS_HOST")
+	redisPort := os.Getenv("REDIS_PORT")
+	redisAddress := fmt.Sprintf("%s:%s", redisHost, redisPort)
+
+	cl := redis.NewClient(&redis.Options{
+		Addr: redisAddress,
+	})
+
+	if err := cl.Ping().Err(); err != nil {
+		return nil, err
+	}
+
 	// Attempt to create the subscription
 	err := client.CreatePersistentSubscriptionAll(context.Background(), group, opts)
 	if err != nil {
@@ -39,6 +65,8 @@ func NewESDBClient(client *esdb.Client, group string) (*ESDBClient, error) {
 	esdbClient := &ESDBClient{
 		client: client,
 		group:  group,
+		rds:    cl,
+		tracer: tracer,
 	}
 
 	// Ensure the subscription is set up
@@ -49,13 +77,20 @@ func NewESDBClient(client *esdb.Client, group string) (*ESDBClient, error) {
 	return esdbClient, nil
 }
 
-func (e *ESDBClient) StoreEvent(stream string, event model.Event) error {
+func (e *ESDBClient) StoreEvent(ctx context.Context, stream string, event model.Event) error {
+	ctx, span := e.tracer.Start(ctx, "EventRepository.StoreEvent")
+	defer span.End()
+
 	id, err := uuid.NewV4()
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	eventData, err := json.Marshal(event)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 
@@ -68,9 +103,44 @@ func (e *ESDBClient) StoreEvent(stream string, event model.Event) error {
 		Data:        eventData,
 		ContentType: esdb.JsonContentType,
 	}
+	redisKey := constructKeyForProject(stream)
+	jsonData, err := e.rds.Get(redisKey).Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	var events []model.Event
+	if jsonData != "" {
+		err = json.Unmarshal([]byte(jsonData), &events)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+	}
+
+	events = append(events, event)
+
+	updatedData, err := json.Marshal(events)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	err = e.rds.Set(redisKey, string(updatedData), 3*time.Minute).Err()
+
 	opts := esdb.AppendToStreamOptions{}
 	_, err = e.client.AppendToStream(context.Background(), stream, opts, esEvent)
-	return err
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	span.SetStatus(codes.Ok, "")
+	return nil
 }
 
 // ProcessEvents processes events using a provided function.
@@ -117,55 +187,116 @@ func (e *ESDBClient) subscribe() error {
 }
 
 // GetEventsByProjectID retrieves all events associated with the given project ID from EventStoreDB
-func (repo *ESDBClient) GetEventsByProjectID(projectID string) ([]model.Event, error) {
-	// Stream name could be based on the project ID. For example, "project-{projectID}"
+func (repo *ESDBClient) GetEventsByProjectID(ctx context.Context, projectID string) ([]model.Event, error) {
+	ctx, span := repo.tracer.Start(ctx, "EventRepository.GetEventsByProjectID")
+	defer span.End()
+
 	streamName := fmt.Sprintf(projectID)
-
-	// Create an empty slice to store the events
 	var events []model.Event
+	redisKey := constructKeyForProject(projectID)
 
-	// Set up the options for reading events
-	readOpts := esdb.ReadStreamOptions{
-		From: esdb.Start{}, // Start from the beginning of the stream
+	// Record the start time for Redis fetch
+	redisStart := time.Now()
+
+	// Check if events exist in Redis
+	exists, err := repo.rds.Exists(redisKey).Result()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.Printf("Error checking Redis key existence: %v", err)
+		return nil, fmt.Errorf("failed to check Redis key existence: %w", err)
 	}
 
-	// Specify the number of events you want to read (or adjust based on your needs)
-	count := uint64(100) // Adjust this number based on your needs (or handle pagination)
+	if exists == 1 {
+		// Fetch events from Redis
+		jsonData, err := repo.rds.Get(redisKey).Result()
+		if err != nil && !errors.Is(err, redis.Nil) {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			log.Printf("Error fetching data from Redis: %v", err)
+			return nil, fmt.Errorf("failed to get data from Redis: %w", err)
+		}
 
-	// Create a context (optional timeout can be added)
-	ctx := context.Background()
+		if jsonData != "" {
+			err = json.Unmarshal([]byte(jsonData), &events)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				log.Printf("Error unmarshalling Redis data: %v", err)
+				return nil, fmt.Errorf("failed to unmarshal Redis data: %w", err)
+			}
+		}
+		// Log Redis fetch duration
+		redisDuration := time.Since(redisStart)
+		log.Printf("Fetched from Redis in: %v\n", redisDuration)
 
-	// Open the stream for reading with the specified options
+		log.Println("Returning from Redis woooo!")
+		span.SetStatus(codes.Ok, "")
+		return events, nil
+	}
+
+	// Record the start time for EventStoreDB fetch
+	eventStoreStart := time.Now()
+
+	// Read events from EventStoreDB
+	readOpts := esdb.ReadStreamOptions{From: esdb.Start{}}
+	count := uint64(100)
+
 	stream, err := repo.client.ReadStream(ctx, streamName, readOpts, count)
 	if err != nil {
-		log.Printf("Error reading stream: %v", err)
-		return nil, err
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		log.Printf("Error opening stream: %v", err)
+		return nil, fmt.Errorf("failed to read stream: %w", err)
 	}
 	defer stream.Close()
 
-	// Iterate over the events using Recv()
 	for {
-		// Receive the next event
 		event, err := stream.Recv()
 		if err != nil {
-			// If we get an error, handle it (e.g., no more events or another error)
-			if err.Error() == "EOF" { // End of stream
+			if errors.Is(err, io.EOF) {
 				break
 			}
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Printf("Error receiving event: %v", err)
-			return nil, err
+			return nil, fmt.Errorf("failed to receive event: %w", err)
 		}
 
-		// Unmarshal the event data into the model.Event struct
 		var e model.Event
 		if err := json.Unmarshal(event.Event.Data, &e); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			log.Printf("Error unmarshalling event data: %v", err)
 			continue
 		}
-
-		// Append the event to the events slice
 		events = append(events, e)
 	}
 
+	// Log EventStoreDB fetch duration
+	eventStoreDuration := time.Since(eventStoreStart)
+	log.Printf("Fetched from EventStoreDB in: %v\n", eventStoreDuration)
+
+	// Cache events in Redis
+	if len(events) > 0 {
+		jsonData, err := json.Marshal(events)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			log.Printf("Error marshalling events for Redis: %v", err)
+			return nil, fmt.Errorf("failed to marshal events for Redis: %w", err)
+		}
+
+		err = repo.rds.Set(redisKey, jsonData, 3*time.Minute).Err()
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			log.Printf("Error saving events to Redis: %v", err)
+		}
+	}
+
+	log.Println("Redis is empty, caching is in progress")
+	log.Println("Returning from EventStoreDB :)")
+	span.SetStatus(codes.Ok, "")
 	return events, nil
 }

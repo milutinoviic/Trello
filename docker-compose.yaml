@@ -433,6 +433,8 @@ services:
       - eventstore-db
     environment:
       - EVENTSTORE_ADDRESS=eventstore-db:2113
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT}
     volumes:
       - ./server/analytic-service/cert.crt:/usr/local/share/ca-certificates/cert.crt
       - ./server/analytic-service/privat.key:/app/privat.key

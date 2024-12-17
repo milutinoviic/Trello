@@ -72,14 +72,14 @@ func main() {
 		logger.Println("Successfully connected to EventStore!")
 	}
 
-	esdbClient, err := repository.NewESDBClient(client, "analytics-group")
+	esdbClient, err := repository.NewESDBClient(client, "analytics-group", tracer)
 	if err != nil {
 		log.Fatal("Error initializing ESDBClient:", err)
 	}
 
 	eventHandler := handlers.NewEventHandler(esdbClient, tracer)
 	r := mux.NewRouter()
-
+	r.Use(handlers.ExtractTraceInfoMiddleware)
 	// Define routes with mux variables
 	r.HandleFunc("/event/append", eventHandler.ProcessEventHandler).Methods("POST")   // POST method to process event
 	r.HandleFunc("/events/{projectID}", eventHandler.GetEventsHandler).Methods("GET") // GET method to retrieve events
