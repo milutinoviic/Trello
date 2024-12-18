@@ -45,7 +45,21 @@ export class GraphEditorComponent implements OnInit {
     const visNodes = this.nodes.map((node) => ({
       id: node.id,
       label: node.label,
-      description: node.description, // Include description
+      description: node.description,
+      blocked: node.blocked,
+      isComplete: node.isComplete,
+      color: {
+        background: node.isComplete ? '#2db629' : node.blocked ? '#FF7F7F' : '#F2BB05',
+        border: '#4E4E55',
+        highlight: {
+          background: node.isComplete ? '#2db629' : node.blocked ? '#FF5A5F' : '#F2BB05',
+          border: '#4E4E55',
+        },
+        hover: {
+          background: node.isComplete ? '#7FFF7F' : node.blocked ? '#FF7F7F' : '#FBC823',
+          border: '#4E4E55',
+        },
+      },
     }));
 
     const visEdges = this.links.map((link) => ({
@@ -58,23 +72,12 @@ export class GraphEditorComponent implements OnInit {
       edges: visEdges,
     };
 
+
     const options = {
       nodes: {
         shape: 'dot',
         size: 20,
         font: { size: 14 },
-        color: {
-          background: '#F2BB05',
-          border: '#4E4E55',
-          highlight: {
-            background: '#F2BB05',
-            border: '#4E4E55',
-          },
-          hover: {
-            background: '#FBC823',
-            border: '#4E4E55',
-          },
-        },
       },
       edges: {
         width: 2,
@@ -111,7 +114,7 @@ export class GraphEditorComponent implements OnInit {
 
       if (node) {
         tooltip.style.display = 'block';
-        tooltip.innerText = node.description || 'No description available';
+        tooltip.innerText = `${node.description || 'No description available'}\n ${node.blocked ? 'Blocked' : ''}`;
       }
     });
 

@@ -2,14 +2,19 @@ package repository
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	"io/ioutil"
 	"log"
 	"main.go/customLogger"
 	"main.go/model"
+	"net/http"
 	"os"
 	"time"
 )
@@ -337,12 +342,14 @@ func (wf *WorkflowRepo) GetTaskGraph(ctx context.Context, projectID string) (map
 			taskName, _ := record.Get("name")
 			taskDescription, _ := record.Get("description")
 			dependencies, _ := record.Get("dependencies")
+			taskBlocked, _ := record.Get("blocked")
 
 			taskIDStr, ok := taskID.(string)
 			if !ok {
 				wf.logger.Println("Invalid task ID:", taskID)
 				continue
 			}
+			taskCompleteStr, _ := getTaskStatusFromService(taskIDStr)
 			taskNameStr, ok := taskName.(string)
 			if !ok {
 				wf.logger.Println("Invalid task name:", taskName)
@@ -353,6 +360,13 @@ func (wf *WorkflowRepo) GetTaskGraph(ctx context.Context, projectID string) (map
 				wf.logger.Println("Invalid task description:", taskDescription)
 				continue
 			}
+			taskComplete := taskCompleteStr == string(model.TaskStatus("Completed"))
+			wf.logger.Println("taskCompleteStr")
+			wf.logger.Println(taskCompleteStr)
+			wf.logger.Println("taskComplete")
+			wf.logger.Println(taskComplete)
+
+			wf.logger.Println("--")
 
 			dependenciesList, _ := dependencies.([]any)
 			if _, exists := nodesMap[taskIDStr]; !exists {
@@ -360,6 +374,8 @@ func (wf *WorkflowRepo) GetTaskGraph(ctx context.Context, projectID string) (map
 					"id":          taskIDStr,
 					"label":       taskNameStr,
 					"description": taskDescriptionStr,
+					"blocked":     taskBlocked,
+					"isComplete":  taskComplete,
 				}
 			}
 			for _, dep := range dependenciesList {
@@ -409,6 +425,65 @@ func (wf *WorkflowRepo) GetTaskGraph(ctx context.Context, projectID string) (map
 	span.SetStatus(codes.Ok, "Successfully retrieved task graph")
 	return result.(map[string]any), nil
 
+}
+
+func getTaskStatusFromService(taskID string) (string, error) {
+
+	url := fmt.Sprintf("https://task-server:8080/tasks/%s/status", taskID)
+
+	client, err := createTLSClient()
+	if err != nil {
+		log.Printf("Error creating TLS client: %v\n", err)
+		return "", fmt.Errorf("failed to create client: %w", err)
+	}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to make new request to task-server: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to call task-server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("task-server returned status %d", resp.StatusCode)
+	}
+
+	var statusResponse string
+	if err := json.NewDecoder(resp.Body).Decode(&statusResponse); err != nil {
+		return "", fmt.Errorf("failed to decode task-server response: %w", err)
+	}
+
+	return statusResponse, nil
+}
+
+func createTLSClient() (*http.Client, error) {
+	caCert, err := ioutil.ReadFile("/app/cert.crt")
+	if err != nil {
+		return nil, err
+	}
+
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	tlsConfig := &tls.Config{
+		RootCAs: caCertPool,
+	}
+
+	transport := &http.Transport{
+		TLSClientConfig: tlsConfig,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+	}
+
+	return client, nil
 }
 
 func (w *WorkflowRepo) UpdateAllWorkflowByProjectId(projectID string, toDelete bool) error {
@@ -484,6 +559,41 @@ func (w *WorkflowRepo) DeleteAllWorkflowByProjectId(projectID string) error {
 		fmt.Printf("Successfully updated %d workflows for project %s\n", deletedCount, projectID)
 	} else {
 		fmt.Printf("No workflows updated for project %s\n", projectID)
+	}
+
+	return nil
+}
+
+func (w *WorkflowRepo) BlockWorkflow(taskId string, blocked bool) error {
+	query := ` MATCH (n {id: $taskId}) SET n.blocked = $blocked, n.updated_at = $updated_at RETURN COUNT(n) AS updatedCount `
+
+	ctx := context.Background()
+	session := w.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	defer session.Close(ctx)
+	updatedAt := time.Now().Format(time.RFC3339)
+	result, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		res, err := tx.Run(ctx, query, map[string]any{
+			"taskId":     taskId,
+			"blocked":    blocked,
+			"updated_at": updatedAt,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to execute update query: %w", err)
+		}
+
+		if res.Next(ctx) {
+			return res.Record().Values[0], nil
+		}
+		return nil, fmt.Errorf("no records updated")
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update blocked flag in workflow with taskId %s: %w", taskId, err)
+	}
+	updatedCount, ok := result.(int64)
+	if ok && updatedCount > 0 {
+		fmt.Printf("Successfully updated %d workflows for project %s\n", updatedCount, taskId)
+	} else {
+		fmt.Printf("No workflows updated for project %s\n", taskId)
 	}
 
 	return nil

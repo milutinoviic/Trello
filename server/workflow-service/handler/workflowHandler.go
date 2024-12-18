@@ -134,7 +134,6 @@ func (w *WorkflowHandler) AddTaskAsDependency(rw http.ResponseWriter, h *http.Re
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	////TODO: call task server and change blocked to true for dependecyId
 	taskServiceURL := fmt.Sprintf("https://task-server:8080/tasks/%s/block", dependency)
 	w.logger.Printf("Block task at %s", taskServiceURL)
 
@@ -331,6 +330,13 @@ func (t *WorkflowHandler) HandleProjectDeleted(projectID string) {
 		t.logger.Printf("Successfully published WorkflowsDeleted event for project %s", projectID)
 	}
 
+	//err := t.nc.Publish("WorkflowsDeletionFailed", []byte(projectID)) // uncomment this to test workflow deletion fail, and comment everything else
+	//if err != nil {
+	//	log.Printf("Failed to publish message for projectID %s: %v", projectID, err)
+	//} else {
+	//	t.logger.Println("Succesfully published a massage")
+	//}
+
 	span.SetStatus(codes.Ok, "Successfully updated all workflows")
 }
 
@@ -356,7 +362,7 @@ func (t *WorkflowHandler) DeletedWorkflows(projectID string) {
 	span.SetStatus(codes.Ok, "Successfully deleted all workflows")
 }
 
-func (w *WorkflowHandler) RollbackWorkflows(ctx context.Context, projectID string) {
+func (w *WorkflowHandler) RollbackWorkflows(projectID string) {
 	_, span := w.tracer.Start(context.Background(), "WorkflowHandler.HandleProjectDeleted")
 	defer span.End()
 
@@ -366,14 +372,31 @@ func (w *WorkflowHandler) RollbackWorkflows(ctx context.Context, projectID strin
 		span.SetStatus(codes.Error, err.Error())
 		w.logger.Printf("Failed to delete workflows for project %s: %v", projectID, err)
 
-		_ = w.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
+		//_ = w.nc.Publish("WorkflowsDeletionFailed", []byte(projectID))
 	}
 	w.logger.Printf("Successfully deleted all tasks for project %s", projectID)
 
-	err = w.nc.Publish("WorkflowsDeleted", []byte(projectID))
-	if err != nil {
-		w.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
-	}
+	//err = w.nc.Publish("WorkflowsDeleted", []byte(projectID))
+	//if err != nil {
+	//	w.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+	//}
 
 	span.SetStatus(codes.Ok, "Successfully deleted all workflows")
+}
+
+func (w *WorkflowHandler) BlockWorkflows(event model.TaskBlockedEvent) {
+
+	_, span := w.tracer.Start(context.Background(), "WorkflowHandler.HandleProjectDeleted")
+	defer span.End()
+
+	err := w.repo.BlockWorkflow(event.TaskID, event.Blocked)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		w.logger.Printf("Failed to  blocked workflow with taskId %s: %v", event.TaskID, err)
+
+	}
+	w.logger.Printf("Successfully blocked workflow with taskId: %s", event.TaskID)
+
+	span.SetStatus(codes.Ok, "Successfully blocked workflow")
 }

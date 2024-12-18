@@ -302,6 +302,36 @@ func (t *TasksHandler) GetAllTasksDetailsByProjectId(rw http.ResponseWriter, h *
 	t.custLogger.Info(logrus.Fields{"projectID": projectID}, "Tasks with user details successfully returned in response")
 }
 
+func (t *TasksHandler) GetStatusForTask(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := t.tracer.Start(h.Context(), "TaskHandler.GetAllTasksDetailsByProjectId")
+	defer span.End()
+	t.logger.Printf("Received %s request for %s", h.Method, h.URL.Path)
+	t.custLogger.Info(nil, fmt.Sprintf("Received %s request for %s", h.Method, h.URL.Path))
+
+	vars := mux.Vars(h)
+	taskID := vars["taskId"]
+	t.custLogger.Info(logrus.Fields{"taskId": taskID}, "Extracted project ID from request")
+
+	task, err := t.repo.GetByID(ctx, taskID)
+	if err != nil {
+		errMsg := "Database exception while fetching tasks"
+		t.logger.Print(errMsg, err)
+		t.custLogger.Error(logrus.Fields{"taskID": taskID}, errMsg+": "+err.Error())
+		http.Error(rw, "Failed to fetch tasks", http.StatusInternalServerError)
+		return
+	}
+
+	status := task.Status
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	_, err = rw.Write([]byte(fmt.Sprintf(`"%s"`, status)))
+	if err != nil {
+		t.logger.Printf("Failed to write response: %v", err)
+		t.custLogger.Error(nil, "Failed to write response: "+err.Error())
+	}
+
+}
+
 func (t *TasksHandler) HandleProjectDeleted(ctx context.Context, projectID string) {
 	ctx, span := t.tracer.Start(ctx, "TaskHandler.HandleProjectDeleted")
 	defer span.End()
@@ -1000,7 +1030,6 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 
 	th.custLogger.Info(logrus.Fields{"taskID": task.ID, "status": task.Status}, "Task status updated successfully")
 
-	//<<<<<<< HEAD
 	if string(task.Status) == "Completed" {
 		for _, id := range task.Dependencies {
 			dependentTask, err := th.repo.GetByID(ctx, id)
@@ -1015,16 +1044,34 @@ func (th *TasksHandler) HandleStatusUpdate(rw http.ResponseWriter, req *http.Req
 				http.Error(rw, "Error updating blocked flag for task", http.StatusInternalServerError)
 				return
 			}
+			event := TaskBlockedEvent{
+				TaskID:  dependentTask.ID.Hex(),
+				Blocked: false,
+			}
+			eventData, err := json.Marshal(event)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				th.logger.Print("Event serialization failed:", err)
+				rw.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
+			if err := th.natsConn.Publish("TaskBlocked", eventData); err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				th.logger.Print("Event publishing failed:", err)
+				rw.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+
 			th.logger.Println("Successfully Updated blocked flag to false!")
 
 		}
 
 	}
 
-	//	err = th.publishStatusUpdate(task)
-	//=======
 	err = th.publishStatusUpdate(ctx, task)
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	if err != nil {
 		th.logger.Println("Error publishing status update:", err)
 		http.Error(rw, "Failed to notify task members", http.StatusInternalServerError)
@@ -1554,6 +1601,14 @@ func (h *TasksHandler) DownloadTaskDocument(w http.ResponseWriter, r *http.Reque
 	h.logger.Println("----------------------------------------------------------------------")
 
 }
+
+type TaskBlockedEvent struct {
+	EventID string `json:"eventId"`
+	TaskID  string `json:"taskId"`
+	Blocked bool   `json:"blocked"`
+	Reason  string `json:"reason"`
+}
+
 func (th *TasksHandler) BlockTask(rw http.ResponseWriter, r *http.Request) {
 	ctx, span := th.tracer.Start(r.Context(), "TaskHandler.BlockTask")
 	defer span.End()
@@ -1570,11 +1625,8 @@ func (th *TasksHandler) BlockTask(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	//<<<<<<< HEAD
-	//	err = th.repo.UpdateFlag(task, true)
-	//=======
+
 	err = th.repo.UpdateFlag(ctx, task, true)
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1582,6 +1634,31 @@ func (th *TasksHandler) BlockTask(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+
+	event := TaskBlockedEvent{
+		TaskID:  task.ID.Hex(),
+		Blocked: true,
+		Reason:  "BlockTask",
+	}
+	eventData, err := json.Marshal(event)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		th.logger.Print("Event serialization failed:", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := th.natsConn.Publish("TaskBlocked", eventData); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		th.logger.Print("Event publishing failed:", err)
+		rw.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	th.logger.Println("Successfully blocked task and published event")
+
 	span.SetStatus(codes.Ok, "Successfully blocked task")
 
 }
@@ -1625,7 +1702,6 @@ func (th *TasksHandler) AddDependencyToTask(rw http.ResponseWriter, r *http.Requ
 
 }
 
-// TODO: check this and make it work( it has to receive a nats request and block task)
 func (th *TasksHandler) listenForDependencyUpdates(ctx context.Context) {
 	ctx, span := th.tracer.Start(ctx, "TaskHandler.listenForDependencyUpdates")
 	defer span.End()
@@ -1680,11 +1756,9 @@ func (th *TasksHandler) updateBlockedStatus(ctx context.Context, taskID string) 
 		return
 	}
 	task.Blocked = true
-	//<<<<<<< HEAD
-	//	err = th.repo.UpdateFlag(task, true)
+
 	//=======
 	err = th.repo.UpdateFlag(ctx, task, true)
-	//>>>>>>> b38a495c0faab5935c6effddd29991a392a36c70
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1703,17 +1777,11 @@ func (t *TasksHandler) RollbackTasks(ctx context.Context, projectID string) {
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		t.logger.Printf("Failed to delete tasks for project %s: %v", projectID, err)
+		t.logger.Printf("Failed to rollbacked tasks for project %s: %v", projectID, err)
 
-		_ = t.natsConn.Publish("WorkflowsDeletionFailed", []byte(projectID))
 	}
-	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
+	t.logger.Printf("Successfully rollbacked all tasks for project %s", projectID)
 
-	err = t.natsConn.Publish("TasksDeleted", []byte(projectID))
-	if err != nil {
-		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
-	}
-
-	span.SetStatus(codes.Ok, "Successfully deleted all tasks")
+	span.SetStatus(codes.Ok, "Successfully rollbacked all tasks")
 
 }
