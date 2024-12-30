@@ -8,6 +8,7 @@ export interface TaskNode {
   id: string;
   label: string;
   description: any;
+  status: string;
 }
 
 export interface Edge {

@@ -46,6 +46,7 @@ export class GraphEditorComponent implements OnInit {
       id: node.id,
       label: node.label,
       description: node.description, // Include description
+      status: node.status,
     }));
 
     const visEdges = this.links.map((link) => ({
@@ -109,9 +110,22 @@ export class GraphEditorComponent implements OnInit {
       const nodeId = params.node;
       const node = visNodes.find((n) => n.id === nodeId);
 
+      /*
       if (node) {
+
         tooltip.style.display = 'block';
         tooltip.innerText = node.description || 'No description available';
+      }
+      */
+
+      if (node) {
+        tooltip.style.display = 'block';
+
+        // Construct the text to display
+        const description = node.description || 'No description available';
+        const status = node.status || 'No status available';
+
+        tooltip.innerText = `Description: ${description}\nStatus: ${status}`;
       }
     });
 

@@ -16,6 +16,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"io/ioutil"
 	"log"
+	"main.go/client"
 	"main.go/customLogger"
 	"main.go/model"
 	"main.go/repository"
@@ -32,10 +33,11 @@ type WorkflowHandler struct {
 	custLogger *customLogger.Logger
 	tracer     trace.Tracer
 	nc         *nats.Conn
+	taskClient client.TaskClient
 }
 
-func NewWorkflowHandler(l *log.Logger, r *repository.WorkflowRepo, custLogger *customLogger.Logger, tracer trace.Tracer, nc *nats.Conn) *WorkflowHandler {
-	return &WorkflowHandler{l, r, custLogger, tracer, nc}
+func NewWorkflowHandler(l *log.Logger, r *repository.WorkflowRepo, custLogger *customLogger.Logger, tracer trace.Tracer, nc *nats.Conn, taskClient client.TaskClient) *WorkflowHandler {
+	return &WorkflowHandler{l, r, custLogger, tracer, nc, taskClient}
 }
 
 func ExtractTraceInfoMiddleware(next http.Handler) http.Handler {
@@ -287,6 +289,16 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 		return
 	}
 
+	cookie, err := h.Cookie("auth_token")
+	if err != nil {
+		errMsg := "No token found in cookie"
+		w.logger.Println(errMsg, err)
+		w.custLogger.Error(nil, errMsg+": "+err.Error())
+		http.Error(rw, errMsg, http.StatusUnauthorized)
+		return
+	}
+	w.custLogger.Info(nil, "Authorization token found in cookie")
+
 	taskGraph, err := w.repo.GetTaskGraph(ctx, objectID.Hex())
 	if err != nil {
 		span.RecordError(err)
@@ -294,6 +306,31 @@ func (w *WorkflowHandler) GetTaskGraphByProject(rw http.ResponseWriter, h *http.
 		http.Error(rw, "Error fetching task graph: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	tasks, err := w.taskClient.GetByProjectIdWithCookies(objectID.Hex(), cookie)
+	if err != nil {
+		errMsg := "Error fetching tasks"
+		w.logger.Printf("%s for task ID '%s': %v", errMsg, projectID, err)
+		//w.custLogger.Error(logrus.Fields{"taskID": task.ID}, errMsg+": "+err.Error())
+		http.Error(rw, "Error fetching tasks for project", http.StatusInternalServerError)
+		return
+	}
+	//w.custLogger.Info(logrus.Fields{"taskID": task.ID, "userCount": len(usersDetails)}, "User details fetched successfully")
+
+	newNodes := make([]map[string]any, 0, len(tasks))
+	for _, task := range tasks {
+		newNode := map[string]any{
+			"id":          task.ID,
+			"label":       task.Name,
+			"description": task.Description,
+			"status":      task.Status,
+		}
+		newNodes = append(newNodes, newNode)
+	}
+
+	// Replace the nodes in the task graph
+	taskGraph["nodes"] = newNodes
+
 	w.custLogger.Info(nil, "Successfully fetched task graph")
 	rw.Header().Set("Content-Type", "application/json")
 	err = json.NewEncoder(rw).Encode(taskGraph)
