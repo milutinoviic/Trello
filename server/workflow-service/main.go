@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
 	"github.com/nats-io/nats.go"
@@ -14,6 +15,7 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
 	"main.go/customLogger"
+	"main.go/model"
 
 	"main.go/handler"
 	"main.go/repository"
@@ -86,14 +88,26 @@ func main() {
 	defer sub2.Unsubscribe()
 	sub3, err := nc.Subscribe("TaskDeletionFailed", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
-		ctx := context.Background()
+		workflowHandler.RollbackWorkflows(projectID)
 		defer cancel()
-		workflowHandler.RollbackWorkflows(ctx, projectID)
 	})
 	if err != nil {
 		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
 	}
 	defer sub3.Unsubscribe()
+	sub4, err := nc.Subscribe("TaskBlocked", func(msg *nats.Msg) {
+		var event model.TaskBlockedEvent
+		if err := json.Unmarshal(msg.Data, &event); err != nil {
+			logger.Printf("Failed to unmarshal TaskBlockedEvent: %v", err)
+			return
+		}
+		workflowHandler.BlockWorkflows(event)
+		defer cancel()
+	})
+	if err != nil {
+		logger.Fatalf("Failed to subscribe to ProjectDeleted: %v", err)
+	}
+	defer sub4.Unsubscribe()
 
 	defer func() {
 		if err := nc.Drain(); err != nil {

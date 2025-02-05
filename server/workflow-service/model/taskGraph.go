@@ -28,6 +28,11 @@ type TaskGraph struct {
 	PendingDeletion bool       `json:"pending_deletion"`
 }
 
+type TaskBlockedEvent struct {
+	TaskID  string
+	Blocked bool
+}
+
 type TaskGraphs []*TaskGraph
 
 func (o *TaskGraphs) ToJSON(w io.Writer) error {

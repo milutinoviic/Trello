@@ -8,6 +8,8 @@ export interface TaskNode {
   id: string;
   label: string;
   description: any;
+  blocked: boolean;
+  isComplete: boolean;
 }
 
 export interface Edge {
