@@ -2,8 +2,12 @@ package main
 
 import (
 	config2 "analytics-service/config"
+	"analytics-service/customLogger"
 	"analytics-service/handlers"
 	"analytics-service/repository"
+	"context"
+	"fmt"
+	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
 	"go.opentelemetry.io/otel"
@@ -12,10 +16,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
-
-	"context"
-	"fmt"
-	"github.com/EventStore/EventStore-Client-Go/esdb"
 	"log"
 	"net/http"
 	"os"
@@ -77,12 +77,27 @@ func main() {
 		log.Fatal("Error initializing ESDBClient:", err)
 	}
 
-	eventHandler := handlers.NewEventHandler(esdbClient, tracer)
+	eventHandler := handlers.NewEventHandler(esdbClient, tracer, logger)
+	repo, err := repository.NewAnalyticsRepo(timeoutContext, logger, tracer)
+	custLogger := customLogger.GetLogger()
+
+	analyticsHandler := handlers.NewAnalyticsHandler(logger, repo, custLogger, tracer)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Println("Recovered in NotificationListener:", r)
+			}
+		}()
+		analyticsHandler.NotificationListener()
+		logger.Println("invoked successfully")
+
+	}()
+
 	r := mux.NewRouter()
 	r.Use(handlers.ExtractTraceInfoMiddleware)
-	// Define routes with mux variables
-	r.HandleFunc("/event/append", eventHandler.ProcessEventHandler).Methods("POST")   // POST method to process event
-	r.HandleFunc("/events/{projectID}", eventHandler.GetEventsHandler).Methods("GET") // GET method to retrieve events
+	r.HandleFunc("/event/append", eventHandler.ProcessEventHandler).Methods("POST")
+	r.Handle("/events/{projectID}", analyticsHandler.MiddlewareExtractUserFromCookie(analyticsHandler.MiddlewareCheckRoles([]string{"manager"}, http.HandlerFunc(eventHandler.GetEventsHandler)))).Methods("GET")
+	r.Handle("/analytics/{projectID}", analyticsHandler.MiddlewareExtractUserFromCookie(analyticsHandler.MiddlewareCheckRoles([]string{"member"}, http.HandlerFunc(analyticsHandler.GetProjectAnalyticsHandler)))).Methods("GET")
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

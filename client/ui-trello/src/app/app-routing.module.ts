@@ -17,6 +17,7 @@ import {loginGuard} from "./guards/login.guard";
 import {ProjectComponent} from "./project/project.component";
 import {ProjectHistoryComponent} from "./project-history/project-history.component";
 import {AccountVerificationComponent} from "./account-verification/account-verification.component";
+import {AnalyticsComponent} from "./analytics/analytics.component";
 
 export const routes: Routes = [
   { path: 'register', component: RegistrationComponent, canActivate:[loginGuard]},
@@ -34,7 +35,8 @@ export const routes: Routes = [
   { path: 'forbidden', component: ForbiddenComponent },
   { path: 'project/:projectId', component: ProjectComponent },
   { path: 'history/:projectId', component: ProjectHistoryComponent },
-  { path: 'verify/account/:email', component: AccountVerificationComponent }
+  { path: 'verify/account/:email', component: AccountVerificationComponent },
+  { path: 'analytics/:projectId', component: AnalyticsComponent }
 ];
 
 @NgModule({

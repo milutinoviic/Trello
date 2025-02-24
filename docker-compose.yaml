@@ -33,6 +33,10 @@ services:
         condition: service_started
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   # NoSQL: MongoDB
   mongo-project:
@@ -53,6 +57,10 @@ services:
       - mongo_project_store:/data/db
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   angular-app:
     build:
@@ -72,9 +80,12 @@ services:
       - notification-server
     environment:
       - CHOKIDAR_USEPOLLING=true
-    mem_limit: 2g
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   mongo-express-project:
     image: mongo-express
@@ -94,6 +105,10 @@ services:
       - mong_project_express_data:/data/db
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
 
 
@@ -133,6 +148,10 @@ services:
         condition: service_started
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
 
   mongo-task:
@@ -153,6 +172,10 @@ services:
       - mongo_task_store:/data/db
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
 
   mongo-express-task:
@@ -173,6 +196,10 @@ services:
       - mongo_task_express_data:/data/db
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
 
 
@@ -211,6 +238,10 @@ services:
       - ./server/user-service/app.log:/app.log
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
 
   mongo-user:
@@ -250,6 +281,10 @@ services:
       - mong_user_express_data:/data/db
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   api_gateway:
     build:
@@ -270,6 +305,10 @@ services:
     entrypoint: [ "/bin/bash", "-c", "while ! curl -s user-server:8080; do sleep 1; done; nginx -g 'daemon off;'" ]
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   redis:
     image: redis:alpine
@@ -280,6 +319,10 @@ services:
       - redis_data:/data
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   notification-server:
     build:
@@ -311,6 +354,10 @@ services:
       - ./server/notification-service/privat.key:/app/privat.key
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   cassandra:
     image: cassandra:4.0
@@ -327,12 +374,16 @@ services:
     healthcheck:
       test: ["CMD", "cqlsh", "--username", "cassandra", "--password", "cassandra", "--execute", "describe keyspaces"]
       interval: 15s
-      retries: 5
+      retries: 10
       timeout: 15s
     volumes:
       - cassandra_data:/var/lib/cassandra
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   nats:
     image: 'nats:latest'
@@ -344,6 +395,10 @@ services:
       - ${NATS_PORTS}
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   tracing:
     image: jaegertracing/all-in-one:latest
@@ -356,6 +411,10 @@ services:
       - JAEGER_ADDRESS=${JAEGER_ADDRESS}
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   collector:
     image: otel/opentelemetry-collector:0.69.0
@@ -364,6 +423,10 @@ services:
       - ./api-gateway/otel-collector-config.yaml:/etc/otel-collector-config.yaml
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   workflow-server:
     build:
@@ -393,6 +456,10 @@ services:
       - ./server/workflow-service/app.log:/app.log
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   neo4j:
     image: neo4j
@@ -407,8 +474,8 @@ services:
           "CMD-SHELL",
           "cypher-shell -a bolt://localhost:7687 -u neo4j -p strongerpassword 'RETURN 1' || exit 1",
         ]
-      interval: 5s
-      timeout: 5s
+      interval: 10s
+      timeout: 10s
       retries: 10
     environment:
       - NEO4J_AUTH=neo4j/strongerpassword
@@ -416,6 +483,10 @@ services:
       - neo4j_data:/data
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
 
 
   analytic-service:
@@ -431,16 +502,71 @@ services:
       - .env
     depends_on:
       - eventstore-db
+      - mongo-analytics
     environment:
       - EVENTSTORE_ADDRESS=eventstore-db:2113
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT}
+      - MONGO_DB_URI=${MONGO_DB_URI_ANALYTICS}
+      - NATS_URL=${NATS_URL}
+      - LINK_TO_USER_SERVICE=${LINK_TO_USER_SERVICE}
     volumes:
+      - ./server/analytic-service/app.log:/app.log
       - ./server/analytic-service/cert.crt:/usr/local/share/ca-certificates/cert.crt
       - ./server/analytic-service/privat.key:/app/privat.key
+      - ./server/analytic-service/cert.crt:/app/cert.crt
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
+  mongo-analytics:
+    image: mongo
+    restart: always
+    ports:
+      - ${MONGO_ANALYTICS_PORT}
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE_ANALYTICS}
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok'
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    volumes:
+      - mongo_analytics_store:/data/db
+    networks:
+      - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+
+  mongo-express-analytics:
+    image: mongo-express
+    restart: always
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=${ME_CONFIG_MONGODB_SERVER_ANALYTICS}
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=${ME_CONFIG_MONGODB_ADMINUSERNAME}
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${ME_CONFIG_MONGODB_ADMINPASSWORD}
+      - ME_CONFIG_BASICAUTH_USERNAME=${ME_CONFIG_BASICAUTH_USERNAME}
+      - ME_CONFIG_BASICAUTH_PASSWORD=${ME_CONFIG_BASICAUTH_PASSWORD}
+      - ME_CONFIG_MONGODB_URL=${MONGO_DB_URI_ANALYTICS}
+    depends_on:
+      - mongo-analytics
+    ports:
+      - ${MONGO_EXPRESS_ANALYTICS_PORT}
+    volumes:
+      - mong_analytics_express_data:/data/db
+    networks:
+      - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   eventstore-db:
     image: eventstore/eventstore:21.10.8-buster-slim
@@ -467,6 +593,10 @@ services:
       - ./server/analytic-service/privat.key:/app/privat.key
     networks:
       - network
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
 
 
@@ -483,6 +613,10 @@ services:
       - network
     volumes:
       - namenode_data:/hadoop/dfs/name
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
 
   datanode:
     image: bde2020/hadoop-datanode:2.0.0-hadoop3.2.1-java8
@@ -495,6 +629,11 @@ services:
       - network
     volumes:
       - datanode_data:/hadoop/dfs/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+
 
 
 
@@ -511,6 +650,8 @@ volumes:
   eventstore_data:
   namenode_data:
   datanode_data:
+  mongo_analytics_store:
+  mong_analytics_express_data:
 
 
 networks:

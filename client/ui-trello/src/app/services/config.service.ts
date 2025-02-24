@@ -148,6 +148,10 @@ export class ConfigService {
     return `${this._analytics_api_url}/events/${projectId}`;
   }
 
+  getAnalyticsByProjectId(projectId: string): string {
+    return `${this._analytics_api_url}/analytics/${projectId}`;
+  }
+
   get users_url() {
     return this._users_url;
   }

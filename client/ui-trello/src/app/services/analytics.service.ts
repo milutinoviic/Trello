@@ -13,4 +13,8 @@ export class AnalyticsService {
   getEvents(projectID: string): Observable<any[]> {
     return this.http.get<any[]>(this.config.getHistoryByProjectId(projectID));
   }
+
+  getAnalytics(projectID: string): Observable<any> {
+    return this.http.get<any[]>(this.config.getAnalyticsByProjectId(projectID));
+  }
 }

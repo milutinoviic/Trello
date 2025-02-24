@@ -414,6 +414,10 @@ export class ProjectComponent implements OnInit {
     this.router.navigate(['/history/' + projectId]);
   }
 
+  navigateToAnalytics(projectId: string | null ) {
+    this.router.navigate(['/analytics/' + projectId]);
+  }
+
   // onFileSelected1(event: Event): void {
   //   const input = event.target as HTMLInputElement;
   //

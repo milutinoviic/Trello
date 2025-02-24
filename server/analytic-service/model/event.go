@@ -6,6 +6,7 @@ import "time"
 type EventType string
 
 const (
+	ProjectCreatedType    EventType = "ProjectCreated"
 	MemberAddedType       EventType = "MemberAdded"
 	MemberRemovedType     EventType = "MemberRemoved"
 	MemberAddedTaskType   EventType = "MemberAddedTask"
@@ -21,6 +22,11 @@ type Event struct {
 	Time      time.Time `json:"time"`
 	Event     any       `json:"event"`
 	ProjectID string    `json:"projectId"`
+}
+
+// ProjectCreatedEvent represents an event when a project is created
+type ProjectCreatedEvent struct {
+	EndDate string `json:"endDate"`
 }
 
 // MemberAddedToProjectEvent represents an event when a member is added to a project

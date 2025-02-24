@@ -47,12 +47,25 @@ export class ProjectHistoryComponent implements OnInit {
   generateReadableMessage(eventData: EventData): string {
     const eventDate = new Date(eventData.time);
     eventDate.setHours(eventDate.getHours() - 1); // Subtract 1 hour
-    const eventTime = eventDate.toLocaleString();
+    const eventTime = eventDate.toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
     const memberName = this.getMemberName(eventData.event.memberId);
     const taskName = this.getTaskName(eventData.event.taskId);
     const changedBy = this.getMemberName(eventData.event.changedBy);
+    const endDate = new Date(eventData.event.endDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
 
     switch (eventData.type) {
+      case "ProjectCreated":
+        return `Project has been created on ${eventTime} with a predicted end date of ${endDate}`
       case "MemberAdded":
         return `Member "${memberName}" was added to the project on ${eventTime}.`;
       case "TaskCreated":

@@ -1,0 +1,78 @@
+<div class="navbar-container">
+  <app-menu></app-menu>
+</div>
+
+<div class="container mt-5">
+  <div *ngIf="analytics">
+    <div class="text-center mb-4">
+      <h1 class="display-4 text-dark">Project Analytics</h1>
+    </div>
+
+    <!-- Tasks by Status Section -->
+    <div class="card mb-4 shadow-sm" style="background-color: rgba(223,162,8,0.4)">
+      <div class="card-body">
+        <h2 class="card-title text-dark" style="text-align: center;" >Total Number of Tasks: {{ analytics.total_tasks }}</h2>
+        <div *ngIf="analytics.total_tasks > 0">
+        <h4 class="card-title" style="text-align: center">Number of Tasks by Status</h4>
+        <ul class="list-group">
+          <li class="list-group-item"><strong>Pending:</strong> {{ analytics.tasks_by_status.Pending }}</li>
+          <li class="list-group-item"><strong>In Progress:</strong> {{ analytics.tasks_by_status['In Progress'] }}</li>
+          <li class="list-group-item"><strong>Completed:</strong> {{ analytics.tasks_by_status.Completed }}</li>
+        </ul>
+      </div>
+      </div>
+    </div>
+
+    <!-- Tasks Time Spent Section -->
+    <div *ngIf="analytics.total_tasks > 0">
+    <div class="card mb-4 shadow-sm" style="background-color: rgba(223,162,8,0.4)">
+      <div class="card-body">
+        <h4 class="card-title" style="text-align: center">Time Spent in Each State Per Task</h4>
+        <div *ngFor="let task of analytics.tasks_time_spent">
+          <h5 class="card-title">{{ taskMap.get(task.task_id) }}</h5> <!-- Show task name -->
+          <ul class="list-group">
+            <li *ngFor="let state of task.time_in_state" class="list-group-item">
+              In state <strong>{{ state.state }}:</strong>
+              {{ getDuration(state.start, state.end) }}
+              <span [ngClass]="{ 'current-state': state.end == null }">
+    {{ state.end == null ? '- Current State' : '' }}
+  </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- Users on Project Section -->
+    <div class="card mb-4 shadow-sm" style="background-color: rgba(223,162,8,0.4)">
+      <div class="card-body">
+        <h4 class="card-title" style="text-align: center">Users on Project</h4>
+        <div *ngFor="let user of analytics.users_on_project">
+          <h5 class="card-title">{{ userMap.get(user.user_id) }}</h5>
+          <ul class="list-group">
+            <li *ngFor="let task of user.tasks_assigned" class="list-group-item">
+              <strong>Task:</strong> {{ taskMap.get(task.task_id) }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- Project Status Section -->
+    <div class="card mb-4 shadow-sm" style="background-color: rgba(223,162,8,0.4)">
+      <div class="card-body">
+        <h4 class="card-title" style="text-align: center">Project Status</h4>
+        <p style="text-align: center"> {{ analytics.project_on_schedule }} </p>
+      </div>
+    </div>
+
+    <!-- Completion Estimate Section -->
+    <div class="card mb-4 shadow-sm" style="background-color: rgba(223,162,8,0.4)">
+      <div class="card-body">
+        <h4 class="card-title" style="text-align: center">Completion Estimate</h4>
+        <p style="text-align: center">{{ analytics.completion_estimate | date }}</p>
+      </div>
+    </div>
+  </div>
+</div>

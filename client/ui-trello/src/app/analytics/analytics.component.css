@@ -1,0 +1,49 @@
+/* General Styles */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f0f4f8;
+  margin: 0;
+  padding: 0;
+}
+
+/* Navbar */
+.navbar {
+  background-color: #007bff;
+}
+
+/* Cards */
+.card {
+  border-radius: 12px;
+}
+
+/* Card Title */
+.card-title {
+  color: #343a40;
+  font-weight: bold;
+}
+
+/* List Group */
+.list-group-item {
+  font-size: 16px;
+  color: #495057;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .card-body {
+    padding: 15px;
+  }
+
+  .card-title {
+    font-size: 18px;
+  }
+
+  .list-group-item {
+    font-size: 14px;
+  }
+}
+
+.current-state {
+  color: rgba(198, 105, 27, 0.73); /* Change this to any color you want */
+  font-weight: bold;
+}

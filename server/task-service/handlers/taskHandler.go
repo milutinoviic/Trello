@@ -375,11 +375,11 @@ func (t *TasksHandler) DeletedTasks(ctx context.Context, projectID string) {
 	}
 	t.logger.Printf("Successfully deleted all tasks for project %s", projectID)
 
-	err = t.natsConn.Publish("TasksDeleted", []byte(projectID))
-	if err != nil {
-		t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
-	}
-
+	/*	err = t.natsConn.Publish("TasksDeleted", []byte(projectID))
+		if err != nil {
+			t.logger.Printf("Failed to publish TasksDeleted event for project %s: %v", projectID, err)
+		}
+	*/
 	//_ = t.natsConn.Publish("TaskDeletionFailed", []byte(projectID)) // uncomment this, and comment out the code above to test 'rollback' function
 
 	span.SetStatus(codes.Ok, "Successfully deleted all tasks")

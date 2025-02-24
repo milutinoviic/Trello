@@ -171,7 +171,7 @@ func (pr *ProjectRepo) GetById(ctx context.Context, id string) (*model.Project, 
 	return &patient, nil
 }
 
-func (pr *ProjectRepo) Insert(ctx context.Context, project *model.Project) error {
+func (pr *ProjectRepo) Insert(ctx context.Context, project *model.Project) (primitive.ObjectID, error) {
 	ctx, span := pr.tracer.Start(ctx, "ProjectRepo.Insert")
 	defer span.End()
 	projectsCollection := pr.getCollection()
@@ -185,11 +185,12 @@ func (pr *ProjectRepo) Insert(ctx context.Context, project *model.Project) error
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		pr.logger.Println(err)
-		return err
+		return primitive.NilObjectID, err
 	}
+
 	pr.logger.Printf("Documents ID: %v\n", result.InsertedID)
 	span.SetStatus(codes.Ok, "Successfully inserted a project")
-	return nil
+	return result.InsertedID.(primitive.ObjectID), nil
 }
 
 func (pr *ProjectRepo) getCollection() *mongo.Collection {

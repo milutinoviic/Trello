@@ -26,7 +26,6 @@
     "@types/d3": "^7.4.3",
     "@types/vis": "^4.21.27",
     "bootstrap": "^5.3.3",
-    "bootstrap-icons": "^1.11.3",
     "cytoscape": "^3.30.4",
     "d3": "^7.9.0",
     "d3-shape": "^3.2.0",

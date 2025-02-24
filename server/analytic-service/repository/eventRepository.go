@@ -20,8 +20,6 @@ import (
 )
 
 var (
-	ErrEmptyStream        = errors.New("no events in the stream")
-	ErrStreamNotFound     = errors.New("stream not found")
 	cacheProjectConstruct = "project:%s"
 )
 
@@ -32,12 +30,11 @@ func constructKeyForProject(projectID string) string {
 type ESDBClient struct {
 	client *esdb.Client
 	group  string
-	sub    *esdb.PersistentSubscription // Initialized in the subscribe method
+	sub    *esdb.PersistentSubscription
 	rds    *redis.Client
 	tracer trace.Tracer
 }
 
-// NewESDBClient initializes a new ESDBClient.
 func NewESDBClient(client *esdb.Client, group string, tracer trace.Tracer) (*ESDBClient, error) {
 	opts := esdb.PersistentAllSubscriptionOptions{
 		From: esdb.Start{},
@@ -94,7 +91,6 @@ func (e *ESDBClient) StoreEvent(ctx context.Context, stream string, event model.
 		return err
 	}
 
-	// Log the stream name and event details
 	log.Printf("Storing event to stream: %s, event: %+v\n", stream, event)
 
 	esEvent := esdb.EventData{
@@ -143,7 +139,6 @@ func (e *ESDBClient) StoreEvent(ctx context.Context, stream string, event model.
 	return nil
 }
 
-// ProcessEvents processes events using a provided function.
 func (e *ESDBClient) ProcessEvents(processFn func(event model.Event) error) {
 	for {
 		receivedEvent := e.sub.Recv()
@@ -175,7 +170,6 @@ func (e *ESDBClient) ProcessEvents(processFn func(event model.Event) error) {
 	}
 }
 
-// subscribe connects to the persistent subscription and assigns it to the sub field.
 func (e *ESDBClient) subscribe() error {
 	opts := esdb.ConnectToPersistentSubscriptionOptions{}
 	sub, err := e.client.ConnectToPersistentSubscriptionToAll(context.Background(), e.group, opts)
@@ -186,7 +180,6 @@ func (e *ESDBClient) subscribe() error {
 	return nil
 }
 
-// GetEventsByProjectID retrieves all events associated with the given project ID from EventStoreDB
 func (repo *ESDBClient) GetEventsByProjectID(ctx context.Context, projectID string) ([]model.Event, error) {
 	ctx, span := repo.tracer.Start(ctx, "EventRepository.GetEventsByProjectID")
 	defer span.End()

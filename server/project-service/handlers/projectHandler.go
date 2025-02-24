@@ -460,7 +460,8 @@ func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 	}, "Received project for insertion")
 
 	// Insert project into repository
-	err := p.repo.Insert(ctx, project)
+	id, err := p.repo.Insert(ctx, project)
+	project.ID = id
 	if err != nil {
 		http.Error(rw, "Database error", http.StatusInternalServerError)
 		p.logger.Printf("Error inserting project into database: %v", err)
@@ -469,6 +470,23 @@ func (p *ProjectsHandler) PostProject(rw http.ResponseWriter, h *http.Request) {
 			"project_id":   project.ID,
 			"error":        err.Error(),
 		}, "Database error while inserting project")
+		return
+	}
+
+	currentTime := time.Now().Add(1 * time.Hour)
+	formattedTime := currentTime.Format(time.RFC3339)
+
+	event := map[string]interface{}{
+		"type": "ProjectCreated",
+		"time": formattedTime,
+		"event": map[string]interface{}{
+			"endDate": project.EndDate,
+		},
+		"projectId": project.ID,
+	}
+
+	if err := p.sendEventToAnalyticsService(ctx, event); err != nil {
+		http.Error(rw, "Error sending event to analytics service", http.StatusInternalServerError)
 		return
 	}
 
@@ -1058,7 +1076,24 @@ func (p *ProjectsHandler) isDeletionReady(projectID string) bool {
 func (p *ProjectsHandler) HandleTasksDeleted(ctx context.Context, projectID string) {
 	ctx, span := p.tracer.Start(ctx, "ProjectsHandler.HandleTasksDeleted")
 	defer span.End()
+	project, _ := p.repo.GetById(ctx, projectID)
+	subject := "project.removed"
+	for _, userID := range project.UserIDs {
+		message := struct {
+			UserID      string `json:"userId"`
+			ProjectName string `json:"projectName"`
+		}{
+			UserID:      userID,
+			ProjectName: project.Name,
+		}
 
+		if err := p.sendNotification(ctx, subject, message); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			p.logger.Println(err.Error())
+			return
+		}
+	}
 	p.logger.Println("a message has been sent")
 
 	err := p.repo.DeleteProject(ctx, projectID)
