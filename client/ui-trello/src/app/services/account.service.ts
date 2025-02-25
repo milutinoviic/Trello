@@ -19,7 +19,34 @@ export class AccountService {
   userId$ = this.userIdSource.asObservable();
   private tokenVerificationSub!: Subscription;
 
-  constructor(private http: HttpClient, private config: ConfigService, private router: Router) {}
+  constructor(private http: HttpClient, private config: ConfigService, private router: Router) {
+  }
+
+  initializeTokenVerification() {
+    const role = localStorage.getItem("role");
+    if (role) {
+      this.getUserIdFromBackend().subscribe(
+        (userId: string) => {
+          console.log("User ID from server:", userId);
+          this.userIdSource.next(userId);
+          this.startTokenVerification(userId);
+        },
+        (error) => {
+          console.error("Error fetching userId:", error);
+          this.logout().subscribe(() => {
+            this.router.navigate(['/login']);
+          });
+        }
+      );
+    } else {
+      this.router.navigate(['/login']);
+    }
+  }
+
+  getUserIdFromBackend(): Observable<string> {
+    return this.http.get(this.config.getUserIdFromTokenUrl(), { responseType: 'text' });
+  }
+
 
   // Getter for idOfUser
   setUserId(userId: string) {
@@ -77,7 +104,7 @@ export class AccountService {
       this.tokenVerificationSub.unsubscribe();
     }
 
-    this.tokenVerificationSub = interval(300000)// set it to 5 minutes
+    this.tokenVerificationSub = interval(60000)// set it to 5 minutes
       .pipe(
         switchMap(() => {
           console.log(`[Verification] Checking token for user: ${key} at ${new Date().toLocaleTimeString()}`);
@@ -89,8 +116,12 @@ export class AccountService {
         (isTokenValid) => {
           console.log(`[Response] Token valid: ${isTokenValid} for user: ${key}`);
           if (!isTokenValid) {
-            this.stopTokenVerification();
-            this.router.navigate(['/login']);
+            console.warn("[Warning] Token expired. Logging out...");
+            this.logout().subscribe({
+              complete: () => {
+                this.router.navigate(['/login']);
+              }
+            });
           }
         },
         (error) => {
@@ -98,6 +129,8 @@ export class AccountService {
           if (localStorage.getItem("role")) {
             localStorage.removeItem("role");
           }
+          this.stopTokenVerification();
+          this.router.navigate(['/login']);
         },
         () => {
           console.log(`[Complete] Token verification stopped for user: ${key}`);

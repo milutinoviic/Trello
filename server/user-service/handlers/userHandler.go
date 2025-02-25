@@ -1231,3 +1231,44 @@ func (uh *UserHandler) HandleAccountVerification(rw http.ResponseWriter, h *http
 	rw.WriteHeader(http.StatusOK)
 
 }
+
+func (uh *UserHandler) GetUserIdFromToken(rw http.ResponseWriter, h *http.Request) {
+	ctx, span := uh.tracer.Start(h.Context(), "UserHandler.ValidateToken")
+	defer span.End()
+	uh.logger.Println("The path is hit")
+
+	cookie, err := h.Cookie("auth_token")
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		uh.logger.Println("Error getting cookie:", err)
+		http.Error(rw, "No token provided", http.StatusBadRequest)
+		return
+	}
+
+	token := cookie.Value
+
+	userID, _, err := uh.service.ValidateToken(ctx, token)
+	uh.logger.Println("User ID is:", userID)
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		uh.logger.Println("Token validation failed:", err)
+		http.Error(rw, `{"message": "Invalid token"}`, http.StatusUnauthorized)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "text/plain")
+	rw.WriteHeader(http.StatusOK)
+
+	_, err = rw.Write([]byte(userID))
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		uh.logger.Println("Error writing response:", err)
+		http.Error(rw, "Internal Server Error", http.StatusInternalServerError)
+	}
+
+	span.SetStatus(codes.Ok, "Successfully validated token")
+}

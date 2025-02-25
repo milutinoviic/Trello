@@ -1,12 +1,20 @@
-import {Component, OnDestroy} from '@angular/core';
+import {Component, OnDestroy, OnInit} from '@angular/core';
+import {AccountService} from "./services/account.service";
 
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
   styleUrl: './app.component.css'
 })
-export class AppComponent implements OnDestroy{
+export class AppComponent implements OnDestroy, OnInit {
   title = 'ui-trello';
+
+  constructor(private accountService: AccountService) {}
+
+  ngOnInit() {
+    console.log('AppComponent ngOnInit called');
+    this.accountService.initializeTokenVerification();
+  }
 
   ngOnDestroy(): void {
     if (localStorage.getItem("role")) {

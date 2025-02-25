@@ -16,7 +16,7 @@ func CreateToken(email string, role string, userID string) (string, error) {
 			"email":   email,
 			"role":    role,
 			"user_id": userID,
-			"exp":     time.Now().Add(time.Hour * 2).Unix(),
+			"exp":     time.Now().Add(time.Hour * 1).Unix(),
 		})
 
 	// Sign the token with the secret key

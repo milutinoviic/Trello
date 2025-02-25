@@ -77,6 +77,7 @@ func main() {
 	// SAMO IM SERVIS PRISTUPA
 	r.HandleFunc("/validate-token", uh.ValidateToken).Methods(http.MethodPost)
 	r.HandleFunc("/managers", uh.GetManagers).Methods(http.MethodGet) //GDE SE UOPSTE POZIVA -- VISE NIGDE, pozivalo se kod pravljenja projekta(pre logina) da se popune menageri u dropdown listi
+	r.HandleFunc("/userId", uh.GetUserIdFromToken).Methods(http.MethodGet)
 
 	corsHandler := cors.New(cors.Options{
 		AllowedOrigins:   []string{"*"},

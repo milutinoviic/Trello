@@ -105,7 +105,7 @@ func (uc *UserCache) Login(ctx context.Context, user *data.LoginCredentials, tok
 		return err
 	}
 
-	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 10*time.Minute).Err()
+	err = uc.cli.Set(constructKeyForUser(keyForId.Hex()), value, 1*time.Hour).Err()
 
 	if err != nil {
 		span.RecordError(err)

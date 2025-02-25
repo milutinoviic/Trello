@@ -152,6 +152,10 @@ export class ConfigService {
     return `${this._analytics_api_url}/analytics/${projectId}`;
   }
 
+  getUserIdFromTokenUrl(): string {
+    return `${this._api_url}/userId`;
+  }
+
   get users_url() {
     return this._users_url;
   }

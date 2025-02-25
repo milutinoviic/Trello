@@ -65,7 +65,7 @@ export class ProjectHistoryComponent implements OnInit {
 
     switch (eventData.type) {
       case "ProjectCreated":
-        return `Project has been created on ${eventTime} with a predicted end date of ${endDate}`
+        return `Project has been created on ${eventTime} with a predicted end date of ${endDate}.`
       case "MemberAdded":
         return `Member "${memberName}" was added to the project on ${eventTime}.`;
       case "TaskCreated":
@@ -124,6 +124,7 @@ export class ProjectHistoryComponent implements OnInit {
 
   getCustomEventType(eventType: string): string {
     const eventTypeMap: { [key: string]: string } = {
+      ProjectCreated: 'Project Created',
       MemberAdded: 'New Member Added to Project',
       TaskCreated: 'Task Created',
       MemberAddedTask: 'Member Assigned to Task',
