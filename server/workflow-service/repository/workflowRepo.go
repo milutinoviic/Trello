@@ -486,6 +486,121 @@ func createTLSClient() (*http.Client, error) {
 	return client, nil
 }
 
+func (wf *WorkflowRepo) GetTaskGraphOld(ctx context.Context, projectID string) (map[string]any, error) {
+	ctx, span := wf.tracer.Start(ctx, "WorkflowRepo.GetTaskGraph")
+	defer span.End()
+	session := wf.driver.NewSession(ctx, neo4j.SessionConfig{DatabaseName: "neo4j"})
+	defer session.Close(ctx)
+
+	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
+		query := `
+            MATCH (task:Task {projectId: $projectID})
+			OPTIONAL MATCH (task)-[:DEPENDS_ON]->(dep:Task)
+			RETURN 
+			    task.id AS id,
+    			task.name AS name,
+    			task.description AS description,
+    			task.status AS status,
+    			task.blocked AS blocked,
+    			task.user_ids AS user_ids,
+    			task.created_at AS created_at,
+    			task.updated_at AS updated_at,
+    			collect(dep.id) AS dependencies
+
+        `
+		params := map[string]any{"projectID": projectID}
+		res, err := tx.Run(ctx, query, params)
+		if err != nil {
+			wf.logger.Println("Query execution failed:", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+
+		graph := map[string]any{"nodes": []map[string]any{}, "edges": []map[string]string{}}
+		nodesMap := make(map[string]map[string]any)
+		edgesSet := make(map[string]bool)
+		wf.logger.Println("graph:", graph)
+		for res.Next(ctx) {
+			record := res.Record()
+			taskID, _ := record.Get("id")
+			taskName, _ := record.Get("name")
+			taskDescription, _ := record.Get("description")
+			dependencies, _ := record.Get("dependencies")
+
+			taskIDStr, ok := taskID.(string)
+			if !ok {
+				wf.logger.Println("Invalid task ID:", taskID)
+				continue
+			}
+			taskNameStr, ok := taskName.(string)
+			if !ok {
+				wf.logger.Println("Invalid task name:", taskName)
+				continue
+			}
+			taskDescriptionStr, ok := taskDescription.(string)
+			if !ok {
+				wf.logger.Println("Invalid task description:", taskDescription)
+				continue
+			}
+
+			dependenciesList, _ := dependencies.([]any)
+			if _, exists := nodesMap[taskIDStr]; !exists {
+				nodesMap[taskIDStr] = map[string]any{
+					"id":          taskIDStr,
+					"label":       taskNameStr,
+					"description": taskDescriptionStr,
+				}
+			}
+			for _, dep := range dependenciesList {
+				depID, ok := dep.(string)
+				if !ok {
+					wf.logger.Println("Invalid dependency ID:", dep)
+					continue
+				}
+
+				edgeKey := taskIDStr + "->" + depID
+				if !edgesSet[edgeKey] {
+					edgesSet[edgeKey] = true
+					edges, _ := graph["edges"].([]map[string]string)
+					graph["edges"] = append(edges, map[string]string{
+						"from": taskIDStr,
+						"to":   depID,
+					})
+
+				}
+
+			}
+		}
+
+		nodesSlice := make([]map[string]any, 0, len(nodesMap))
+		for _, node := range nodesMap {
+			nodesSlice = append(nodesSlice, node)
+		}
+		graph["nodes"] = nodesSlice
+
+		if err := res.Err(); err != nil {
+			wf.logger.Println("Error in query result:", err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+
+		return graph, nil
+	})
+
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		wf.logger.Println("Error querying task graph:", err)
+		return nil, err
+	}
+
+	span.SetStatus(codes.Ok, "Successfully retrieved task graph")
+	return result.(map[string]any), nil
+
+}
+
 func (w *WorkflowRepo) UpdateAllWorkflowByProjectId(projectID string, toDelete bool) error {
 
 	query := `

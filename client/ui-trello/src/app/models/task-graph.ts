@@ -10,6 +10,7 @@ export interface TaskNode {
   description: any;
   blocked: boolean;
   isComplete: boolean;
+  status: string;
 }
 
 export interface Edge {
