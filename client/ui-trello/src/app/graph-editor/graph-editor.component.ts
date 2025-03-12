@@ -60,6 +60,7 @@ export class GraphEditorComponent implements OnInit {
           border: '#4E4E55',
         },
       },
+      status: node.status,
     }));
 
     const visEdges = this.links.map((link) => ({
@@ -114,7 +115,11 @@ export class GraphEditorComponent implements OnInit {
 
       if (node) {
         tooltip.style.display = 'block';
-        tooltip.innerText = `${node.description || 'No description available'}\n ${node.blocked ? 'Blocked' : ''}`;
+
+        const description = node.description || 'No description available';
+        const status = node.status || 'No status available';
+
+        tooltip.innerText = `Description: ${description}\nStatus: ${status}`;
       }
     });
 

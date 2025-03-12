@@ -14,6 +14,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 	"log"
+	"main.go/client"
 	"main.go/customLogger"
 	"main.go/model"
 
@@ -24,6 +25,10 @@ import (
 	"os/signal"
 	"time"
 )
+
+func initTaskClient() client.TaskClient {
+	return client.NewTaskClient(os.Getenv("TASK_SERVICE_HOST"), os.Getenv("PORT"))
+}
 
 func main() {
 	config := loadConfig()
@@ -67,7 +72,9 @@ func main() {
 	defer store.CloseDriverConnection(timeoutContext)
 	store.CheckConnection()
 
-	workflowHandler := handler.NewWorkflowHandler(logger, store, custLogger, tracer, nc)
+	taskClient := initTaskClient()
+
+	workflowHandler := handler.NewWorkflowHandler(logger, store, custLogger, tracer, nc, taskClient)
 
 	sub, err := nc.QueueSubscribe("ProjectDeleted", "workflow-queue", func(msg *nats.Msg) {
 		projectID := string(msg.Data)
