@@ -1,0 +1,59 @@
+.project-members {
+  min-height: 200px;
+  background-color: var(--shadow--white);
+  border: 1px dashed #ccc;
+}
+
+.user {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  background-color: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+
+.user:hover {
+  background-color: var(--shadow--white);
+}
+
+.remove-btn {
+  margin-bottom: 5px;
+}
+
+
+.main-text{
+  text-align: center;
+  color: var(--hover-background-color);
+}
+
+.btn-danger{
+  background-color: var(--red-primary-color);
+  border-color: var(--red-primary-color);
+}
+
+
+.btn-danger:hover{
+  background-color: var(--red-secondary-color);
+  border-color: var(--red-secondary-color);
+}
+
+
+.btn-primary{
+  background-color: var(--primary-color);
+  border-color: var(--secondary-color);
+}
+
+
+.btn-primary:hover{
+  background-color: var(--secondary-color);
+  border-color: var(--secondary-color);
+}
+
+
+.btn-primary:focus{
+  background-color: var(--primary-color);
+  border-color: var(--secondary-color);
+}

@@ -1,0 +1,12 @@
+<div class="magic-container">
+  <h3 class="magic-title">Magically log in</h3>
+  <form (ngSubmit)="requestMagicLink()" class="magic-form">
+    <div class="form-group">
+      <label for="email" class="magic-label">Enter your email:</label>
+      <input type="email" id="email" [(ngModel)]="email" name="email" class="magic-input" required>
+    </div>
+    <button type="submit" class="magic-button">
+      <span class="magic-text">Send Magic Link ✨</span>
+    </button>
+  </form>
+</div>

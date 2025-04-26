@@ -1,0 +1,179 @@
+.task-card-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+}
+
+.task-card {
+  background-color: var(--shadow--white); /*#f9f9f9;*/
+  border-radius: 8px;
+  padding: 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+
+.task {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-left: 20%;
+  margin-right: 20%;
+  margin-bottom: 3%;
+}
+
+.bold{
+  font-weight: bold;
+}
+
+.task-card h2 {
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-control {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  background-color: var(--primary-color);
+  color: white;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  background-color: #ccc;
+}
+
+select {
+  padding: 10px;
+  width: 100%;
+  border-radius: 4px;
+}
+
+/* Container styling for adding/removing users */
+.user-management {
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background-color: var(--shadow--white);
+}
+
+/* Label for search input */
+.user-management label {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* Search input styling */
+.user-management #userSearch {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+/* Buttons for adding/removing users */
+.user-management button {
+  padding: 5px 10px;
+  margin: 5px 0;
+  font-size: 14px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.user-management button:hover {
+  background-color: var(--primary-color);
+  color: #fff;
+  transition: background-color 0.3s ease-in-out;
+}
+
+/* Assigned members list */
+.user-management ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.user-management ul li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  margin-bottom: 5px;
+  background-color: var(--shadow--white);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.user-management ul li button {
+  background-color: #dc3545; /* Red for remove */
+  color: white;
+  font-size: 12px;
+}
+
+.user-management ul li button:hover {
+  background-color: #c82333;
+}
+
+/* Filtered user suggestions */
+.filtered-users {
+  margin-top: 10px;
+}
+
+.filtered-users div {
+  padding: 8px 10px;
+  background-color: var(--shadow--white);
+  border: 1px solid var(--shadow--white);
+  border-radius: 4px;
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.filtered-users div button {
+  background-color: #28a745; /* Green for add */
+  color: white;
+  font-size: 12px;
+}
+
+.filtered-users div button:hover {
+  background-color: #218838;
+}
+
+@media (max-width: 768px) {
+  .user-management #userSearch {
+    font-size: 12px;
+  }
+
+  .user-management button {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .user-management ul li {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+

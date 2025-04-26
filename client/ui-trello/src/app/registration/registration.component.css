@@ -1,0 +1,114 @@
+input.ng-invalid.ng-touched {
+  border: 1px solid #CA3C25;
+}
+
+input.ng-valid.ng-touched {
+  border: 1px solid green;
+}
+
+form {
+  max-width: 500px;
+  margin: 2rem auto;
+  padding: 2rem;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  border-radius: 8px;
+  background-color: #fff;
+}
+
+.registration-title {
+  text-align: center;
+  font-size: 36px;
+  font-family: Arial, sans-serif;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+
+input[type="email"],
+input[type="text"],
+input[type="password"] {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 0.5rem;
+  border: 2px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  transition: border-color 0.3s;
+}
+
+
+input[type="email"]:focus,
+input[type="text"]:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+
+button {
+  padding: 10px 20px;
+  background-color: var(--primary-color);
+  color: var(--hover-background-color);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+
+button:hover {
+  background-color: var(--secondary-color);
+}
+
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+p {
+  color: #CA3C25;
+  /*background-color: #ffd2d2;*/
+  padding: 4px;
+  border-radius: 4px;
+  margin-top: 0.25rem;
+}
+
+
+div {
+  margin-bottom: 1rem;
+}
+
+.role-select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background-color: #f9f9f9;
+  transition: border-color 0.3s;
+}
+
+.role-select:focus {
+  border-color: var(--primary-color);
+  outline: none;
+}
+
+.custom-select option {
+  padding: 10px;
+  font-size: 16px;
+  color: #333;
+}
+
+
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+
+}
+a:hover {
+  color: var(--tercial-color);
+  text-decoration: none;
+}

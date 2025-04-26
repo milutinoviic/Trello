@@ -1,0 +1,13 @@
+<div class="navbar-container">
+  <app-menu></app-menu>
+</div>
+
+<div class="history-container">
+  <h1 style="color: #3c3c3c">Project History</h1>
+  <div class="history-list">
+    <div *ngFor="let event of events" class="history-item">
+      <h5>{{ getCustomEventType(event.type) }}</h5>
+      <p class="history-description">{{ generateReadableMessage(event) }}</p>
+    </div>
+  </div>
+</div>

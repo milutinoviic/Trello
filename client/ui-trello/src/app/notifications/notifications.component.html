@@ -1,0 +1,30 @@
+<app-menu></app-menu>
+<div class="container mt-4">
+  <h2 class="text-center">Notifications</h2>
+
+  <div *ngIf="errorMessage" class="alert alert-danger">
+    {{ errorMessage }}
+  </div>
+
+  <ul class="list-group">
+    <li *ngFor="let notification of notifications"
+        class="list-group-item d-flex justify-content-between align-items-center"
+        [ngClass]="{ 'read-notification': notification.status === 'read' }">
+
+      <div class="notification-message">
+        <p class="mb-1">{{ notification.message }}</p>
+        <small class="text-muted">{{ notification.created_at | date: 'short' }}</small>
+      </div>
+
+      <div class="notification-status d-flex align-items-center">
+        <span [ngClass]="{ 'custom-read-badge': notification.status === 'read', 'custom-unread-badge': notification.status === 'unread' }">
+          {{ notification.status }}
+        </span>
+
+        <button (click)="toggleStatus(notification)" class="btn btn-sm ms-2" [ngClass]="{ 'btn-outline-secondary': notification.status === 'read', 'btn-outline-primary': notification.status === 'unread' }">
+          Mark as {{ notification.status === 'read' ? 'unread' : 'read' }}
+        </button>
+      </div>
+    </li>
+  </ul>
+</div>

@@ -1,0 +1,215 @@
+<div class="navbar-container">
+  <app-menu></app-menu>
+
+  <div class="navbar-buttons d-flex gap-2">
+
+    <button class="btn btn-primary me-2" *ngIf="isManager()" (click)="openMemberAdditionModal(projectId)">Add Member to Project</button>
+    <button
+      class="btn btn-primary me-2"
+      *ngIf="isManager()" (click)="openAddTaskModal(projectId)">Add Task to Project</button>
+    <button
+      class="btn btn-primary"
+      *ngIf="isManager()" (click)="navigateToHistory(projectId)">View History</button>
+
+  </div>
+</div>
+
+
+<br>
+<br>
+<br>
+
+
+
+<div class="board" cdkDropListGroup>
+  <div class="column" cdkDropList #pending="cdkDropList" [cdkDropListConnectedTo]="['inProgress', 'completed']" [cdkDropListData]="pendingTasks" (cdkDropListDropped)="onDrop($event)" id="cdk-drop-list-1">
+    <h2>Pending</h2>
+    <div *ngFor="let task of pendingTasks" class="task" (click)="openTask(task)" cdkDrag [cdkDragData]="task" (pointerdown)="onPointerDown($event)"  (cdkDragEnded)="onDragEnd()" (cdkDragStarted)="onDragStart()" >
+      <div [ngClass]="{'blocked-task': task.blocked}">
+      <h3 class="task-with-img">{{ task.name }}<img
+      src="assets/icons/details.svg"
+      alt="Description"
+      class="details-icon" /></h3>
+      </div>
+    </div>
+  </div>
+  <div class="column" cdkDropList #inProgress="cdkDropList" [cdkDropListConnectedTo]="['pending', 'completed']" [cdkDropListData]="inProgressTasks" (cdkDropListDropped)="onDrop($event)" id="cdk-drop-list-2">
+    <h2>In Progress</h2>
+    <div *ngFor="let task of inProgressTasks" class="task" (click)="openTask(task)" cdkDrag [cdkDragData]="task" (pointerdown)="$event.stopPropagation()" (cdkDragEnded)="onDragEnd()" (cdkDragStarted)="onDragStart()" >
+      <h3 [ngClass]="{ 'blocked-task': task.blocked }" class="task-with-img">{{ task.name }} <img
+      src="assets/icons/details.svg"
+      alt="Description"
+      class="details-icon" /></h3>
+    </div>
+  </div>
+  <div class="column" cdkDropList #completed="cdkDropList" [cdkDropListConnectedTo]="['pending', 'inProgress']" [cdkDropListData]="completedTasks" (cdkDropListDropped)="onDrop($event)" id="cdk-drop-list-3">
+    <h2>Completed</h2>
+    <div *ngFor="let task of completedTasks" class="task" (click)="openTask(task)" cdkDrag [cdkDragData]="task" (pointerdown)="$event.stopPropagation()" (cdkDragEnded)="onDragEnd()" (cdkDragStarted)="onDragStart()" >
+      <h3 class="task-with-img">{{ task.name }}<img
+      src="assets/icons/details.svg"
+      alt="Description"
+      class="details-icon" /></h3>
+    </div>
+  </div>
+</div>
+
+
+<div *ngIf="projectId && isManager()">
+  <app-graph-editor [projectId]="projectId"></app-graph-editor>
+</div>
+
+
+<div *ngIf="selectedTask" class="modal" (click)="closeTask()">
+  <div class="modal-content" (click)="$event.stopPropagation()">
+
+
+
+
+    <h2 class="title">{{ selectedTask.name }}</h2>
+    <p> <img
+      src="assets/icons/description.svg"
+      alt="Description"
+      class="description-icon" /> {{ selectedTask.description }}</p>
+    <p><strong>Status:</strong> {{ selectedTask.status }}</p>
+    <p><strong>Created At:</strong> {{ selectedTask.createdAt | date }}</p>
+    <p><strong>Updated At:</strong> {{ selectedTask.updatedAt | date }}</p>
+    <p><strong>Blocked:</strong> {{selectedTask.blocked}}</p>
+
+    <div class="user-management" >
+      <div *ngIf="isManager()">
+
+        <label for="userSearch">Search Users:</label>
+        <input id="userSearch" [(ngModel)]="searchTerm" (input)="filterUsers(selectedTask.id)" class="form-control" placeholder="Search by email" />
+
+
+        <h5 class="margin-top-small">Assign Members:</h5>
+      <div *ngIf="isManager()" class="filtered-users">
+        <div *ngFor="let user of filteredUsers[selectedTask.id]">
+          <button class="column-text" (click)="addUserToTask(selectedTask, user)">{{ user.email }}</button>
+        </div>
+      </div>
+
+      <h5 class="margin-top-small">Assigned Members:</h5>
+      <div *ngIf="isManager()">
+        <div class="button-container">
+
+        <div *ngFor="let member of taskMembers[selectedTask.id]">
+          <button class="column-text"  (click)="removeUserFromTask(selectedTask, member)">{{ member.email }} - Remove </button>
+        </div>
+        </div>
+      </div>
+      </div>
+
+
+
+
+
+
+    </div>
+
+
+    <h4 class="margin-top-small">Uploaded Files</h4>
+    <div *ngIf="taskDocumentDetails && taskDocumentDetails.length > 0; else noFiles">
+      <ul>
+        <li *ngFor="let doc of taskDocumentDetails">
+          <span>{{ doc.fileName }}</span>
+          <img
+            src="assets/icons/download2.png"
+            alt="Download"
+            class="download-icon"
+            (click)="downloadFile(doc)"
+          />
+        </li>
+      </ul>
+    </div>
+    <ng-template #noFiles>
+      <p>No files uploaded for this task.</p>
+    </ng-template>
+
+      <div *ngIf="isUserInTask">
+
+
+        <button *ngIf="!selectedFile" class="column-text-file" (click)="fileInput.click()">Add File</button>
+        <input type="file" #fileInput (change)="onFileSelected($event)" style="display: none;" />
+
+      </div>
+
+
+    <div *ngIf="selectedFile">
+      <p>Choosen file: {{ selectedFile.name }}</p>
+      <p>File size: {{ selectedFile.size }} bytes</p>
+      <button class="column-text-file" (click)="sendFile()">Send File</button>
+    </div>
+
+
+
+
+
+    <div *ngIf="isManager()">
+        <h5 class="margin-top-small">Add Dependency:</h5>
+        <div class="add-dependency">
+          <div class="button-container">
+
+          <div *ngFor="let task of getAvailableDependencies()">
+            <button class="dependency-name column-text" [disabled]="task.blocked"  (click)="addDependencyToTask(selectedTask.id, task.id)">{{ task.name }}</button>
+          </div>
+          </div>
+        </div>
+
+        <div *ngIf="selectedTask.dependencies.length != 0">
+        <h5 class="margin-top-small">Added Dependencies:</h5>
+        <div class="added-dependencies">
+          <div *ngFor="let depId of selectedTask.dependencies">
+            <span class="dependency-name">{{ getTaskNameById(depId) }}</span>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <button (click)="closeTask()">Close</button>
+    </div>
+  </div>
+
+
+<div class="modal" tabindex="-1" [class.show]="showAddMemberModal" [style.display]="showAddMemberModal ? 'block' : 'none'">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Assign Member to Project</h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeMemberAdditionModal()"></button>
+      </div>
+      <div class="modal-body">
+
+        <app-member-addition [projectId]="projectId ?? ''"></app-member-addition>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" (click)="closeMemberAdditionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal" tabindex="-1" [class.show]="showAddTaskModal" [style.display]="showAddTaskModal ? 'block' : 'none'">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add Task to Project</h5>
+        <button type="button" class="btn-close" aria-label="Close" (click)="closeTaskAdditionModal()"></button>
+      </div>
+      <div class="modal-body">
+
+        <app-add-task [projectId]="projectId ?? ''"></app-add-task>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-danger" (click)="closeTaskAdditionModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+
+</div>
+

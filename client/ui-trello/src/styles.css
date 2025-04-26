@@ -1,1 +1,87 @@
 /* You can add global styles to this file, and also import other style files */
+
+
+:root {
+  /*--primary-color: #046E8F;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #0090C1;*/
+  /*--tercial-color: #183446;*/
+
+
+  /*--primary-color: #4E4E55;*/
+  --primary-color: #F78E69;
+  --hover-background-color: white;
+  --shadow--white: #F5F5F5;
+  --secondary-color: #E9F1F7;
+  /*--secondary-color: #F2F4F3;*/
+  /*--tercial-color: #131B23;*/
+  --tercial-color: #28282B;
+
+
+  /*--primary-color: #5E503F;*/
+  /*--hover-background-color: #F2F4F3;*/
+  /*--secondary-color: #A9927D;*/
+  /*--tercial-color: #0A0908;*/
+
+  /*--primary-color: #826C7F;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #A88FAC;*/
+  /*--tercial-color: #5D4E60;*/
+
+
+  /*--primary-color: #372772;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #3A2449;*/
+  /*--tercial-color: #372772;*/
+
+
+  /*--primary-color: #136F63;*/
+  /*--hover-background-color: white;*/
+  /*--secondary-color: #22AAA1;*/
+  /*--tercial-color: #041B15;*/
+  --red-primary-color: #F15946;
+  --red-secondary-color: #ED6A5A;
+  --green-primary-color: #2db629;
+  /*--green-primary-color: #588157;*/
+
+}
+
+
+.toast-container {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1110;
+  text-align: center;
+}
+
+.toast-success {
+  background-color: var(--green-primary-color) !important;
+  color: var(--hover-background-color) !important;
+  padding: 20px;
+  border-radius: 5px;
+}
+
+.toast-error {
+  background-color: var(--red-primary-color) !important;
+  color: var(--hover-background-color) !important;
+  padding: 20px;
+  border-radius: 5px;
+
+}
+
+.toast-info {
+  background-color: var(--primary-color) !important;
+  color: var(--hover-background-color) !important;
+  padding: 20px;
+  border-radius: 5px;
+
+}
+
+.toast-warning {
+  background-color: #ff9800 !important;
+  color: var(--hover-background-color) !important;
+  border-radius: 5px;
+  padding: 20px;
+}

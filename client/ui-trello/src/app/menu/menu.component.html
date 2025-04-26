@@ -1,0 +1,58 @@
+<nav class="navbar navbar-expand-lg navbar-light bg-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#"><img class="logo" src="./../../assets/icons/BitByBitLogoWhite.png"/></a>
+
+
+
+    <div class="d-flex ms-auto">
+      <div *ngIf="isManager()">
+        <button class="btn btn-outline-light me-2" (click)="toggleForm()">
+           Add new project
+        </button>
+      </div>
+<!--      <div *ngIf="!isManager()">-->
+<!--        <button-->
+<!--          class="btn btn-outline-light me-2"-->
+<!--          (click)="notifications()"-->
+
+<!--        ></button>-->
+<!--      </div>-->
+      <button
+        class="btn btn-outline-light me-2"
+        (click)="navigateToChangePassword()"
+      >
+        Change Password
+      </button>
+      <div *ngIf="!isManager()">
+        <button
+          class="btn btn-outline-light me-2"
+          (click)="notifications()"
+
+        >
+          Notifications
+          <span *ngIf="unreadNotifications > 0" class="badge bg-danger ms-2">{{ unreadNotifications }}</span>
+        </button>
+      </div>
+      <button class="btn btn-outline-light me-2" (click)="logout()">
+        Logout
+      </button>
+      <button class="btn btn-outline-danger" (click)="cancel()">
+        Delete Account
+      </button>
+    </div>
+  </div>
+</nav>
+
+
+
+<div *ngIf="visible" class="q-box">
+  <p class="q-text">{{message}}</p>
+  <div class="d-flex ms-auto button-container">
+    <button class="btn btn-outline-light me-2" (click)="cancel()">
+      Cancel
+    </button>
+    <button class="btn btn-outline-danger" (click)="deleteAccount()">
+      Delete
+    </button>
+  </div>
+</div>

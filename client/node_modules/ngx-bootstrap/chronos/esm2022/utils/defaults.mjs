@@ -1,0 +1,11 @@
+// Pick the first defined of two or three arguments.
+export function defaults(a, b, c) {
+    if (a != null) {
+        return a;
+    }
+    if (b != null) {
+        return b;
+    }
+    return c;
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZGVmYXVsdHMuanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi8uLi8uLi9zcmMvY2hyb25vcy91dGlscy9kZWZhdWx0cy50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQSxvREFBb0Q7QUFDcEQsTUFBTSxVQUFVLFFBQVEsQ0FBSSxDQUFLLEVBQUUsQ0FBSyxFQUFFLENBQUs7SUFDN0MsSUFBSSxDQUFDLElBQUksSUFBSSxFQUFFLENBQUM7UUFDZCxPQUFPLENBQUMsQ0FBQztJQUNYLENBQUM7SUFDRCxJQUFJLENBQUMsSUFBSSxJQUFJLEVBQUUsQ0FBQztRQUNkLE9BQU8sQ0FBQyxDQUFDO0lBQ1gsQ0FBQztJQUVELE9BQU8sQ0FBQyxDQUFDO0FBQ1gsQ0FBQyIsInNvdXJjZXNDb250ZW50IjpbIi8vIFBpY2sgdGhlIGZpcnN0IGRlZmluZWQgb2YgdHdvIG9yIHRocmVlIGFyZ3VtZW50cy5cbmV4cG9ydCBmdW5jdGlvbiBkZWZhdWx0czxUPihhPzogVCwgYj86IFQsIGM/OiBUKTogVCB7XG4gIGlmIChhICE9IG51bGwpIHtcbiAgICByZXR1cm4gYTtcbiAgfVxuICBpZiAoYiAhPSBudWxsKSB7XG4gICAgcmV0dXJuIGI7XG4gIH1cblxuICByZXR1cm4gYztcbn1cbiJdfQ==

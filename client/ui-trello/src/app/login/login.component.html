@@ -1,0 +1,49 @@
+<div class="background"></div>
+
+<div class="centered">
+<form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+  <div>
+    <label for="email">Email:</label>
+    <input type="email" id="email" formControlName="email" />
+    <div *ngIf="loginForm.get('email')?.touched">
+      <p *ngIf="loginForm.get('email')?.errors?.['required']" class="text-danger">Email is required.</p>
+      <p *ngIf="loginForm.get('email')?.errors?.['email']" class="text-danger">Please enter a valid email.</p>
+    </div>
+  </div>
+
+  <div>
+    <label for="password">Password:</label>
+    <input [type]="showPassword ? 'text' : 'password'" id="password" formControlName="password" required />
+    <div *ngIf="loginForm.get('password')?.touched">
+      <p *ngIf="loginForm.get('password')?.errors?.['required']" class="text-danger">Password is required.</p>
+    </div>
+    <label>
+      <input type="checkbox" (change)="toggleShowPassword()" />
+      <small>Show Password</small>
+    </label>
+  </div>
+
+  <div class="re-captcha">
+    <re-captcha
+      siteKey="{{ siteKey }}"
+      (resolved)="onCaptchaResolved($event)"
+      [formControl]="recaptchaControl"
+    ></re-captcha>
+    <div *ngIf="recaptchaControl?.errors?.['required']">
+      <small class="text-danger">Captcha is required.</small>
+    </div>
+  </div>
+
+  <div>
+    <small style="text-align: center">If you don`t have an account, <a routerLink="/register">register</a></small>
+  </div>
+  <div>
+    <small style="text-align: center"><a routerLink="/recovery">Forgot password?</a></small>
+  </div>
+  <div>
+    <small style="text-align: center">Or maybe you want to log in with a <a routerLink="/magic">link 🪄</a></small>
+  </div>
+
+  <button class="btn" type="submit" [disabled]="!loginForm.valid || isSubmitting">Login</button>
+</form>
+</div>

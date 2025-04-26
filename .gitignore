@@ -1,0 +1,5 @@
+.env
+client/ui-trello/src/environments
+server/task-service/app.log
+server/project-service/app.log
+server/user-service/app.log
